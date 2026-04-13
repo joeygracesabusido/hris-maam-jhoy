@@ -3,6 +3,8 @@ import prisma from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import { getLeaveBalance } from '@/lib/leave-credits'
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const cookieStore = await cookies()
