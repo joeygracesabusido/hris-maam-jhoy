@@ -11,7 +11,32 @@ import { ArrowLeft } from 'lucide-react';
 
 export default function AssetDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const [asset, setAsset] = useState<any>(null);
+  const [asset, setAsset] = useState<{
+    id: string;
+    assetCode: string;
+    name: string;
+    purchaseCost: number;
+    residualValue: number;
+    usefulLife: number;
+    purchaseDate: string;
+    depreciationMethod: string;
+    category?: { name: string };
+    location: string;
+    brand?: string;
+    quantity?: number;
+    status: string;
+    assignedTo?: { fullName: string };
+    supplier?: string;
+    description?: string;
+    transactions: Array<{
+      id: string;
+      date: string;
+      type: string;
+      notes?: string;
+      cost?: number;
+    }>;
+    error?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -135,7 +160,7 @@ export default function AssetDetailsPage({ params }: { params: { id: string } })
                   <TableCell colSpan={4} className="text-center py-4 text-slate-500">No transactions found.</TableCell>
                 </TableRow>
               ) : (
-                asset.transactions.map((txn: any) => (
+                asset.transactions.map((txn) => (
                   <TableRow key={txn.id}>
                     <TableCell className="whitespace-nowrap">{new Date(txn.date).toLocaleString()}</TableCell>
                     <TableCell><Badge variant="outline">{txn.type}</Badge></TableCell>

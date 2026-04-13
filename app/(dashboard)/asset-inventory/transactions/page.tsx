@@ -6,7 +6,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 
 export default function AssetTransactionsPage() {
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<{
+    id: string;
+    date: string;
+    type: string;
+    notes?: string;
+    cost?: number;
+    asset?: {
+      assetCode: string;
+      name: string;
+    };
+  }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

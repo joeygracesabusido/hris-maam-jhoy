@@ -12,7 +12,20 @@ import { calculateDepreciation } from '@/lib/depreciation';
 
 export default function AssetListPage() {
   const router = useRouter();
-  const [assets, setAssets] = useState<any[]>([]);
+  const [assets, setAssets] = useState<{
+    id: string;
+    assetCode: string;
+    name: string;
+    purchaseCost: number;
+    residualValue: number;
+    usefulLife: number;
+    purchaseDate: string;
+    depreciationMethod: string;
+    category?: { name: string };
+    location: string;
+    quantity?: number;
+    status: string;
+  }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 

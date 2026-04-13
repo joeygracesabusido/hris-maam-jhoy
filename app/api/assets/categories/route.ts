@@ -29,10 +29,10 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(newCategory);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating AssetCategory:', error);
-    
-    if (error.code === 'P2002') {
+
+    if (error instanceof Error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json({ error: 'Category name already exists' }, { status: 400 });
     }
 

@@ -71,11 +71,11 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(asset);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating asset:', error);
-    if (error.code === 'P2002') {
+    if (error instanceof Error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json({ error: 'Asset Code already exists' }, { status: 400 });
     }
-    return NextResponse.json({ error: error.message || 'Failed to create asset' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to create asset' }, { status: 500 });
   }
 }

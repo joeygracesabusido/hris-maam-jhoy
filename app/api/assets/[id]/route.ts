@@ -30,7 +30,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   try {
     const data = await request.json();
     
-    const updateData: any = {
+    const updateData: Partial<Record<string, unknown>> = {
       name: data.name,
       description: data.description,
       categoryId: data.categoryId,

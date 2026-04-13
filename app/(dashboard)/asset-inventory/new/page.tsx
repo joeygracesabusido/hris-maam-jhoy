@@ -11,7 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 export default function AddAssetPage() {
   const router = useRouter();
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<{
+    id: string;
+    name: string;
+  }[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -106,7 +109,7 @@ export default function AddAssetPage() {
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((cat: any) => (
+                    {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                     ))}
                   </SelectContent>
