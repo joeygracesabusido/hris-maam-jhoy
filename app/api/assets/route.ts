@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     return NextResponse.json(asset);
   } catch (error) {
     console.error('Error creating asset:', error);
-    if (error instanceof Error && (error as { code: string }).code === 'P2002') {
+    if (error instanceof Error && (error as unknown as { code: string }).code === 'P2002') {
       return NextResponse.json({ error: 'Asset Code already exists' }, { status: 400 });
     }
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to create asset' }, { status: 500 });

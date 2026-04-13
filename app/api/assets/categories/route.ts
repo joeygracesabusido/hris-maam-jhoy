@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error creating AssetCategory:', error);
 
-    if (error instanceof Error && (error as { code: string }).code === 'P2002') {
+    if (error instanceof Error && (error as unknown as { code: string }).code === 'P2002') {
       return NextResponse.json({ error: 'Category name already exists' }, { status: 400 });
     }
 
