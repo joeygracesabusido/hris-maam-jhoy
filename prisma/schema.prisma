@@ -431,9 +431,149 @@ model Payroll {
   @@map("payrolls")
 }
 
-// ============================================================================
-// ASSET INVENTORY / FIXED ASSET MANAGEMENT
-// ============================================================================
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+model Account {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  code          String   @unique
+  name          String
+  type          AccountType
+  parentCode    String?
+  description   String?
+  isActive      Boolean  @default(true)
+  normalBalance String   @default("DEBIT") // DEBIT or CREDIT
+
+  lines         JournalLine[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("accounts")
+}
+
+model JournalEntry {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  date        DateTime @default(now())
+  description String
+  reference    String?
+  status       String   @default("POSTED") // DRAFT, POSTED, VOID
+
+  lines       JournalLine[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  entryId        String   @db.ObjectId
+  entry          JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  accountId      String   @db.ObjectId
+  account        Account  @relation(fields: [accountId], references: [id])
+
+  debit          Float    @default(0)
+  credit         Float    @default(0)
+
+  memo           String?
+
+  createdAt      DateTime @default(now())
+
+  @@map("journal_lines")
+}
+
+enum SalesInvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  PARTIALLY_PAID
+  VOID
+}
+
+model SalesInvoice {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceNumber String   @unique
+  date          DateTime @default(now())
+  dueDate       DateTime
+  customerId    String   @db.ObjectId
+  customerName   String
+  status        SalesInvoiceStatus @default(DRAFT)
+
+  items          SalesInvoiceItem[]
+
+  totalAmount    Float
+  amountPaid     Float    @default(0)
+
+  journalEntryId String?  @db.ObjectId
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("sales_invoices")
+}
+
+model SalesInvoiceItem {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceId      String   @db.ObjectId
+  invoice        SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  description   String
+  quantity       Float
+  unitPrice      Float
+  total          Float
+
+  @@map("sales_invoice_items")
+}
+
+enum PurchaseBillStatus {
+  DRAFT
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+model PurchaseBill {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  billNumber    String   @unique
+  date          DateTime @default(now())
+  dueDate       DateTime
+  supplierId    String   @db.ObjectId
+  supplierName   String
+  status        PurchaseBillStatus @default(UNPAID)
+
+  items          PurchaseBillItem[]
+
+  totalAmount    Float
+  amountPaid     Float    @default(0)
+
+  journalEntryId String?  @db.ObjectId
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("purchase_bills")
+}
+
+model PurchaseBillItem {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  billId         String   @db.ObjectId
+  bill           PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  description   String
+  quantity       Float
+  unitPrice      Float
+  total          Float
+
+  @@map("purchase_bill_items")
+}
 
 enum AssetStatus {
   ACTIVE

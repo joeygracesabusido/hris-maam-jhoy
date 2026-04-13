@@ -33,6 +33,19 @@ const navItems = [
     ],
   },
   {
+    href: '/accounting',
+    label: 'Accounting',
+    icon: Wallet,
+    subItems: [
+      { href: '/accounting', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/accounting/coa', label: 'Chart of Accounts', icon: FileText },
+      { href: '/accounting/journal', label: 'Journal Entries', icon: Timer },
+      { href: '/accounting/sales', label: 'Sales (AR)', icon: DollarSign },
+      { href: '/accounting/purchases', label: 'Purchases (AP)', icon: Package },
+      { href: '/accounting/reports', label: 'Financial Reports', icon: Printer },
+    ],
+  },
+  {
     href: '/asset-inventory',
     label: 'Asset Inventory',
     icon: Package,
@@ -72,10 +85,12 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hrisOpen, setHrisOpen] = useState(false);
+  const [accountingOpen, setAccountingOpen] = useState(false);
   const [payrollOpen, setPayrollOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [assetInventoryOpen, setAssetInventoryOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+
   const [userRole, setUserRole] = useState('');
 
   useEffect(() => {
@@ -153,6 +168,10 @@ export default function DashboardLayout({
                 isActive = isHrisActive;
                 open = hrisOpen;
                 setOpen = setHrisOpen;
+              } else if (item.href === '/accounting') {
+                isActive = pathname.startsWith('/accounting');
+                open = accountingOpen;
+                setOpen = setAccountingOpen;
               } else if (item.href === '/payroll') {
                 isActive = isPayrollActive;
                 open = payrollOpen;
