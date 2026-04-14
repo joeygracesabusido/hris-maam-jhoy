@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
@@ -8,7 +9,7 @@ export async function GET() {
       orderBy: { code: 'asc' },
     });
 
-    const report = {
+    const report: any = {
       revenue: [],
       expenses: [],
       netIncome: 0,
@@ -26,8 +27,8 @@ export async function GET() {
       }
     });
 
-    const totalRevenue = report.revenue.reduce((sum, acc) => sum + acc.balance, 0);
-    const totalExpenses = report.expenses.reduce((sum, acc) => sum + acc.balance, 0);
+    const totalRevenue = report.revenue.reduce((sum: any, acc: any) => sum + acc.balance, 0);
+    const totalExpenses = report.expenses.reduce((sum: any, acc: any) => sum + acc.balance, 0);
     report.netIncome = totalRevenue - totalExpenses;
 
     return NextResponse.json(report);
