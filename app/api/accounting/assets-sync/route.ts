@@ -16,8 +16,10 @@ export async function POST(request: Request) {
     const assetAcc = await prisma.account.findFirst({ where: { name: { contains: 'Fixed Assets' }, type: 'ASSET' } });
     const expenseAcc = await prisma.account.findFirst({ where: { name: { contains: 'Depreciation' }, type: 'EXPENSE' } });
     const accumDepAcc = await prisma.account.findFirst({ where: { name: { contains: 'Accumulated Depreciation' }, type: 'ASSET' } });
+    const cashAcc = await prisma.account.findFirst({ where: { name: { contains: 'Cash' }, type: 'ASSET' } });
 
-    if (!assetAcc || !expenseAcc || !accumDepAcc) {
+
+    if (!assetAcc || !expenseAcc || !accumDepAcc || !cashAcc) {
       return NextResponse.json({ error: 'Required accounting accounts not found' }, { status: 400 });
     }
 
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
             lines: {
               create: [
                 { accountId: assetAcc.id, debit: amount, credit: 0, memo: 'Increase Asset Value' },
-                { accountId: cashAccId, debit: 0, credit: amount, memo: 'Cash Payment' }, // Simplified for example
+                { accountId: cashAcc.id, debit: 0, credit: amount, memo: 'Cash Payment' }, // Simplified for example
               ]
             }
           }
