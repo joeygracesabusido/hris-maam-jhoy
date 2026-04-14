@@ -19,8 +19,8 @@ interface JournalLine {
 }
 
 export default function JournalPage() {
-  const [entries, setEntries] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [accounts, setAccounts] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [entries, setEntries] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -285,7 +285,7 @@ export default function JournalPage() {
                 </TableRow>
               ) : (
                 filteredEntries.map(entry => {
-                  const total = entry.lines.reduce((sum: number, l: any) => sum + l.debit, 0); // eslint-disable-line @typescript-eslint/no-explicit-any
+                  const total = entry.lines.reduce((sum: number, l: any) => sum + l.debit, 0);
                   return (
                     <TableRow key={entry.id}>
                       <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
