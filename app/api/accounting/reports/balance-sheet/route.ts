@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
@@ -8,7 +9,7 @@ export async function GET() {
       orderBy: { code: 'asc' },
     });
 
-    const report = {
+    const report: any = {
       assets: [],
       liabilities: [],
       equity: [],
