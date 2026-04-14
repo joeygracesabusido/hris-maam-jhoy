@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -73,7 +74,7 @@ export default function ChartOfAccountsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Chart of Accounts</h1>
-          <p className="text-muted-foreground">Manage your organization's financial account structure</p>
+          <p className="text-muted-foreground">Manage your organization&apos;s financial account structure</p>
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

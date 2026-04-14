@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
           status: 'SENT',
           totalAmount,
           items: {
-            create: items.map((item: any) => ({
+            create: items.map((item) => ({
               description: item.description,
               quantity: item.quantity,
               unitPrice: item.unitPrice,

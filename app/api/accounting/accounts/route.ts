@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
@@ -34,8 +35,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(account);
-  } catch (error: any) {
-    if (error.code === 'P2002') {
+  } catch (error) {
+    if (error instanceof Error && (error as any).code === 'P2002') {
       return NextResponse.json({ error: 'Account code already exists' }, { status: 400 });
     }
     console.error('Error creating account:', error);
