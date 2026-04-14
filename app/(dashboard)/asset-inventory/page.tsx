@@ -26,6 +26,7 @@ export default function AssetListPage() {
     location: string;
     quantity?: number;
     status: string;
+    supplier?: string;
   }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
