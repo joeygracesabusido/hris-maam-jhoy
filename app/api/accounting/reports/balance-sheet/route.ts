@@ -37,9 +37,9 @@ export async function GET() {
       }
     });
 
-    report.totalAssets = report.assets.reduce((sum, acc) => sum + acc.balance, 0);
-    const totalLiabilities = report.liabilities.reduce((sum, acc) => sum + acc.balance, 0);
-    const totalEquity = report.equity.reduce((sum, acc) => sum + acc.balance, 0);
+    report.totalAssets = report.assets.reduce((sum: any, acc: any) => sum + acc.balance, 0);
+    const totalLiabilities = report.liabilities.reduce((sum: any, acc: any) => sum + acc.balance, 0);
+    const totalEquity = report.equity.reduce((sum: any, acc: any) => sum + acc.balance, 0);
     report.totalLiabilitiesEquity = totalLiabilities + totalEquity;
 
     return NextResponse.json(report);
