@@ -41,6 +41,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       residualValue: data.residualValue ? parseFloat(data.residualValue) : undefined,
       depreciationMethod: data.depreciationMethod,
       location: data.location,
+      quantity: data.quantity ? parseInt(data.quantity) : undefined,
       assignedToId: data.assignedToId || null,
       status: data.status as AssetStatus,
     };
