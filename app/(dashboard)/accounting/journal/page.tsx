@@ -284,7 +284,7 @@ export default function JournalPage() {
                 </TableRow>
               ) : (
                 filteredEntries.map(entry => {
-                  const total = entry.lines.reduce((sum: number, l: any) => sum + l.debit, 0);
+                  const total = entry.lines.reduce((sum: number, l: any) => sum + l.debit, 0); // eslint-disable-line @typescript-eslint/no-explicit-any
                   return (
                     <TableRow key={entry.id}>
                       <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>

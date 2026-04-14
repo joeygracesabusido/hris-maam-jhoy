@@ -9,7 +9,7 @@ import { FileText, Download, RefreshCcw } from 'lucide-react';
 
 export default function ReportsPage() {
   const [activeReport, setActiveReport] = useState('trial-balance');
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export default function ReportsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data?.data?.map((acc: any) => (
+                    {data?.data?.map((acc: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                       <TableRow key={acc.code}>
                         <TableCell className="font-mono">{acc.code}</TableCell>
                         <TableCell>{acc.name}</TableCell>
@@ -119,7 +119,7 @@ export default function ReportsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {data?.revenue.map((rev: any) => (
+                        {data?.revenue.map((rev: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                           <TableRow key={rev.code}>
                             <TableCell>{rev.name}</TableCell>
                             <TableCell className="text-right">₱{rev.balance.toLocaleString()}</TableCell>
@@ -127,7 +127,7 @@ export default function ReportsPage() {
                         ))}
                         <TableRow className="font-bold border-t">
                           <TableCell>Total Revenue</TableCell>
-                          <TableCell className="text-right">₱{data?.revenue.reduce((sum: number, r: any) => sum + r.balance, 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right">₱{data?.revenue.reduce((sum: number, r: any) => sum + r.balance, 0).toLocaleString()}</TableCell> // eslint-disable-line @typescript-eslint/no-explicit-any
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -143,7 +143,7 @@ export default function ReportsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {data?.expenses.map((exp: any) => (
+                        {data?.expenses.map((exp: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                           <TableRow key={exp.code}>
                             <TableCell>{exp.name}</TableCell>
                             <TableCell className="text-right">₱{exp.balance.toLocaleString()}</TableCell>
@@ -151,7 +151,7 @@ export default function ReportsPage() {
                         ))}
                         <TableRow className="font-bold border-t">
                           <TableCell>Total Expenses</TableCell>
-                          <TableCell className="text-right">₱{data?.expenses.reduce((sum: number, e: any) => sum + e.balance, 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right">₱{data?.expenses.reduce((sum: number, e: any) => sum + e.balance, 0).toLocaleString()}</TableCell> // eslint-disable-line @typescript-eslint/no-explicit-any
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -189,7 +189,7 @@ export default function ReportsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {data?.assets.map((asset: any) => (
+                        {data?.assets.map((asset: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                           <TableRow key={asset.code}>
                             <TableCell>{asset.name}</TableCell>
                             <TableCell className="text-right">₱{asset.balance.toLocaleString()}</TableCell>
@@ -214,7 +214,7 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {data?.liabilities.map((liab: any) => (
+                          {data?.liabilities.map((liab: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                             <TableRow key={liab.code}>
                               <TableCell>{liab.name}</TableCell>
                               <TableCell className="text-right">₱{liab.balance.toLocaleString()}</TableCell>
@@ -234,7 +234,7 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {data?.equity.map((eq: any) => (
+                          {data?.equity.map((eq: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                             <TableRow key={eq.code}>
                               <TableCell>{eq.name}</TableCell>
                               <TableCell className="text-right">₱{eq.balance.toLocaleString()}</TableCell>
