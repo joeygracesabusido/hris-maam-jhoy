@@ -230,7 +230,7 @@ export default function ReportsPage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Account</TableHead>
-                            <TableH>Balance</TableHead>
+                            <TableHead className="text-right">Balance</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>

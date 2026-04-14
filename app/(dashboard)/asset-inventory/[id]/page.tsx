@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { calculateDepreciation } from '@/lib/depreciation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Pencil } from 'lucide-react';
 
 export default function AssetDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -68,6 +68,10 @@ export default function AssetDetailsPage({ params }: { params: { id: string } })
           </Button>
           <h1 className="text-3xl font-bold">{asset.name}</h1>
           <Badge className="text-sm bg-blue-100 text-blue-800">{asset.assetCode}</Badge>
+          <Button variant="outline" size="sm" className="ml-4" onClick={() => router.push(`/asset-inventory/${params.id}/edit`)}>
+            <Pencil className="w-4 h-4 mr-2" />
+            Edit Asset
+          </Button>
         </div>
       </div>
 

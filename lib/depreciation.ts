@@ -99,5 +99,6 @@ export function calculateDepreciation({
   return {
     accumulatedDepreciation: Number(accumulatedDepreciation.toFixed(2)),
     netBookValue: Number(netBookValue.toFixed(2)),
+    monthsElapsed: Math.max(0, differenceInMonths(asOfDate, purchaseDate)),
   };
 }

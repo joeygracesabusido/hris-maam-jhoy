@@ -100,7 +100,7 @@ export default function PurchasesPage() {
 
   const filteredBills = bills.filter(bill =>
     bill.supplierName.toLowerCase().includes(search.toLowerCase()) ||
-    bill.billNumber.toLowerCase().includes(search).toLowerCase()
+    bill.billNumber.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -151,7 +151,7 @@ export default function PurchasesPage() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label>AP Account (Credit)</Tlabel>
+                  <Label>AP Account (Credit)</Label>
                   <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={formData.apAccountId} onChange={e => setFormData({...formData, apAccountId: e.target.value})} required>
                     <option value="">Select AP Account...</option>
@@ -168,7 +168,7 @@ export default function PurchasesPage() {
                   <TableHeader className="bg-muted/50">
                     <TableRow>
                       <TableHead>Description</TableHead>
-                      <TableHead className="w-24">Qty</TableH>
+                      <TableHead className="w-24">Qty</TableHead>
                       <TableHead className="w-32">Price</TableHead>
                       <TableHead className="w-32">Total</TableHead>
                       <TableHead className="w-10"></TableHead>
@@ -196,7 +196,7 @@ export default function PurchasesPage() {
         <CardHeader className="flex flex-row items-center justify-between pb-4">
           <CardTitle>Bill History</CardTitle>
           <div className="relative w-72">
-            <Search className="absolute laft-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search suppliers or bills..." className="pl-8" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
         </CardHeader>
@@ -206,7 +206,7 @@ export default function PurchasesPage() {
               <TableRow>
                 <TableHead>Bill #</TableHead>
                 <TableHead>Supplier</TableHead>
-                <TableHead>Date</TTableHead>
+                <TableHead>Date</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
