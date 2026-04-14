@@ -103,7 +103,7 @@ export default function AccountingDashboard() {
   );
 }
 
-function StatCard({ title, value, icon: Icon, color }: { title: string; value: number; icon: any; color: string }) {
+function StatCard({ title, value, icon: Icon, color }: { title: string; value: number; icon: React.ElementType; color: string }) {
   return (
     <Card>
 

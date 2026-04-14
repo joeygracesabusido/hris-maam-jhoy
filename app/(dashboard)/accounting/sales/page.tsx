@@ -10,8 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Plus, Search, FileText, Trash2 } from 'lucide-react';
 
 export default function SalesPage() {
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [accounts, setAccounts] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-explicit-any
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -54,7 +54,7 @@ export default function SalesPage() {
     });
   };
 
-  const updateItem = (index: number, field: string, value: any) => {
+  const updateItem = (index: number, field: string, value: unknown) => {
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
 

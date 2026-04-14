@@ -10,8 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Plus, Search, Trash2 } from 'lucide-react';
 
 export default function PurchasesPage() {
-  const [bills, setBills] = useState<any[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const [bills, setBills] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [accounts, setAccounts] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-explicit-any
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState('');
