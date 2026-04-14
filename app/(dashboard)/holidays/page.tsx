@@ -244,7 +244,7 @@ export default function HolidaysPage() {
                     id="name"
                     value={newHoliday.name}
                     onChange={(e) => setNewHoliday(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g., New Year's Day"
+                    placeholder="e.g., New Year&apos;s Day"
                   />
                 </div>
                 <div className="space-y-2">
