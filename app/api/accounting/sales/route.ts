@@ -25,7 +25,7 @@ export async function POST(request: Request) {
           status: 'SENT',
           totalAmount,
           items: {
-            create: items.map((item) => ({
+            create: items.map((item: any) => ({
               description: item.description,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
