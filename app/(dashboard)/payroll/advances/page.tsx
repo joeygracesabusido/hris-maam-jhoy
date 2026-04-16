@@ -71,7 +71,7 @@ export default function AdvancesPage() {
     try {
       const res = await fetch('/api/advances', { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch advances');
-      const data = await res.json();
+      const data: Advance[] = await res.json();
       setAdvances(data);
     } catch (err) {
       console.error(err);
@@ -84,7 +84,7 @@ export default function AdvancesPage() {
     try {
       const res = await fetch('/api/employees', { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch employees');
-      const data = await res.json();
+      const data: Employee[] = await res.json();
       setEmployees(data);
     } catch (err) {
       console.error(err);
@@ -108,7 +108,7 @@ export default function AdvancesPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().then(d => d as { error?: string; details?: string });
         throw new Error(data.details ? `${data.error}: ${data.details}` : (data.error || 'Failed to create advance'));
       }
 
@@ -161,7 +161,7 @@ export default function AdvancesPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().then(d => d as { error?: string });
         throw new Error(data.error || 'Failed to update advance');
       }
 
@@ -178,7 +178,7 @@ export default function AdvancesPage() {
     try {
       const res = await fetch(`/api/advances?id=${id}`);
       if (!res.ok) throw new Error('Failed to fetch details');
-      const data = await res.json();
+      const data: Advance = await res.json();
       setSelectedAdvance(data);
       setShowDetails(true);
     } catch (err) {

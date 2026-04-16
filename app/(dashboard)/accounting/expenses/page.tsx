@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Plus, Search, Filter, Trash2, Save, X,
+  Plus, Search, Filter, Trash2, Save,
   ArrowUpRight, Calendar as CalendarIcon,
-  User, FileText, DollarSign, Wallet
+  User, FileText
 } from 'lucide-react';
 import {
   Table, TableHeader, TableRow, TableHead, TableBody, TableCell
@@ -46,7 +46,7 @@ export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
-  const [vendors, setVendors] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<{ id: string; entityName: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
