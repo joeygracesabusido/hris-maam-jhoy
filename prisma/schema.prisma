@@ -439,21 +439,88 @@ enum AccountType {
   EXPENSE
 }
 
-model Account {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  code          String   @unique
-  name          String
-  type          AccountType
-  parentCode    String?
-  description   String?
-  isActive      Boolean  @default(true)
-  normalBalance String   @default("DEBIT") // DEBIT or CREDIT
+enum SubsidiaryType {
+  CUSTOMER       // For Accounts Receivable
+  SUPPLIER       // For Accounts Payable
+  INVENTORY_ITEM // For Inventory
+  ASSET          // For Fixed Assets
+  EMPLOYEE       // For Employee Receivables/Payables
+}
 
-  lines         JournalLine[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+model Account {
+  id                    String         @id @default(auto()) @map("_id") @db.ObjectId
+  code                  String         @unique
+  name                  String
+  type                  AccountType
+  parentCode            String?
+  description           String?
+  isActive              Boolean        @default(true)
+  normalBalance         String         @default("DEBIT") // DEBIT or CREDIT
+  hasSubsidiaryLedger   Boolean        @default(false)   // True if this is a control account
+  subsidiaryType        SubsidiaryType?
+
+  lines                 JournalLine[]
+  subsidiaryLedgers     SubsidiaryLedger[]
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
   @@map("accounts")
+}
+
+/// Subsidiary Ledger - Detailed records supporting General Ledger control accounts
+/// Example: AR Control (1200) = Sum of all Customer subsidiary ledgers
+model SubsidiaryLedger {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  accountId       String          @db.ObjectId
+  account         Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  // The subsidiary entity (customer, supplier, inventory item, etc.)
+  entityCode      String          // e.g., CUST-001, SUP-001, INV-001
+  entityName      String          // e.g., "ABC Corporation", "XYZ Supplier"
+  entityType      SubsidiaryType  // Links to account.subsidiaryType
+  
+  // Running balance
+  debitTotal      Float           @default(0)
+  creditTotal     Float           @default(0)
+  balance         Float           @default(0) // Calculated: debitTotal - creditTotal
+  
+  // Metadata
+  description     String?
+  isActive        Boolean         @default(true)
+  
+  // Transactions link to this subsidiary
+  transactions    SubsidiaryTransaction[]
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  @@unique([accountId, entityCode])
+  @@index([accountId])
+  @@index([entityType])
+  @@map("subsidiary_ledgers")
+}
+
+/// Detailed transactions in subsidiary ledger
+model SubsidiaryTransaction {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  ledgerId        String          @db.ObjectId
+  ledger          SubsidiaryLedger @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  
+  date            DateTime        @default(now())
+  referenceNo     String          // e.g., INV-2024-001, PO-2024-001
+  description     String
+  
+  debit           Float           @default(0)
+  credit          Float           @default(0)
+  
+  // Link to journal entry for reconciliation
+  journalEntryId  String?         @db.ObjectId
+  
+  createdAt       DateTime        @default(now())
+  
+  @@index([ledgerId])
+  @@index([date])
+  @@map("subsidiary_transactions")
 }
 
 model JournalEntry {
@@ -487,6 +554,47 @@ model JournalLine {
   createdAt      DateTime @default(now())
 
   @@map("journal_lines")
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  PAID
+  VOID
+}
+
+model Expense {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  expenseNumber   String        @unique // Format: EXP-YYYY-XXXX
+  date            DateTime      @default(now())
+  payee            String
+  description     String?
+  status          ExpenseStatus @default(PENDING)
+
+  items           ExpenseItem[]
+  totalAmount     Float
+
+  // Double-Entry Link
+  journalEntryId  String?       @db.ObjectId
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("expenses")
+}
+
+model ExpenseItem {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  expenseId   String   @db.ObjectId
+  expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  description String
+  amount      Float
+
+  // Link to specific COA account for this item
+  accountId   String   @db.ObjectId
+
+  @@map("expense_items")
 }
 
 enum SalesInvoiceStatus {

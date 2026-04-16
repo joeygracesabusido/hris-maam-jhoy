@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer, Package } from 'lucide-react';
+import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer, Package, Database, CheckCircle2, Building } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -39,7 +39,12 @@ const navItems = [
     subItems: [
       { href: '/accounting', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/accounting/coa', label: 'Chart of Accounts', icon: FileText },
+      { href: '/accounting/customers', label: 'Customers', icon: Users },
+      { href: '/accounting/vendors', label: 'Vendors', icon: Building },
+      { href: '/accounting/subsidiary-ledgers', label: 'Subsidiary Ledgers', icon: Database },
+      { href: '/accounting/reconciliation', label: 'Reconciliation', icon: CheckCircle2 },
       { href: '/accounting/journal', label: 'Journal Entries', icon: Timer },
+      { href: '/accounting/expenses', label: 'Expenses', icon: DollarSign },
       { href: '/accounting/sales', label: 'Sales (AR)', icon: DollarSign },
       { href: '/accounting/purchases', label: 'Purchases (AP)', icon: Package },
       { href: '/accounting/reports', label: 'Financial Reports', icon: Printer },

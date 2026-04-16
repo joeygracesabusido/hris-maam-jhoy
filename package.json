@@ -14,6 +14,7 @@
     "db:push": "prisma db push",
     "leave-accrual": "npx ts-node scripts/run-leave-accrual.ts",
     "link-users": "tsx scripts/link-users-to-employees.ts",
+    "db:seed:coa": "tsx scripts/seed-coa.ts",
     "pages:build": "npx @cloudflare/next-on-pages"
   },
   "dependencies": {
@@ -45,6 +46,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.49.3",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7",
     "xlsx": "^0.18.5",

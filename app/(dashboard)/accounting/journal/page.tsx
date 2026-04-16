@@ -23,6 +23,8 @@ export default function JournalPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [viewEntry, setViewEntry] = useState<any>(null);
   const [search, setSearch] = useState('');
 
   const [formData, setFormData] = useState({
@@ -248,6 +250,63 @@ export default function JournalPage() {
         </Dialog>
       </div>
 
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>View Journal Entry</DialogTitle>
+          </DialogHeader>
+          {viewEntry && (
+            <div className="space-y-6 pt-4">
+              <div className="grid grid-cols-3 gap-4 bg-muted/50 p-4 rounded-lg">
+                <div>
+                  <p className="text-sm text-muted-foreground">Date</p>
+                  <p className="font-medium">{new Date(viewEntry.date).toLocaleDateString()}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-muted-foreground">Description</p>
+                  <p className="font-medium">{viewEntry.description}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Reference #</p>
+                  <p className="font-medium">{viewEntry.reference || 'N/A'}</p>
+                </div>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead>Account</TableHead>
+                      <TableHead>Memo</TableHead>
+                      <TableHead className="text-right">Debit</TableHead>
+                      <TableHead className="text-right">Credit</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {viewEntry.lines.map((line: any, idx: number) => (
+                      <TableRow key={idx}>
+                        <TableCell className="font-medium">{line.account?.name || 'Unknown Account'} {line.account?.code ? `(${line.account.code})` : ''}</TableCell>
+                        <TableCell>{line.memo || '-'}</TableCell>
+                        <TableCell className="text-right">{line.debit > 0 ? `₱${line.debit.toLocaleString()}` : '-'}</TableCell>
+                        <TableCell className="text-right">{line.credit > 0 ? `₱${line.credit.toLocaleString()}` : '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex justify-end gap-12 px-4 py-2 bg-muted/20 rounded-md font-semibold">
+                <span>Total:</span>
+                <span className="w-24 text-right">₱{viewEntry.lines.reduce((sum: number, l: any) => sum + l.debit, 0).toLocaleString()}</span>
+                <span className="w-24 text-right">₱{viewEntry.lines.reduce((sum: number, l: any) => sum + l.credit, 0).toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setIsViewDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle>Journal History</CardTitle>
@@ -293,7 +352,15 @@ export default function JournalPage() {
                       <TableCell>{entry.description}</TableCell>
                       <TableCell className="text-right font-medium">₱{total.toLocaleString()}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="flex items-center gap-2"
+                          onClick={() => {
+                            setViewEntry(entry);
+                            setIsViewDialogOpen(true);
+                          }}
+                        >
                           <FileText className="w-4 h-4" /> View
                         </Button>
                       </TableCell>

@@ -383,9 +383,9 @@ export default function AdvancesPage() {
                           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xs font-bold">
                             {emp.fullName[0]}
                           </div>
-                          <div>
+                          <div className="flex flex-col">
                             <p className="text-sm font-medium">{emp.fullName}</p>
-                            <p className="text-xs text-gray-500">{emp.employeeId}</p>
+                            <p className="text-xs text-gray-400">{emp.employeeId}</p>
                           </div>
                         </button>
                       ))
