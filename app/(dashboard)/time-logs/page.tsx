@@ -1368,7 +1368,7 @@ export default function TimeLogsPage() {
          </div>
        )}
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md bg-black border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
           <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/10 via-transparent to-red-500/10 pointer-events-none rounded-[inherit]" />
           <DialogHeader className="relative">
@@ -1400,7 +1400,37 @@ export default function TimeLogsPage() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+       </Dialog>
+
+       {/* Face Verification Modal */}
+       {showFaceModal && (
+         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+             <div className="p-6 border-b flex justify-between items-center">
+               <div className="flex items-center gap-2">
+                 <div className="p-2 bg-blue-50 rounded-lg text-blue-600"><User className="w-5 h-5" /></div>
+                 <div>
+                   <h2 className="text-xl font-bold text-gray-900">Face Verification</h2>
+                   <p className="text-xs text-gray-500">Please verify your identity to continue</p>
+                 </div>
+               </div>
+               <button 
+                 onClick={() => { setShowFaceModal(false); setIsVerifying(false); }} 
+                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+               >
+                 <X className="w-5 h-5" />
+               </button>
+             </div>
+             <div className="p-6 space-y-4">
+               <FaceCapture 
+                 mode="verify" 
+                 storedDescriptor={storedDescriptor} 
+                 onVerify={handleVerifyFace} 
+               />
+             </div>
+           </div>
+         </div>
+       )}
+     </div>
+   );
+ }

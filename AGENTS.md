@@ -286,6 +286,55 @@ const data = await res.json()
 const data = await res.json() as YourInterface[]
 ```
 
+### Face Recognition Verification Fix (2026-04-17)
+
+**Issue Fixed:** Face verification modal not appearing when clicking "Clock In" in `/time-logs`, causing "Session expired" error and body scroll lock issues
+
+**Root Causes:**
+1. **Authentication mismatch** - Face descriptor API used NextAuth (`getServerSession`) instead of cookie-based auth (`isLoggedIn` cookie)
+2. **Missing modal JSX** - Face verification modal was not rendered in the time-logs page despite state and imports existing
+3. **Poor error messages** - Generic "Employee has not enrolled their face" error without debugging information
+
+**Files Updated:**
+- `app/(dashboard)/time-logs/page.tsx:413-450` - Enhanced `initiateVerification()` with detailed logging, empty array checks, and specific error messages
+- `app/(dashboard)/time-logs/page.tsx:1404-1430` - Added missing face verification modal JSX with `FaceCapture` component
+- `app/api/employees/[id]/face-descriptor/route.ts` - Changed from NextAuth to cookie-based auth, added empty array check and detailed logging
+
+**Changes Made:**
+```typescript
+// Before: NextAuth session check (caused 401 "Session expired")
+const session = await getServerSession(authOptions);
+if (!session) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// After: Cookie-based auth (matches app pattern)
+const cookieStore = await cookies();
+const isLoggedIn = cookieStore.get('isLoggedIn')?.value;
+if (isLoggedIn !== 'true') {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+```
+
+**Frontend Improvements:**
+- Added console logging for debugging employee ID and API responses
+- Checks for empty face descriptor arrays (`faceDescriptor.length === 0`)
+- Specific error messages for 404 (not enrolled) vs 401 (session expired)
+- Added face verification modal with proper close handlers
+
+**How Face Verification Works:**
+1. User clicks "Clock In" → `initiateVerification()` fetches descriptor from `/api/employees/[id]/face-descriptor`
+2. If descriptor exists → Opens modal with `FaceCapture` component in verify mode
+3. Face captured → Compares against stored descriptor using Euclidean distance
+4. If distance < 0.6 → Auto-clocks in and closes modal
+5. If distance ≥ 0.6 → Shows error "Identity verification failed" with retry option
+
+**Debugging Steps:**
+1. Open browser console (F12) → Look for `[Face Verification]` logs
+2. Check backend logs for `[Face Descriptor API]` logs
+3. Verify employee has face descriptor in database via Prisma Studio (`/api/employees/[id]/face-descriptor` returns 200)
+4. If 404 returned → Enroll face via `/employees` page (Edit → "Enroll Face" button)
+
 ### Customer & Vendor Management (2024-04-16)
 
 **New Features:**
