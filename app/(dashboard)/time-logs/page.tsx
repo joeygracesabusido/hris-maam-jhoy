@@ -81,6 +81,8 @@ export default function TimeLogsPage() {
   const [xclsImporting, setXclsImporting] = useState(false);
   const [xclsImportResult, setXclsImportResult] = useState<{ success: number; absent: number; failed: number; errors: string[] } | null>(null);
   const xclsFileInputRef = useRef<HTMLInputElement>(null);
+  const [showFaceModal, setShowFaceModal] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   useEffect(() => {
     const getCookies = () => {
@@ -428,6 +430,7 @@ export default function TimeLogsPage() {
   };
 
   const downloadTemplate = async () => {
+    try {
       const res = await fetch('/api/employees');
       const employees: Employee[] = await res.json();
       
