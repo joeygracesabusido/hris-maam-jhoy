@@ -226,6 +226,43 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### Accounting Pages TypeScript & ESLint Fixes (2026-04-17)
+
+**Issues Fixed:**
+- ESLint error `react/no-unescaped-entities` in subsidiary-ledgers page
+- TypeScript error `Property 'type' does not exist on type 'Account'` in expenses page
+
+**Files Updated:**
+- `app/(dashboard)/accounting/subsidiary-ledgers/page.tsx:290` - Escaped single quotes using HTML entity `&apos;`
+- `app/(dashboard)/accounting/expenses/page.tsx:39` - Added `type: string` property to `Account` interface
+
+**Changes Made:**
+```typescript
+// Before:
+interface Account {
+  id: string;
+  code: string;
+  name: string;
+}
+
+// After:
+interface Account {
+  id: string;
+  code: string;
+  name: string;
+  type: string;  // Added for filtering by account type (ASSET, EXPENSE, etc.)
+}
+```
+
+**ESLint Fix Pattern:**
+```jsx
+// Instead of:
+<span>Click 'Add' to create</span>
+
+// Use:
+<span>Click &apos;Add&apos; to create</span>
+```
+
 ### TypeScript Strict Type Fixes (2026-04-17)
 
 **Issue Fixed:** Vercel deployment error - "Unexpected any" violations in strict TypeScript mode

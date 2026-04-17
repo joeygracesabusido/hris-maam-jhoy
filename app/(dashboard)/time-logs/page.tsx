@@ -411,19 +411,39 @@ export default function TimeLogsPage() {
   };
 
   const initiateVerification = async () => {
-    if (!employeeId) return;
+    if (!employeeId) {
+      alert('No employee selected');
+      return;
+    }
 
     setIsVerifying(true);
     try {
+      console.log('[Face Verification] Fetching descriptor for employeeId:', employeeId);
       const res = await fetch(`/api/employees/${employeeId}/face-descriptor`);
+      const errorData = await res.json().catch(() => ({}));
+      
+      console.log('[Face Verification] Response status:', res.status, errorData);
+      
       if (!res.ok) {
-        throw new Error('Employee has not enrolled their face.');
+        if (res.status === 404) {
+          throw new Error('Employee has not enrolled their face. Please contact HR to complete face enrollment.');
+        } else if (res.status === 401) {
+          throw new Error('Session expired. Please login again.');
+        }
+        throw new Error(errorData.error || 'Failed to load face data');
       }
+      
       const data = await res.json() as { faceDescriptor: number[] };
+      
+      if (!data.faceDescriptor || data.faceDescriptor.length === 0) {
+        throw new Error('Employee has not enrolled their face. Please contact HR to complete face enrollment.');
+      }
 
+      console.log('[Face Verification] Descriptor loaded, length:', data.faceDescriptor.length);
       setStoredDescriptor(data.faceDescriptor);
       setShowFaceModal(true);
     } catch (err: unknown) {
+      console.error('[Face Verification] Error:', err);
       const error = err instanceof Error ? err : new Error('Unknown error');
       alert(error.message);
       setIsVerifying(false);
