@@ -40,6 +40,7 @@ interface Account {
   id: string;
   code: string;
   name: string;
+  type: string;
 }
 
 export default function ExpensesPage() {
