@@ -135,7 +135,7 @@ export default function TimeLogsPage() {
         setTimeLogs([]);
         return;
       }
-      const data = await res.json();
+      const data = await res.json() as TimeLog[];
       setTimeLogs(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch time logs:', err);
@@ -151,8 +151,8 @@ export default function TimeLogsPage() {
         console.error('Failed to fetch office location:', res.statusText);
         return;
       }
-      const locations = await res.json();
-      const activeLocation = locations.find((loc: { isActive: boolean; name: string; latitude: number; longitude: number; radius: number }) => loc.isActive);
+      const locations = await res.json() as Array<{ isActive: boolean; name: string; latitude: number; longitude: number; radius: number }>;
+      const activeLocation = locations.find((loc) => loc.isActive);
       if (activeLocation) {
         setOfficeLocation({
           name: activeLocation.name,
@@ -223,10 +223,10 @@ export default function TimeLogsPage() {
   const fetchEmployees = async (role: string, email: string) => {
     try {
       const res = await fetch('/api/employees', { credentials: 'include' });
-      const data = await res.json();
+      const data = await res.json() as Employee[];
       
       if (role === 'EMPLOYEE' && email) {
-        const myEmployee = data.find((emp: Employee) => emp.email === email || emp.userId);
+        const myEmployee = data.find((emp) => emp.email === email || emp.userId);
         if (myEmployee) {
           setEmployeeId(myEmployee.id);
           setEmployees([myEmployee]);
@@ -273,7 +273,7 @@ export default function TimeLogsPage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as { error?: string };
 
       if (!res.ok) {
         alert(data.error || 'Failed to clock in');
@@ -319,7 +319,7 @@ export default function TimeLogsPage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as { error?: string };
 
       if (!res.ok) {
         alert(data.error || 'Failed to clock out');
@@ -419,12 +419,13 @@ export default function TimeLogsPage() {
       if (!res.ok) {
         throw new Error('Employee has not enrolled their face.');
       }
-      const { faceDescriptor } = await res.json();
+      const data = await res.json() as { faceDescriptor: number[] };
 
-      setStoredDescriptor(faceDescriptor);
+      setStoredDescriptor(data.faceDescriptor);
       setShowFaceModal(true);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      alert(error.message);
       setIsVerifying(false);
     }
   };
@@ -479,7 +480,7 @@ export default function TimeLogsPage() {
         body: formData,
       });
 
-      const data = await res.json();
+      const data = await res.json() as { error?: string; results?: { success: number; failed: number; errors: string[] } };
 
       if (!res.ok) {
         setImportResult({ success: 0, failed: 1, errors: [data.error || 'Import failed'] });
@@ -487,12 +488,12 @@ export default function TimeLogsPage() {
       }
 
       setImportResult({
-        success: data.results.success,
-        failed: data.results.failed,
-        errors: data.results.errors || []
+        success: data.results?.success ?? 0,
+        failed: data.results?.failed ?? 0,
+        errors: data.results?.errors || []
       });
 
-      if (data.results.success > 0) {
+      if (data.results?.success ?? 0 > 0) {
         fetchTimeLogs();
       }
     } catch (err) {
@@ -558,7 +559,7 @@ export default function TimeLogsPage() {
         body: formData,
       });
 
-      const data = await res.json();
+      const data = await res.json() as { error?: string; results?: { success: number; absent: number; failed: number; errors: string[] } };
 
       if (!res.ok) {
         setXclsImportResult({ success: 0, absent: 0, failed: 1, errors: [data.error || 'Import failed'] });
@@ -566,13 +567,13 @@ export default function TimeLogsPage() {
       }
 
       setXclsImportResult({
-        success: data.results.success,
-        absent: data.results.absent,
-        failed: data.results.failed,
-        errors: data.results.errors || []
+        success: data.results?.success ?? 0,
+        absent: data.results?.absent ?? 0,
+        failed: data.results?.failed ?? 0,
+        errors: data.results?.errors || []
       });
 
-      if (data.results.success > 0 || data.results.absent > 0) {
+      if ((data.results?.success ?? 0) > 0 || (data.results?.absent ?? 0) > 0) {
         fetchTimeLogs();
       }
     } catch (err) {
@@ -601,7 +602,7 @@ export default function TimeLogsPage() {
         body: formData,
       });
 
-      const data = await res.json();
+      const data = await res.json() as { error?: string; results?: { success: number; failed: number; errors: string[] } };
 
       if (!res.ok) {
         setBiometricImportResult({ success: 0, failed: 1, errors: [data.error || 'Import failed'] });
@@ -609,12 +610,12 @@ export default function TimeLogsPage() {
       }
 
       setBiometricImportResult({
-        success: data.results.success,
-        failed: data.results.failed,
-        errors: data.results.errors || []
+        success: data.results?.success ?? 0,
+        failed: data.results?.failed ?? 0,
+        errors: data.results?.errors || []
       });
 
-      if (data.results.success > 0) {
+      if (data.results?.success ?? 0 > 0) {
         fetchTimeLogs();
       }
     } catch (err) {
@@ -649,7 +650,7 @@ export default function TimeLogsPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json() as { error?: string };
         alert(data.error || 'Failed to delete time log');
         return;
       }

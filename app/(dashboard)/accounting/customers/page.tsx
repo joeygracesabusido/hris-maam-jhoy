@@ -9,14 +9,38 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Plus, Search, Users, Pencil, Trash2, Eye } from 'lucide-react';
 
+interface Customer {
+  id: string;
+  entityCode: string;
+  entityName: string;
+  description?: string;
+  balance: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SubsidiaryTransaction {
+  id: string;
+  date: string;
+  referenceNo: string;
+  description: string;
+  debit: number;
+  credit: number;
+}
+
+interface CustomerWithTransactions extends Customer {
+  transactions?: SubsidiaryTransaction[];
+}
+
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setViewDialogOpen] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<any>(null);
-  const [viewingCustomer, setViewingCustomer] = useState<any>(null);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [viewingCustomer, setViewingCustomer] = useState<CustomerWithTransactions | null>(null);
   const [search, setSearch] = useState('');
 
   const [formData, setFormData] = useState({
@@ -98,7 +122,7 @@ export default function CustomersPage() {
     }
   }
 
-  async function handleDelete(customer: any) {
+  async function handleDelete(customer: Customer) {
     if (!confirm(`Are you sure you want to delete customer "${customer.entityName}"?`)) {
       return;
     }
@@ -133,7 +157,7 @@ export default function CustomersPage() {
     });
   }
 
-  function openEditDialog(customer: any) {
+  function openEditDialog(customer: Customer) {
     setEditingCustomer(customer);
     // Parse description to extract fields if they exist
     const desc = customer.description || '';
@@ -158,7 +182,7 @@ export default function CustomersPage() {
     setEditDialogOpen(true);
   }
 
-  function openViewDialog(customer: any) {
+  function openViewDialog(customer: Customer) {
     // Fetch customer details with transactions
     fetch(`/api/accounting/customers?id=${customer.id}`)
       .then(res => res.json())
@@ -465,7 +489,7 @@ export default function CustomersPage() {
                     </TableHeader>
                     <TableBody>
                       {viewingCustomer.transactions && viewingCustomer.transactions.length > 0 ? (
-                        viewingCustomer.transactions.map((tx: any) => (
+                        viewingCustomer.transactions.map((tx: SubsidiaryTransaction) => (
                           <TableRow key={tx.id}>
                             <TableCell>{new Date(tx.date).toLocaleDateString('en-PH')}</TableCell>
                             <TableCell>{tx.referenceNo}</TableCell>

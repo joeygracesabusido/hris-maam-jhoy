@@ -78,10 +78,10 @@ export default function ExpensesPage() {
 
       const allAccounts = accRes;
       setVendors(Array.isArray(vendorsRes) ? vendorsRes : []);
-      setAccounts(allAccounts.filter((a: any) => a.type === 'EXPENSE'));
+      setAccounts(allAccounts.filter((a: Account) => a.type === 'EXPENSE'));
 
       // Typically Cash/Bank accounts are ASSET type
-      const cashAccs = allAccounts.filter((a: any) => a.type === 'ASSET' && (a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('bank')));
+      const cashAccs = allAccounts.filter((a: Account) => a.type === 'ASSET' && (a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('bank')));
       setCashAccounts(cashAccs);
 
       if (cashAccs.length > 0) {

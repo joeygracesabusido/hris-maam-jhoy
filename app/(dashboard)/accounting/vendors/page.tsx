@@ -9,14 +9,52 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Plus, Search, Building, Pencil, Trash2, Eye } from 'lucide-react';
 
+interface Vendor {
+  id: string;
+  entityCode: string;
+  entityName: string;
+  description?: string;
+  balance: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  entityType: 'SUPPLIER';
+  accountId: string;
+  debitTotal: number;
+  creditTotal: number;
+}
+
+interface VendorTransaction {
+  id: string;
+  date: string;
+  referenceNo: string;
+  description: string;
+  debit: number;
+  credit: number;
+  balanceAfter: number;
+  subsidiaryLedgerId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface VendorWithTransactions extends Vendor {
+  transactions?: VendorTransaction[];
+  account?: {
+    id: string;
+    code: string;
+    name: string;
+    type: string;
+  };
+}
+
 export default function VendorsPage() {
-  const [vendors, setVendors] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setViewDialogOpen] = useState(false);
-  const [editingVendor, setEditingVendor] = useState<any>(null);
-  const [viewingVendor, setViewingVendor] = useState<any>(null);
+  const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+  const [viewingVendor, setViewingVendor] = useState<VendorWithTransactions | null>(null);
   const [search, setSearch] = useState('');
 
   const [formData, setFormData] = useState({
@@ -38,7 +76,7 @@ export default function VendorsPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/accounting/vendors');
-      const data = await res.json();
+      const data = await res.json() as Vendor[];
       setVendors(data);
     } catch (err) {
       console.error('Error fetching vendors:', err);
@@ -97,7 +135,7 @@ export default function VendorsPage() {
     }
   }
 
-  async function handleDelete(vendor: any) {
+  async function handleDelete(vendor: Vendor) {
     if (!confirm(`Are you sure you want to delete vendor "${vendor.entityName}"?`)) {
       return;
     }
@@ -131,7 +169,7 @@ export default function VendorsPage() {
     });
   }
 
-  function openEditDialog(vendor: any) {
+  function openEditDialog(vendor: Vendor) {
     setEditingVendor(vendor);
     // Parse description to extract fields if they exist
     const desc = vendor.description || '';
@@ -154,13 +192,16 @@ export default function VendorsPage() {
     setEditDialogOpen(true);
   }
 
-  function openViewDialog(vendor: any) {
+  function openViewDialog(vendor: Vendor) {
     // Fetch vendor details with transactions
     fetch(`/api/accounting/vendors?id=${vendor.id}`)
-      .then(res => res.json())
-      .then(data => {
+      .then((res: Response) => res.json() as Promise<VendorWithTransactions>)
+      .then((data: VendorWithTransactions) => {
         setViewingVendor(data);
         setViewDialogOpen(true);
+      })
+      .catch((err: Error) => {
+        console.error('Error fetching vendor details:', err);
       });
   }
 
@@ -436,7 +477,7 @@ export default function VendorsPage() {
                     </TableHeader>
                     <TableBody>
                       {viewingVendor.transactions && viewingVendor.transactions.length > 0 ? (
-                        viewingVendor.transactions.map((tx: any) => (
+                        viewingVendor.transactions.map((tx: VendorTransaction) => (
                           <TableRow key={tx.id}>
                             <TableCell>{new Date(tx.date).toLocaleDateString('en-PH')}</TableCell>
                             <TableCell>{tx.referenceNo}</TableCell>
