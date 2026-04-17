@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 interface FaceCaptureProps {
-  onCapture: (descriptor: Float32Array) => void;
+  onCapture?: (descriptor: Float32Array) => void;
   mode?: 'enroll' | 'verify';
   storedDescriptor?: number[];
   onVerify?: (isMatch: boolean, distance: number) => void;
@@ -140,7 +140,7 @@ export default function FaceCapture({
 
       const descriptor = detection.descriptor;
 
-      if (mode === 'enroll') {
+      if (mode === 'enroll' && onCapture) {
         onCapture(descriptor);
         setCaptureResult({ success: true, message: '✓ Face captured successfully!' });
       } else if (mode === 'verify' && storedDescriptor && onVerify) {

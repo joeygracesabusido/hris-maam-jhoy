@@ -56,7 +56,7 @@ export default function TimeLogsPage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState('');
   const [userRole, setUserRole] = useState('');
-  const [storedDescriptor, setStoredDescriptor] = useState<number[] | null>(null);
+  const [storedDescriptor, setStoredDescriptor] = useState<number[] | undefined>(undefined);
   const [employeeId, setEmployeeId] = useState('');
   const [todayLog, setTodayLog] = useState<TimeLog | null>(null);
   const [clockingIn, setClockingIn] = useState(false);
