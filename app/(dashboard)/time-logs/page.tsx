@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2, MapPin, NavigationOff, Trash2 } from 'lucide-react';
+import {
+  Clock, MapPin, NavigationOff, CheckCircle2, AlertCircle, Search, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Trash2, User, X
+} from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   Dialog,
@@ -16,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import FaceCapture from '@/components/facial-recognition/FaceCapture';
 
 interface Employee {
   id: string;
@@ -53,6 +56,7 @@ export default function TimeLogsPage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState('');
   const [userRole, setUserRole] = useState('');
+  const [storedDescriptor, setStoredDescriptor] = useState<number[] | null>(null);
   const [employeeId, setEmployeeId] = useState('');
   const [todayLog, setTodayLog] = useState<TimeLog | null>(null);
   const [clockingIn, setClockingIn] = useState(false);
@@ -389,8 +393,41 @@ export default function TimeLogsPage() {
   const canClockIn = (!todayLog || !todayLog.clockIn) && (!officeLocation || (withinRange && userLocation));
   const canClockOut = (todayLog && todayLog.clockIn && !todayLog.clockOut) && (!officeLocation || (withinRange && userLocation));
 
-  const downloadTemplate = async () => {
+  const handleVerifyFace = async (isMatch: boolean, distance: number) => {
+    if (isMatch) {
+      if (canClockIn) {
+        await handleClockIn();
+      } else if (canClockOut) {
+        await handleClockOut();
+      }
+      setShowFaceModal(false);
+      setIsVerifying(false);
+    } else {
+      alert(`Identity verification failed. Match distance: ${distance.toFixed(2)}. Please try again.`);
+      setIsVerifying(false);
+    }
+  };
+
+  const initiateVerification = async () => {
+    if (!employeeId) return;
+
+    setIsVerifying(true);
     try {
+      const res = await fetch(`/api/employees/${employeeId}/face-descriptor`);
+      if (!res.ok) {
+        throw new Error('Employee has not enrolled their face.');
+      }
+      const { faceDescriptor } = await res.json();
+
+      setStoredDescriptor(faceDescriptor);
+      setShowFaceModal(true);
+    } catch (err: any) {
+      alert(err.message);
+      setIsVerifying(false);
+    }
+  };
+
+  const downloadTemplate = async () => {
       const res = await fetch('/api/employees');
       const employees: Employee[] = await res.json();
       
@@ -1093,24 +1130,30 @@ export default function TimeLogsPage() {
 
           <div className="flex gap-4 w-full max-w-md">
               <button
-                onClick={handleClockIn}
+                onClick={() => {
+                  if (canClockIn) initiateVerification();
+                  else handleClockIn();
+                }}
                 disabled={!canClockIn || clockingIn}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors ${
-                  canClockIn 
-                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                  canClockIn
+                    ? 'bg-green-600 text-white hover:bg-green-700'
                     : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                 }`}
               >
                 <Play className="w-5 h-5" />
                 {clockingIn ? 'Processing...' : 'Clock In'}
               </button>
-              
+
               <button
-                onClick={handleClockOut}
+                onClick={() => {
+                  if (canClockOut) initiateVerification();
+                  else handleClockOut();
+                }}
                 disabled={!canClockOut || clockingIn}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors ${
-                  canClockOut 
-                    ? 'bg-red-600 text-white hover:bg-red-700' 
+                  canClockOut
+                    ? 'bg-red-600 text-white hover:bg-red-700'
                     : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                 }`}
               >
