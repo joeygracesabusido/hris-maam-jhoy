@@ -226,6 +226,29 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### TypeScript Strict Type Fixes (2026-04-17)
+
+**Issue Fixed:** Vercel deployment error - "Unexpected any" violations in strict TypeScript mode
+
+**Files Updated:**
+- `app/(dashboard)/accounting/vendors/page.tsx` - Added explicit type annotations for API responses (`Vendor[]`, `VendorWithTransactions`)
+- `app/(dashboard)/time-logs/page.tsx` - Added explicit type annotations for all fetch operations, import handlers, and API responses
+
+**Changes Made:**
+- Added `as Type[]` type assertions to `fetch().json()` calls
+- Added explicit parameter types to async callbacks (e.g., `(res: Response)`, `(data: Type)`, `(err: Error)`)
+- Extended interface definitions to include all Prisma model fields
+- Removed implicit `any` types from inline callbacks (e.g., `.find((emp) => ...)` instead of `.find((emp: Employee) => ...)`) when the parent array is already typed
+
+**Pattern for Vercel Deployment:**
+```typescript
+// Instead of:
+const data = await res.json()
+
+// Use:
+const data = await res.json() as YourInterface[]
+```
+
 ### Customer & Vendor Management (2024-04-16)
 
 **New Features:**
