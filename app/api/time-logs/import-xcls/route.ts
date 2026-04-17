@@ -44,6 +44,17 @@ export async function POST(request: Request) {
     const parseTime = (timeStr: string | number | Date | null | undefined, dateObj: Date): Date | null => {
       if (timeStr === null || timeStr === undefined || timeStr === '') return null;
       
+      // Handle Excel numeric time (fraction of a day, e.g., 0.3125 = 7:30 AM)
+      if (typeof timeStr === 'number') {
+        const totalMinutes = Math.round(timeStr * 24 * 60);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const year = dateObj.getUTCFullYear();
+        const month = dateObj.getUTCMonth();
+        const day = dateObj.getUTCDate();
+        return new Date(Date.UTC(year, month, day, hours, minutes, 0, 0));
+      }
+      
       const timeStrClean = String(timeStr).trim();
       
       let hours = 0;
@@ -74,7 +85,23 @@ export async function POST(request: Request) {
       if (!dateVal) return null;
       
       if (dateVal instanceof Date) {
-        return dateVal;
+        // Extract only the date part (midnight)
+        return new Date(Date.UTC(
+          dateVal.getUTCFullYear(),
+          dateVal.getUTCMonth(),
+          dateVal.getUTCDate(),
+          0, 0, 0, 0
+        ));
+      }
+      
+      // Handle Excel numeric date (days since 1899-12-30)
+      if (typeof dateVal === 'number') {
+        return new Date(Date.UTC(
+          1899,
+          11, // December (0-indexed)
+          30 + dateVal,
+          0, 0, 0, 0
+        ));
       }
       
       const dateStr = String(dateVal).trim();
@@ -82,13 +109,11 @@ export async function POST(request: Request) {
       if (!dateMatch) return null;
       
       const [, month, day, year] = dateMatch;
-      // Use UTC noon to ensure consistent date across all timezones
-      // This prevents timezone shift issues between local dev and Vercel deployment
       return new Date(Date.UTC(
         parseInt(year),
         parseInt(month) - 1,
         parseInt(day),
-        12, 0, 0, 0
+        0, 0, 0, 0
       ));
     };
 

@@ -455,7 +455,7 @@ export default function TimeLogsPage() {
       const res = await fetch('/api/employees');
       const employees: Employee[] = await res.json();
       
-      const headers = ['employeeNumber', 'date', 'clockIn', 'clockOut', 'notes'];
+      const headers = ['Employee Number', 'Date', 'Clock In', 'Clock Out', 'Notes'];
       const sampleRows = employees.slice(0, 3).map(emp => [
         String(emp.employeeNumber),
         '2026-01-15',
@@ -549,12 +549,13 @@ export default function TimeLogsPage() {
 
   const downloadXclsTemplate = () => {
     const headers = ['employee_id', 'Date', 'IN', 'OUT', 'IN', 'OUT', 'IN', 'OUT'];
+    // Use Date objects for proper Excel date/time formatting
     const sampleRows = [
-      ['91417', '3/16/2026', '7:48 AM', '5:01 PM', '', '', '', ''],
-      ['91417', '3/17/2026', '7:53 AM', '6:00 PM', '', '', '', ''],
-      ['91417', '3/20/2026', '7:46 AM', '5:06 PM', '', '5:06 PM', '', ''],
-      ['91417', '3/21/2026', '2:46 AM', '', '12:56 PM', '5:04 PM', '', ''],
-      ['91417', '3/23/2026', '7:30 AM', '12:05 PM', '', '6:30 PM', '', ''],
+      ['EMP-0001', new Date('2026-03-16T07:48:00Z'), new Date('2026-03-16T17:01:00Z'), null, null, null, null],
+      ['EMP-0001', new Date('2026-03-17T07:53:00Z'), new Date('2026-03-17T18:00:00Z'), null, null, null, null],
+      ['EMP-0001', new Date('2026-03-20T07:46:00Z'), new Date('2026-03-20T17:06:00Z'), null, new Date('2026-03-20T17:06:00Z'), null, null],
+      ['EMP-0001', new Date('2026-03-21T02:46:00Z'), null, new Date('2026-03-21T12:56:00Z'), new Date('2026-03-21T17:04:00Z'), null, null],
+      ['EMP-0001', new Date('2026-03-23T07:30:00Z'), new Date('2026-03-23T12:05:00Z'), null, new Date('2026-03-23T18:30:00Z'), null, null],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);

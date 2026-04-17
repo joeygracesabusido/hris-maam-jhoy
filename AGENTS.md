@@ -335,6 +335,53 @@ if (isLoggedIn !== 'true') {
 3. Verify employee has face descriptor in database via Prisma Studio (`/api/employees/[id]/face-descriptor` returns 200)
 4. If 404 returned → Enroll face via `/employees` page (Edit → "Enroll Face" button)
 
+### XCLS Import Excel Numeric Time Fix (2026-04-17)
+
+**Issue Fixed:** XCLS import (`/api/time-logs/import-xcls`) returning `null` for clockIn/clockOut when importing Excel files with numeric time values (e.g., `0.3125` for 7:30 AM) instead of text format (e.g., `"7:30 AM"`)
+
+**Root Cause:** The `parseTime` function expected text format `"HH:MM AM/PM"` but Excel stores times as fractions of a day (0.3125 = 7:30 AM). When using `cellDates: true`, these become Date objects from Excel's epoch (1899-12-30) rather than times of day.
+
+**Files Updated:**
+- `app/api/time-logs/import-xcls/route.ts:44-71` - Enhanced `parseTime` to handle Excel numeric times and Date objects
+- `app/api/time-logs/import-xcls/route.ts:73-93` - Updated `parseDate` to return midnight (00:00:00) instead of noon (12:00:00)
+- `app/(dashboard)/time-logs/page.tsx:550-564` - Updated `downloadXclsTemplate` to use Date objects for proper Excel formatting
+
+**Changes Made:**
+```typescript
+// Before: Only handled text format "7:48 AM"
+const match = timeStrClean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+if (!match) return null;
+
+// After: Handles Excel numeric time (0.3125 = 7:30 AM)
+if (typeof timeStr === 'number') {
+  const totalMinutes = Math.round(timeStr * 24 * 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return new Date(Date.UTC(year, month, day, hours, minutes, 0, 0));
+}
+
+// Also handles Date objects from Excel (when cellDates: true)
+if (timeStr instanceof Date) {
+  const hours = timeStr.getHours();
+  const minutes = timeStr.getMinutes();
+  return new Date(Date.UTC(year, month, day, hours, minutes, 0, 0));
+}
+```
+
+**Date Fix:**
+```typescript
+// Before: Used noon (12:00:00) to avoid timezone issues
+return new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+
+// After: Uses midnight (00:00:00) for date field
+return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+```
+
+**Excel Date/Time Reference:**
+- Excel stores dates as serial numbers from 1899-12-30 (46125 = April 12, 2026; 46126 = April 13, 2026)
+- Excel stores times as fractions of a day (0.3125 = 7:30 AM; 0.708333 = 5:00 PM)
+- The import now handles both numeric and text formats
+
 ### Customer & Vendor Management (2024-04-16)
 
 **New Features:**

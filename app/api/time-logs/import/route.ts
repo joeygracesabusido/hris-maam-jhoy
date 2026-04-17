@@ -20,7 +20,21 @@ export async function POST(request: Request) {
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
+    const rawData = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
+    
+    // Normalize column names to handle variations like "Employee Number", "employee_number", "Clock In", etc.
+    const data = rawData.map(row => {
+      const normalized: Record<string, unknown> = {};
+      for (const key of Object.keys(row)) {
+        // Convert to camelCase: "Employee Number" -> "employeeNumber", "clock_in" -> "clockIn"
+        const normalizedKey = key
+          .replace(/^[._\s]+/, '')           // Remove leading spaces/dots
+          .replace(/[._\s]+([a-zA-Z])/g, (_, c) => c.toUpperCase()) // camelCase
+          .replace(/^[a-zA-Z]/, c => c.toLowerCase()); // lowercase first char
+        normalized[normalizedKey] = row[key];
+      }
+      return normalized;
+    });
 
     if (!data || data.length === 0) {
       return NextResponse.json(
@@ -28,6 +42,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Log first row keys for debugging
+    console.log('[Time Logs Import] Column headers found:', Object.keys(data[0]));
 
     const results = {
       success: 0,
@@ -71,9 +88,11 @@ export async function POST(request: Request) {
 
     for (const row of data) {
       try {
+        const rowKeys = Object.keys(row).join(', ');
+        
         if (!row.employeeNumber || !row.date) {
           results.failed++;
-          results.errors.push(`Row skipped: missing employee number or date`);
+          results.errors.push(`Row skipped: missing employeeNumber or date. Available columns: ${rowKeys}`);
           continue;
         }
 
@@ -123,6 +142,18 @@ export async function POST(request: Request) {
 
         const clockInTime = parseTime(row.clockIn, dateNormalized);
         const clockOutTime = parseTime(row.clockOut, dateNormalized);
+        
+        // Log if times are null for debugging
+        if (!clockInTime || !clockOutTime) {
+          console.log('[Time Logs Import] Row data:', {
+            employeeNumber: row.employeeNumber,
+            date: row.date,
+            clockIn: row.clockIn,
+            clockOut: row.clockOut,
+            clockInParsed: clockInTime,
+            clockOutParsed: clockOutTime,
+          });
+        }
 
         let workHours = 0;
         let otHours = 0;
