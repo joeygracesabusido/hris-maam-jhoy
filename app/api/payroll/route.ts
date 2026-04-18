@@ -205,41 +205,38 @@ export async function POST(request: Request) {
             const dateStr = new Date(log.date).toLocaleDateString('en-CA');
             timeLogByDate.set(dateStr, log);
           }
+
+          // Get sorted dates for before/after checking
+          const sortedDates = Array.from(timeLogByDate.keys()).sort();
           
-          for (const log of timeLogs) {
-            const holiday = holidays.find(h => {
-              // Use en-CA locale to get consistent YYYY-MM-DD in local timezone
-              const hDateStr = new Date(h.date).toLocaleDateString('en-CA');
-              const logDateStr = new Date(log.date).toLocaleDateString('en-CA');
-              return hDateStr === logDateStr && h.isActive;
-            });
+          for (const holiday of holidays) {
+            if (!holiday.isActive) continue;
             
-            if (!holiday) continue;
-            
-            // Check if employee worked on the holiday
-            const workedOnHoliday = log.workHours > 0 && log.clockIn && log.clockOut;
+            const hDateStr = new Date(holiday.date).toLocaleDateString('en-CA');
+            const holidayLog = timeLogByDate.get(hDateStr);
+            const workedOnHoliday = holidayLog && holidayLog.workHours > 0 && holidayLog.clockIn && holidayLog.clockOut;
+
+            // Check attendance before/after holiday
+            const holidayDate = new Date(hDateStr);
+            const datesBefore = sortedDates.filter(d => new Date(d) < holidayDate);
+            const datesAfter = sortedDates.filter(d => new Date(d) > holidayDate);
+            const hasAttendanceBefore = datesBefore.length > 0;
+            const hasAttendanceAfter = datesAfter.length > 0;
+            const hasAttendanceBeforeAndAfter = hasAttendanceBefore && hasAttendanceAfter;
             
             if (holiday.type === 'REGULAR') {
-              if (workedOnHoliday) {
-                // Check if employee was present on the day BEFORE the regular holiday
-                // DOLE rule: Employee must report to work or be on paid leave on the day before the holiday
-                const holidayDate = new Date(holiday.date);
-                const dayBefore = new Date(holidayDate);
-                dayBefore.setDate(dayBefore.getDate() - 1);
-                const dayBeforeStr = dayBefore.toLocaleDateString('en-CA');
-                const dayBeforeLog = timeLogByDate.get(dayBeforeStr);
-                const presentDayBefore = dayBeforeLog && dayBeforeLog.clockIn !== null;
-                
-                // If present on day before, eligible for holiday premium
-                if (presentDayBefore) {
-                  regularHolidayHours += log.workHours;
-                  regularHolidayDays += 1;
-                }
+              // If worked on holiday with attendance before AND after
+              if (workedOnHoliday && hasAttendanceBeforeAndAfter) {
+                regularHolidayHours += holidayLog.workHours;
+                regularHolidayDays += 1;
+              } else if (!workedOnHoliday && hasAttendanceBefore) {
+                // Did not work on holiday but has attendance on/before holiday (legal holiday benefit)
+                regularHolidayDays += 1;
               }
             } else if (holiday.type === 'SPECIAL') {
-              // Special holiday: no work, no pay - only add if worked on the holiday
-              if (workedOnHoliday) {
-                specialHolidayHours += log.workHours;
+              // Special holiday requires working AND attendance before AND after
+              if (workedOnHoliday && hasAttendanceBeforeAndAfter) {
+                specialHolidayHours += holidayLog.workHours;
                 specialHolidayDays += 1;
               }
             }
@@ -335,7 +332,7 @@ export async function POST(request: Request) {
               year: startDate.getFullYear(),
               periodStart: startDate,
               periodEnd: endDate,
-              basicSalary: employeePayType === 'DAILY' ? 0 : periodSalary,
+              basicSalary: employeePayType === 'DAILY' ? (daysWithTimeLog * dailyRate) : periodSalary,
               workDays: expectedWorkDays,
               daysWorked: daysWithTimeLog,
               otHours: totalOtHours,
@@ -389,6 +386,8 @@ export async function POST(request: Request) {
               employeeNumber: employee.employeeNumber,
               position: employee.position,
               department: employee.department,
+              payType: employee.payType,
+              dailyRate: employeeDailyRate,
             },
             netPay,
           });
@@ -513,41 +512,38 @@ export async function POST(request: Request) {
       const dateStr = new Date(log.date).toLocaleDateString('en-CA');
       timeLogByDate.set(dateStr, log);
     }
+
+    // Get sorted dates for before/after checking
+    const sortedDates = Array.from(timeLogByDate.keys()).sort();
     
-    for (const log of timeLogs) {
-      const holiday = holidays.find(h => {
-        // Use en-CA locale to get consistent YYYY-MM-DD in local timezone
-        const hDateStr = new Date(h.date).toLocaleDateString('en-CA');
-        const logDateStr = new Date(log.date).toLocaleDateString('en-CA');
-        return hDateStr === logDateStr && h.isActive;
-      });
+    for (const holiday of holidays) {
+      if (!holiday.isActive) continue;
       
-      if (!holiday) continue;
-      
-      // Check if employee worked on the holiday
-      const workedOnHoliday = log.workHours > 0 && log.clockIn && log.clockOut;
+      const hDateStr = new Date(holiday.date).toLocaleDateString('en-CA');
+      const holidayLog = timeLogByDate.get(hDateStr);
+      const workedOnHoliday = holidayLog && holidayLog.workHours > 0 && holidayLog.clockIn && holidayLog.clockOut;
+
+      // Check attendance before/after holiday
+      const holidayDate = new Date(hDateStr);
+      const datesBefore = sortedDates.filter(d => new Date(d) < holidayDate);
+      const datesAfter = sortedDates.filter(d => new Date(d) > holidayDate);
+      const hasAttendanceBefore = datesBefore.length > 0;
+      const hasAttendanceAfter = datesAfter.length > 0;
+      const hasAttendanceBeforeAndAfter = hasAttendanceBefore && hasAttendanceAfter;
       
       if (holiday.type === 'REGULAR') {
-        if (workedOnHoliday) {
-          // Check if employee was present on the day BEFORE the regular holiday
-          // DOLE rule: Employee must report to work or be on paid leave on the day before the holiday
-          const holidayDate = new Date(holiday.date);
-          const dayBefore = new Date(holidayDate);
-          dayBefore.setDate(dayBefore.getDate() - 1);
-          const dayBeforeStr = dayBefore.toLocaleDateString('en-CA');
-          const dayBeforeLog = timeLogByDate.get(dayBeforeStr);
-          const presentDayBefore = dayBeforeLog && dayBeforeLog.clockIn !== null;
-          
-          // If present on day before, eligible for holiday premium
-          if (presentDayBefore) {
-            regularHolidayHours += log.workHours;
-            regularHolidayDays += 1;
-          }
+        // If worked on holiday with attendance before AND after
+        if (workedOnHoliday && hasAttendanceBeforeAndAfter) {
+          regularHolidayHours += holidayLog.workHours;
+          regularHolidayDays += 1;
+        } else if (!workedOnHoliday && hasAttendanceBefore) {
+          // Did not work on holiday but has attendance on/before holiday (legal holiday benefit)
+          regularHolidayDays += 1;
         }
       } else if (holiday.type === 'SPECIAL') {
-        // Special holiday: no work, no pay - only add if worked on the holiday
-        if (workedOnHoliday) {
-          specialHolidayHours += log.workHours;
+        // Special holiday requires working AND attendance before AND after
+        if (workedOnHoliday && hasAttendanceBeforeAndAfter) {
+          specialHolidayHours += holidayLog.workHours;
           specialHolidayDays += 1;
         }
       }
@@ -647,7 +643,7 @@ export async function POST(request: Request) {
         year: startDate.getFullYear(),
         periodStart: startDate,
         periodEnd: endDate,
-        basicSalary: employeePayType === 'DAILY' ? 0 : (periodSalary || 0),
+        basicSalary: employeePayType === 'DAILY' ? (daysWithTimeLog * dailyRate) : (periodSalary || 0),
         workDays: expectedWorkDays,
         daysWorked: daysWithTimeLog,
         otHours: totalOtHours,
@@ -713,6 +709,8 @@ export async function POST(request: Request) {
           department: employee.department,
           basicSalary: employee.basicSalary,
           payrollFrequency: employee.payrollFrequency,
+          payType: employee.payType,
+          dailyRate: employeeDailyRate,
         },
         period: {
           periodStart: startDate,

@@ -12,6 +12,8 @@ interface Employee {
   position: string;
   basicSalary: number;
   payrollFrequency: string;
+  payType?: string;
+  dailyRate?: number;
   email?: string;
 }
 
@@ -65,6 +67,7 @@ interface PayrollResult {
     adjustmentAdd?: number;
     adjustmentDeduct?: number;
     adjustmentReason?: string;
+    daysWorked: number;
   };
   details: {
     employee: Employee;
@@ -274,7 +277,7 @@ export default function PayrollPage() {
             periodEnd: formData.periodEnd,
           },
           details: {
-            employee: { id: 'all', fullName: 'All Employees', employeeNumber: 0, department: '', position: '', basicSalary: 0, payrollFrequency: '' },
+            employee: { id: 'all', fullName: 'All Employees', employeeNumber: 0, department: '', position: '', basicSalary: 0, payrollFrequency: '', payType: 'MONTHLY', dailyRate: 0 },
             period: { frequency: formData.frequency },
             earnings: { baseSalary: 0, overtimePay: 0, holidayPay: 0, grossPay: 0 },
             deductions: { absences: 0, lates: 0, undertime: 0, sss: 0, philHealth: 0, pagIbig: 0, withholdingTax: 0, totalDeductions: 0 },
@@ -314,7 +317,7 @@ export default function PayrollPage() {
       `Pay Period: ${periodStart} - ${periodEnd}`,
       '',
       'EARNINGS',
-      `Base Salary,${formatCurrency(result.details.earnings.baseSalary)}`,
+      `Base Salary ${employee.payType === 'DAILY' ? `(${result.payroll.daysWorked || 0} days @ ${formatCurrency(employee.dailyRate || 0)}/day)` : ''},${formatCurrency(result.details.earnings.baseSalary)}`,
       `Overtime (${result.details.totals.totalOtHours} hrs),${formatCurrency(result.details.earnings.overtimePay)}`,
       result.details.totals.holidayDays > 0 ? `Holiday (${result.details.totals.holidayDays} day(s)),${formatCurrency(result.details.earnings.holidayPay)}` : null,
       (result.payroll.adjustmentAdd ?? 0) > 0 ? `Adjustment (+),${formatCurrency(result.payroll.adjustmentAdd!)}` : null,
@@ -386,7 +389,10 @@ export default function PayrollPage() {
         <div class="grid">
           <div class="section">
             <h3>Earnings</h3>
-            <div class="row"><span>Base Salary</span><span>${formatCurrency(result.details.earnings.baseSalary)}</span></div>
+            <div class="row">
+              <span>Base Salary ${employee.payType === 'DAILY' ? `<br/><small class="text-gray-500">(${result.payroll.daysWorked || 0} days @ ${formatCurrency(employee.dailyRate || 0)}/day)</small>` : ''}</span>
+              <span>${formatCurrency(result.details.earnings.baseSalary)}</span>
+            </div>
             <div className="row"><span>Overtime (${result.details.totals.totalOtHours} hrs)</span><span>+${formatCurrency(result.details.earnings.overtimePay)}</span></div>
             ${result.details.totals.holidayDays > 0 ? `<div className="row"><span>Holiday (${result.details.totals.holidayDays} day(s))</span><span>+${formatCurrency(result.details.earnings.holidayPay)}</span></div>` : ''}
             ${(result.payroll.adjustmentAdd ?? 0) > 0 ? `<div class="row"><span>Adjustment (+)</span><span>+${formatCurrency(result.payroll.adjustmentAdd!)}</span></div>` : ''}
@@ -466,7 +472,10 @@ export default function PayrollPage() {
         <div class="grid">
           <div class="section">
             <h3>Earnings</h3>
-            <div class="row"><span>Base Salary</span><span>${formatCurrency(record.basicSalary)}</span></div>
+            <div class="row">
+              <span>Base Salary ${employee.payType === 'DAILY' ? `<br/><small class="text-gray-500">(${record.daysWorked} days @ ${formatCurrency(employee.dailyRate || 0)}/day)</small>` : ''}</span>
+              <span>${formatCurrency(record.basicSalary || (employee.payType === 'DAILY' && employee.dailyRate ? employee.dailyRate * record.daysWorked : 0))}</span>
+            </div>
             <div class="row"><span>Overtime (${record.otHours} hrs)</span><span>+${formatCurrency(record.otPay)}</span></div>
             ${record.holidayPay && record.holidayPay > 0 ? `<div class="row"><span>Holiday Pay</span><span>+${formatCurrency(record.holidayPay)}</span></div>` : ''}
             ${record.adjustmentAdd && record.adjustmentAdd > 0 ? `<div class="row"><span>Adjustment (+)</span><span>+${formatCurrency(record.adjustmentAdd)}</span></div>` : ''}
@@ -777,7 +786,14 @@ export default function PayrollPage() {
                 </h3>
                   <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Base Salary</span>
+                    <span className="text-gray-600">
+                      Base Salary 
+                      {result.details.employee.payType === 'DAILY' && (
+                        <span className="text-xs ml-1 text-gray-500">
+                           ({result.details.earnings.baseSalary / (result.details.employee.dailyRate || 1)} days @ {formatCurrency(result.details.employee.dailyRate || 0)}/day)
+                        </span>
+                      )}
+                    </span>
                     <span className="font-medium">{formatCurrency(result.details.earnings.baseSalary)}</span>
                   </div>
                   <div className="flex justify-between text-green-600">

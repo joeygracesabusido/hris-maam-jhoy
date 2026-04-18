@@ -85,11 +85,14 @@ export async function POST(request: Request) {
       if (!dateVal) return null;
       
       if (dateVal instanceof Date) {
-        // Extract only the date part (midnight)
+        // xlsx adjusts timezone when cellDates: true, but due to historical 1899 timezone offsets
+        // in Manila, dates sometimes parse as 23:59:35 of the previous day!
+        // We add 12 hours safely to move it to the middle of the intended day before extracting parts.
+        const shiftedDate = new Date(dateVal.getTime() + 12 * 60 * 60 * 1000);
         return new Date(Date.UTC(
-          dateVal.getUTCFullYear(),
-          dateVal.getUTCMonth(),
-          dateVal.getUTCDate(),
+          shiftedDate.getFullYear(),
+          shiftedDate.getMonth(),
+          shiftedDate.getDate(),
           0, 0, 0, 0
         ));
       }
@@ -155,7 +158,7 @@ export async function POST(request: Request) {
 
       for (const [dateStr, { row }] of dateMap) {
         try {
-          const dateObj = new Date(dateStr + 'T12:00:00Z'); // Use UTC noon
+          const dateObj = new Date(dateStr + 'T00:00:00Z'); // Use UTC midnight
 
           const punches: PunchTime[] = [];
           

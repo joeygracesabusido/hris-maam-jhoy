@@ -17,6 +17,7 @@ interface PayrollRecord {
   otPay: number;
   holidayPay: number;
   status: string;
+  daysWorked: number;
   employee: {
     id: string;
     fullName: string;
@@ -57,6 +58,7 @@ export default function PrintPayrollPage() {
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
   const [mounted, setMounted] = useState(false);
+  const [filterApplied, setFilterApplied] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -135,28 +137,31 @@ export default function PrintPayrollPage() {
       if (periodStart && periodEnd) {
         const start = new Date(periodStart);
         const end = new Date(periodEnd);
-        return recordStart >= start && recordEnd <= end;
+        return recordStart <= end && recordEnd >= start;
       }
 
       if (periodStart) {
         const start = new Date(periodStart);
-        return recordStart >= start;
+        return recordEnd >= start;
       }
 
       if (periodEnd) {
         const end = new Date(periodEnd);
-        return recordEnd <= end;
+        return recordStart <= end;
       }
 
       return true;
     });
 
     setFilteredRecords(filtered);
+    setFilterApplied(true);
   };
 
   useEffect(() => {
-    handleFilter();
-  }, [periodStart, periodEnd, payrollRecords]);
+    if (payrollRecords.length > 0 && !filterApplied) {
+      setFilteredRecords([]);
+    }
+  }, [payrollRecords, filterApplied]);
 
   const formatCurrency = (amount: number | string) => {
     let num: number;
@@ -229,8 +234,8 @@ export default function PrintPayrollPage() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
 
-    const headers = ['No.', 'Employee Name', 'Department', 'Position', 'Basic Salary', 'OT Pay', 'Holiday Pay', 'Gross Pay', 'Deductions', 'Net Pay'];
-    const colWidths = [10, 35, 25, 30, 25, 22, 22, 25, 22, 28];
+    const headers = ['No.', 'Employee Name', 'Department', 'Position', 'Rate/Day', 'No. of Days', 'Basic Salary', 'OT Pay', 'Holiday Pay', 'Gross Pay', 'Deductions', 'Net Pay'];
+    const colWidths = [8, 35, 25, 28, 22, 16, 28, 22, 22, 26, 22, 30];
     let xPos = 10;
 
     headers.forEach((header, i) => {
@@ -295,22 +300,29 @@ export default function PrintPayrollPage() {
       doc.text(pos, xPos, yPos + 4.2);
       xPos += colWidths[3];
 
-      doc.text(formatCurrency(record.basicSalary), xPos, yPos + 4.2);
+      const ratePerDay = record.basicSalary / 22;
+      doc.text(formatCurrency(ratePerDay), xPos, yPos + 4.2);
       xPos += colWidths[4];
 
-      doc.text(formatCurrency(record.otPay || 0), xPos, yPos + 4.2);
+      doc.text(String(record.daysWorked || 0), xPos, yPos + 4.2);
       xPos += colWidths[5];
 
-      doc.text(formatCurrency(record.holidayPay || 0), xPos, yPos + 4.2);
+      doc.text(formatCurrency(record.basicSalary), xPos, yPos + 4.2);
       xPos += colWidths[6];
 
-      doc.text(formatCurrency(record.grossPay), xPos, yPos + 4.2);
+      doc.text(formatCurrency(record.otPay || 0), xPos, yPos + 4.2);
+      xPos += colWidths[6];
+
+      doc.text(formatCurrency(record.holidayPay || 0), xPos, yPos + 4.2);
       xPos += colWidths[7];
+
+      doc.text(formatCurrency(record.grossPay), xPos, yPos + 4.2);
+      xPos += colWidths[8];
 
       doc.setTextColor(180, 0, 0);
       doc.text(`(${formatCurrency(record.totalDeductions)})`, xPos, yPos + 4.2);
       doc.setTextColor(0, 0, 0);
-      xPos += colWidths[8];
+      xPos += colWidths[9];
 
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 100, 0);
@@ -330,29 +342,24 @@ export default function PrintPayrollPage() {
     const totalBasic = filteredRecords.reduce((sum, r) => sum + r.basicSalary, 0);
     const totalOtPay = filteredRecords.reduce((sum, r) => sum + (r.otPay || 0), 0);
     const totalHolidayPay = filteredRecords.reduce((sum, r) => sum + (r.holidayPay || 0), 0);
-    const totalGross = filteredRecords.reduce((sum, r) => sum + r.grossPay, 0);
     const totalDeductions = filteredRecords.reduce((sum, r) => sum + r.totalDeductions, 0);
     const totalNet = filteredRecords.reduce((sum, r) => sum + r.netPay, 0);
 
     xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
     doc.text('TOTAL:', xPos, yPos + 4.5);
     xPos += colWidths[4];
-    doc.text(formatCurrency(totalBasic), xPos, yPos + 4.5);
     xPos += colWidths[5];
-    doc.text(formatCurrency(totalOtPay), xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalBasic), xPos, yPos + 4.5);
     xPos += colWidths[6];
-    doc.text(formatCurrency(totalHolidayPay), xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalOtPay), xPos, yPos + 4.5);
     xPos += colWidths[7];
-    doc.text(`(${formatCurrency(totalDeductions)})`, xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalHolidayPay), xPos, yPos + 4.5);
     xPos += colWidths[8];
+    doc.text(`(${formatCurrency(totalDeductions)})`, xPos, yPos + 4.5);
+xPos += colWidths[9];
     doc.text(formatCurrency(totalNet), xPos, yPos + 4.5);
 
-    yPos = Math.max(yPos + 18, pageHeight - 50);
-
-    if (yPos > pageHeight - 60) {
-      doc.addPage('legal', 'landscape');
-      yPos = 15;
-    }
+    yPos = pageHeight - 80;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
@@ -467,10 +474,20 @@ export default function PrintPayrollPage() {
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => { handleFilter(); setFilterApplied(true); }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Filter
+                </button>
+              </div>
             </div>
-            <p className="text-sm text-gray-500 mt-2">
-              Showing {filteredRecords.length} payroll record(s)
-            </p>
+            {filterApplied && (
+              <p className="text-sm text-gray-500 mt-2">
+                Showing {filteredRecords.length} payroll record(s)
+              </p>
+            )}
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border p-6">

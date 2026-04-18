@@ -226,6 +226,98 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### Print Payroll PDF Updates (2026-04-18)
+
+**Issues Fixed:**
+- PDF column overlap and spacing
+- Records showing immediately without filter
+- No. of Days showing wrong value
+- Certification placement
+
+**Files Updated:**
+- `app/(dashboard)/reports/print-payroll/page.tsx` - Multiple updates to PDF generation
+
+**Changes Made:**
+1. **Added Rate/Day and No. of Days columns:**
+   - Rate/Day = basicSalary / 22
+   - No. of Days = daysWorked from payroll data (actual count of days with time logs)
+
+2. **Filter button behavior:**
+   - Records only display after clicking "Filter" button
+   - Added `filterApplied` state to control display
+   - Shows "X payroll record(s)" only when filter is applied
+
+3. **Fixed filter logic:**
+   - Changed from exact match to overlapping period check
+   - If filter selects April 1-15, shows records that overlap with that range
+
+4. **Column widths adjusted:**
+   - Wider columns: `[8, 35, 25, 28, 22, 16, 28, 22, 22, 26, 22, 30]` (total 256mm fits landscape legal ~356mm)
+
+5. **Certification at bottom:**
+   - Fixed position at `pageHeight - 80` (~80mm from bottom)
+   - If not enough space, moves to new page
+
+### Holiday Computation Fix (2026-04-18)
+
+**Issue Fixed:** Incorrect holiday pay calculation logic
+
+**Files Updated:**
+- `app/api/payroll/route.ts` - Updated holiday logic in both POST (generate) and GET (list) handlers
+
+**New Logic:**
+- **REGULAR (Legal) Holidays:**
+  - If worked on holiday AND has attendance before AND after → full holiday pay (100%)
+  - If did NOT work on holiday but has attendance on/before → holiday pay (legal holiday benefit)
+- **SPECIAL Holidays:**
+  - Requires working on holiday AND attendance before AND after → 30% holiday pay
+
+**Changes Made:**
+```typescript
+// Check attendance before/after holiday
+const datesBefore = sortedDates.filter(d => new Date(d) < holidayDate);
+const datesAfter = sortedDates.filter(d => new Date(d) > holidayDate);
+const hasAttendanceBefore = datesBefore.length > 0;
+const hasAttendanceAfter = datesAfter.length > 0;
+const hasAttendanceBeforeAndAfter = hasAttendanceBefore && hasAttendanceAfter;
+
+if (holiday.type === 'REGULAR') {
+  if (workedOnHoliday && hasAttendanceBeforeAndAfter) {
+    regularHolidayDays += 1;
+  } else if (!workedOnHoliday && hasAttendanceBefore) {
+    // Did not work on holiday but has attendance on/before
+    regularHolidayDays += 1;
+  }
+} else if (holiday.type === 'SPECIAL') {
+  if (workedOnHoliday && hasAttendanceBeforeAndAfter) {
+    specialHolidayDays += 1;
+  }
+}
+```
+
+### Face Recognition Body Scroll Fix (2026-04-18)
+
+**Issue Fixed:** Body scroll gets locked/disturbed when opening face verification modal
+
+**Files Updated:**
+- `app/(dashboard)/time-logs/page.tsx:127-134` - Added useEffect for body overflow management
+
+**Changes Made:**
+```typescript
+useEffect(() => {
+  if (showFaceModal) {
+    document.body.style.overflow = 'hidden';
+  } else {
+    document.body.style.overflow = 'unset';
+  }
+  return () => {
+    document.body.style.overflow = 'unset';
+  };
+}, [showFaceModal]);
+```
+
+This prevents body scroll lock when the face verification modal appears and restores it when closed.
+
 ### Accounting Pages TypeScript & ESLint Fixes (2026-04-17)
 
 **Issues Fixed:**

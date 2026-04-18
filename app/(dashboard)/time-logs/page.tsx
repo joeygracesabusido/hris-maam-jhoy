@@ -115,17 +115,26 @@ export default function TimeLogsPage() {
     getUserLocation();
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
     if (timeLogs.length > 0 && employeeId) {
       const today = new Date().toISOString().split('T')[0];
       const todayEntry = timeLogs.find((log: TimeLog) => 
         log.date.startsWith(today) && log.employeeId === employeeId
       );
       setTodayLog(todayEntry || null);
-    } else {
-      setTodayLog(null);
     }
   }, [timeLogs, employeeId]);
+
+  useEffect(() => {
+    if (showFaceModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showFaceModal]);
 
   const fetchTimeLogs = async () => {
     try {
@@ -420,9 +429,9 @@ export default function TimeLogsPage() {
     try {
       console.log('[Face Verification] Fetching descriptor for employeeId:', employeeId);
       const res = await fetch(`/api/employees/${employeeId}/face-descriptor`);
-      const errorData = await res.json().catch(() => ({}));
+      const responseData = await res.json().catch(() => ({}));
       
-      console.log('[Face Verification] Response status:', res.status, errorData);
+      console.log('[Face Verification] Response status:', res.status, responseData);
       
       if (!res.ok) {
         if (res.status === 404) {
@@ -430,10 +439,10 @@ export default function TimeLogsPage() {
         } else if (res.status === 401) {
           throw new Error('Session expired. Please login again.');
         }
-        throw new Error(errorData.error || 'Failed to load face data');
+        throw new Error(responseData.error || 'Failed to load face data');
       }
       
-      const data = await res.json() as { faceDescriptor: number[] };
+      const data = responseData as { faceDescriptor: number[] };
       
       if (!data.faceDescriptor || data.faceDescriptor.length === 0) {
         throw new Error('Employee has not enrolled their face. Please contact HR to complete face enrollment.');
