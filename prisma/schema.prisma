@@ -385,10 +385,10 @@ model Payroll {
   periodStart DateTime
   periodEnd   DateTime
 
-  basicSalary     Float
-  dailyRate      Float
-  workDays        Float
-  daysWorked      Float
+  basicSalary     Float     @default(0)
+  dailyRate      Float     @default(0)
+  workDays       Float     @default(0)
+  daysWorked     Float     @default(0)
 
   otHours         Float     @default(0)
   otPay           Float     @default(0)

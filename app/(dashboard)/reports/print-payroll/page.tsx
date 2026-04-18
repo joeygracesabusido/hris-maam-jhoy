@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Printer, Calendar } from 'lucide-react';
+import { Printer, Calendar, CheckSquare, Square } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 interface PayrollRecord {
@@ -59,6 +59,7 @@ export default function PrintPayrollPage() {
   const [periodEnd, setPeriodEnd] = useState('');
   const [mounted, setMounted] = useState(false);
   const [filterApplied, setFilterApplied] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setMounted(true);
@@ -115,7 +116,6 @@ export default function PrintPayrollPage() {
       if (res.ok) {
         const data = await res.json();
         setPayrollRecords(data);
-        setFilteredRecords(data);
       }
     } catch (error) {
       console.error('Error fetching payroll records:', error);
@@ -125,8 +125,12 @@ export default function PrintPayrollPage() {
   };
 
   const handleFilter = () => {
-    if (!periodStart && !periodEnd) {
+    const start = periodStart ? new Date(periodStart) : null;
+    const end = periodEnd ? new Date(periodEnd) : null;
+
+    if (!start && !end) {
       setFilteredRecords(payrollRecords);
+      setFilterApplied(true);
       return;
     }
 
@@ -134,19 +138,15 @@ export default function PrintPayrollPage() {
       const recordStart = new Date(record.periodStart);
       const recordEnd = new Date(record.periodEnd);
 
-      if (periodStart && periodEnd) {
-        const start = new Date(periodStart);
-        const end = new Date(periodEnd);
+      if (start && end) {
         return recordStart <= end && recordEnd >= start;
       }
 
-      if (periodStart) {
-        const start = new Date(periodStart);
+      if (start) {
         return recordEnd >= start;
       }
 
-      if (periodEnd) {
-        const end = new Date(periodEnd);
+      if (end) {
         return recordStart <= end;
       }
 
@@ -155,13 +155,26 @@ export default function PrintPayrollPage() {
 
     setFilteredRecords(filtered);
     setFilterApplied(true);
+    setSelectedIds(new Set()); // Reset selection on new filter
   };
 
-  useEffect(() => {
-    if (payrollRecords.length > 0 && !filterApplied) {
-      setFilteredRecords([]);
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredRecords.length && filteredRecords.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredRecords.map(r => r.id)));
     }
-  }, [payrollRecords, filterApplied]);
+  };
+
+  const toggleRecordSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
 
   const formatCurrency = (amount: number | string) => {
     let num: number;
@@ -185,8 +198,10 @@ export default function PrintPayrollPage() {
   };
 
   const handlePrintPDF = () => {
-    if (filteredRecords.length === 0) {
-      alert('No payroll records to print');
+    const recordsToPrint = filteredRecords.filter(r => selectedIds.has(r.id));
+    
+    if (recordsToPrint.length === 0) {
+      alert('Please select at least one record to print');
       return;
     }
 
@@ -249,7 +264,7 @@ export default function PrintPayrollPage() {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
 
-    filteredRecords.forEach((record, index) => {
+    recordsToPrint.forEach((record, index) => {
       if (yPos > pageHeight - 55) {
         doc.addPage('legal', 'landscape');
         yPos = 12;
@@ -341,12 +356,12 @@ export default function PrintPayrollPage() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
 
-    const totalBasic = filteredRecords.reduce((sum, r) => sum + r.basicSalary, 0);
-    const totalOtPay = filteredRecords.reduce((sum, r) => sum + (r.otPay || 0), 0);
-    const totalHolidayPay = filteredRecords.reduce((sum, r) => sum + (r.holidayPay || 0), 0);
-    const totalGross = filteredRecords.reduce((sum, r) => sum + r.grossPay, 0);
-    const totalDeductions = filteredRecords.reduce((sum, r) => sum + r.totalDeductions, 0);
-    const totalNet = filteredRecords.reduce((sum, r) => sum + r.netPay, 0);
+    const totalBasic = recordsToPrint.reduce((sum, r) => sum + r.basicSalary, 0);
+    const totalOtPay = recordsToPrint.reduce((sum, r) => sum + (r.otPay || 0), 0);
+    const totalHolidayPay = recordsToPrint.reduce((sum, r) => sum + (r.holidayPay || 0), 0);
+    const totalGross = recordsToPrint.reduce((sum, r) => sum + r.grossPay, 0);
+    const totalDeductions = recordsToPrint.reduce((sum, r) => sum + r.totalDeductions, 0);
+    const totalNet = recordsToPrint.reduce((sum, r) => sum + r.netPay, 0);
 
 xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
     doc.text('TOTAL:', xPos, yPos + 4.5);
@@ -481,7 +496,7 @@ xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
               </div>
               <div className="flex items-end">
                 <button
-                  onClick={() => { handleFilter(); setFilterApplied(true); }}
+                  onClick={() => { handleFilter(); }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Filter
@@ -490,7 +505,8 @@ xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
             </div>
             {filterApplied && (
               <p className="text-sm text-gray-500 mt-2">
-                Showing {filteredRecords.length} payroll record(s)
+                Showing {filteredRecords.length} payroll record(s) 
+                {selectedIds.size > 0 && ` | ${selectedIds.size} selected for printing`}
               </p>
             )}
           </div>
@@ -543,20 +559,41 @@ xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
 
           <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
             <div className="p-4 border-b flex justify-between items-center">
-              <h2 className="text-lg font-semibold">Payroll Records</h2>
+              <div className="flex items-center gap-4">
+                <h2 className="text-lg font-semibold">Payroll Records</h2>
+                {filteredRecords.length > 0 && (
+                  <button 
+                    onClick={toggleSelectAll}
+                    className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                  >
+                    {selectedIds.size === filteredRecords.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                )}
+              </div>
               <button
                 onClick={handlePrintPDF}
-                disabled={filteredRecords.length === 0}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                disabled={selectedIds.size === 0}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 transition-all"
               >
                 <Printer className="w-4 h-4" />
-                Print to PDF
+                {selectedIds.size > 0 
+                  ? `Print Selected (${selectedIds.size})` 
+                  : 'Print to PDF'}
               </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
+                    <th className="px-4 py-3 text-left w-10">
+                      <button onClick={toggleSelectAll} className="flex items-center justify-center">
+                        {selectedIds.size === filteredRecords.length && filteredRecords.length > 0 ? (
+                          <CheckSquare className="w-5 h-5 text-blue-600" />
+                        ) : (
+                          <Square className="w-5 h-5 text-gray-400" />
+                        )}
+                      </button>
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Basic Salary</th>
@@ -570,7 +607,20 @@ xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
                 </thead>
                 <tbody className="divide-y">
                   {filteredRecords.map((record) => (
-                    <tr key={record.id} className="hover:bg-gray-50">
+                    <tr 
+                      key={record.id} 
+                      className={`hover:bg-gray-50 cursor-pointer transition-colors ${selectedIds.has(record.id) ? 'bg-blue-50/50' : ''}`}
+                      onClick={() => toggleRecordSelection(record.id)}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center">
+                          {selectedIds.has(record.id) ? (
+                            <CheckSquare className="w-5 h-5 text-blue-600" />
+                          ) : (
+                            <Square className="w-5 h-5 text-gray-400" />
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900">{record.employee.fullName}</div>
                         <div className="text-sm text-gray-500">{record.employee.position}</div>
@@ -604,8 +654,10 @@ xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
                   ))}
                   {filteredRecords.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                        No payroll records found for the selected period
+                      <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                        {filterApplied 
+                          ? "No payroll records found for the selected period" 
+                          : "Please select a period and click 'Filter' to display payroll data"}
                       </td>
                     </tr>
                   )}

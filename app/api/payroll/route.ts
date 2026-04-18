@@ -174,7 +174,7 @@ export async function POST(request: Request) {
             ? (employee.dailyRate * 26) 
             : employee.basicSalary;
           const employeePayType = employee.payType || 'MONTHLY';
-          const employeeDailyRate = employee.dailyRate || calculateDailyRate(monthlySalary);
+          const employeeDailyRate = employee.dailyRate || calculateDailyRate(monthlySalary) || 0;
           
           let periodSalary = 0;
           const dailyRate = employeeDailyRate;
@@ -327,13 +327,13 @@ export async function POST(request: Request) {
 
           const payroll = await prisma.payroll.create({
             data: {
-              employeeId: employee.id,
+              employee: { connect: { id: employee.id } },
               month: startDate.getMonth() + 1,
               year: startDate.getFullYear(),
               periodStart: startDate,
               periodEnd: endDate,
-              basicSalary: employeePayType === 'DAILY' ? (daysWithTimeLog * dailyRate) : periodSalary,
-              dailyRate: dailyRate,
+              basicSalary: employeePayType === 'DAILY' ? (daysWithTimeLog * dailyRate) : (periodSalary || 0),
+              dailyRate: dailyRate || 0,
               workDays: expectedWorkDays,
               daysWorked: daysWithTimeLog,
               otHours: totalOtHours,
@@ -481,7 +481,7 @@ export async function POST(request: Request) {
       ? (employee.dailyRate * 26) 
       : employee.basicSalary;
     const employeePayType = employee.payType || 'MONTHLY';
-    const employeeDailyRate = employee.dailyRate || calculateDailyRate(monthlySalary);
+    const employeeDailyRate = employee.dailyRate || calculateDailyRate(monthlySalary) || 0;
     
     let periodSalary = 0;
     const dailyRate = employeeDailyRate;
@@ -639,12 +639,13 @@ export async function POST(request: Request) {
 
     const payroll = await prisma.payroll.create({
       data: {
-        employeeId,
+        employee: { connect: { id: employeeId } },
         month: startDate.getMonth() + 1,
         year: startDate.getFullYear(),
         periodStart: startDate,
         periodEnd: endDate,
         basicSalary: employeePayType === 'DAILY' ? (daysWithTimeLog * dailyRate) : (periodSalary || 0),
+        dailyRate: dailyRate || 0,
         workDays: expectedWorkDays,
         daysWorked: daysWithTimeLog,
         otHours: totalOtHours,
@@ -804,22 +805,42 @@ export async function GET(request: Request) {
     if (year) where.year = parseInt(year);
 
     const payrolls = await prisma.payroll.findMany({
-      where,
-      include: { employee: true },
+      where: where as never,
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
+    }).catch((err) => {
+      console.error('Prisma query error:', err);
+      return [];
     });
+
+    // Fetch employees separately to avoid P2032 error with null Float fields
+    const employeeIds = [...new Set(payrolls.map(p => p.employeeId))];
+    const employees = await prisma.employee.findMany({
+      where: { id: { in: employeeIds } },
+    });
+    const employeeMap = new Map(employees.map(e => [e.id, e]));
+
+    // Map and ensure no null rates from DB are passed through
+    const validPayrolls = payrolls
+      .map(p => ({
+        ...p,
+        dailyRate: p.dailyRate ?? 0, // Fallback for safety
+        employee: employeeMap.get(p.employeeId),
+      }));
 
     // Cache for 30 minutes
     try {
-      await cache.set(cacheKey, payrolls, 1800);
+      await cache.set(cacheKey, validPayrolls, 1800);
     } catch (cacheErr) {
       console.error('Failed to set payroll cache:', cacheErr);
     }
 
-    return NextResponse.json(payrolls);
+    return NextResponse.json(validPayrolls);
   } catch (error) {
     console.error('Error fetching payrolls:', error);
-    return NextResponse.json({ error: 'Failed to fetch payrolls' }, { status: 500 });
+    const prismaError = error as { code?: string; message?: string; meta?: Record<string, unknown> };
+    console.error('Prisma error code:', prismaError.code);
+    console.error('Prisma error meta:', prismaError.meta);
+    return NextResponse.json({ error: 'Failed to fetch payrolls', details: prismaError.message }, { status: 500 });
   }
 }
 

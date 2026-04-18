@@ -226,6 +226,41 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### Print Payroll No Data Fix (2026-04-18)
+
+**Issue Fixed:** "No payroll records found" error due to Prisma P2032 error - Payroll records with null dailyRate causing API to fail
+
+**Files Updated:**
+- `app/api/payroll/route.ts:807-825` - Fixed GET handler to fetch payroll and employees separately
+- `prisma/schema.prisma:388-391` - Added @default(0) to Float fields (basicSalary, dailyRate, workDays, daysWorked)
+
+**Changes Made:**
+1. **Separated queries:** Fetch payrolls without `include: { employee: true }` to avoid P2032 error
+2. **Separate employee fetch:** Fetch employees by IDs and map them to payrolls
+3. **Filter null values:** Filter out records where dailyRate is null
+4. **Schema defaults:** Added @default(0) to prevent future null issues
+
+```typescript
+// Before: Failed with P2032 error
+const payrolls = await prisma.payroll.findMany({
+  where,
+  include: { employee: true },  // Caused error with null Float fields
+});
+
+// After: Separate queries to avoid Prisma error
+const payrolls = await prisma.payroll.findMany({
+  where: where as never,
+  orderBy: [{ year: 'desc' }, { month: 'desc' }],
+});
+const employeeIds = [...new Set(payrolls.map(p => p.employeeId))];
+const employees = await prisma.employee.findMany({
+  where: { id: { in: employeeIds } },
+});
+const validPayrolls = payrolls
+  .filter(p => p.dailyRate !== null)
+  .map(p => ({ ...p, employee: employeeMap.get(p.employeeId) }));
+```
+
 ### Print Payroll PDF Updates (2026-04-18)
 
 **Issues Fixed:**
