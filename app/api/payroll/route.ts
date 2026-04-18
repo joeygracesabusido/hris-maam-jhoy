@@ -333,6 +333,7 @@ export async function POST(request: Request) {
               periodStart: startDate,
               periodEnd: endDate,
               basicSalary: employeePayType === 'DAILY' ? (daysWithTimeLog * dailyRate) : periodSalary,
+              dailyRate: dailyRate,
               workDays: expectedWorkDays,
               daysWorked: daysWithTimeLog,
               otHours: totalOtHours,

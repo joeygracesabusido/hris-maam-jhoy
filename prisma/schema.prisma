@@ -386,6 +386,7 @@ model Payroll {
   periodEnd   DateTime
 
   basicSalary     Float
+  dailyRate      Float
   workDays        Float
   daysWorked      Float
 

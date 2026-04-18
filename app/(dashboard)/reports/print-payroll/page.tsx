@@ -300,7 +300,9 @@ export default function PrintPayrollPage() {
       doc.text(pos, xPos, yPos + 4.2);
       xPos += colWidths[3];
 
-      const ratePerDay = record.basicSalary / 22;
+      const ratePerDay = record.daysWorked > 0 
+        ? record.basicSalary / record.daysWorked 
+        : record.basicSalary / 26;
       doc.text(formatCurrency(ratePerDay), xPos, yPos + 4.2);
       xPos += colWidths[4];
 
@@ -342,10 +344,11 @@ export default function PrintPayrollPage() {
     const totalBasic = filteredRecords.reduce((sum, r) => sum + r.basicSalary, 0);
     const totalOtPay = filteredRecords.reduce((sum, r) => sum + (r.otPay || 0), 0);
     const totalHolidayPay = filteredRecords.reduce((sum, r) => sum + (r.holidayPay || 0), 0);
+    const totalGross = filteredRecords.reduce((sum, r) => sum + r.grossPay, 0);
     const totalDeductions = filteredRecords.reduce((sum, r) => sum + r.totalDeductions, 0);
     const totalNet = filteredRecords.reduce((sum, r) => sum + r.netPay, 0);
 
-    xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
+xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
     doc.text('TOTAL:', xPos, yPos + 4.5);
     xPos += colWidths[4];
     xPos += colWidths[5];
@@ -355,8 +358,10 @@ export default function PrintPayrollPage() {
     xPos += colWidths[7];
     doc.text(formatCurrency(totalHolidayPay), xPos, yPos + 4.5);
     xPos += colWidths[8];
+    doc.text(formatCurrency(totalGross), xPos, yPos + 4.5);
+    xPos += colWidths[9];
     doc.text(`(${formatCurrency(totalDeductions)})`, xPos, yPos + 4.5);
-xPos += colWidths[9];
+    xPos += colWidths[10];
     doc.text(formatCurrency(totalNet), xPos, yPos + 4.5);
 
     yPos = pageHeight - 80;
