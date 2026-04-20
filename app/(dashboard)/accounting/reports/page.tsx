@@ -326,9 +326,9 @@ export default function ReportsPage() {
                 </div>
               </div>
             )}
-            {!loading && Math.abs(data?.totalAssets - data?.totalLiabilitiesEquity) > 0.01 && (
+            {!loading && Math.abs((data?.totalAssets ?? 0) - (data?.totalLiabilitiesEquity ?? 0)) > 0.01 && (
               <div className="mt-8 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-xs text-center">
-                Note: Total Assets do not match Total Liabilities & Equity. Difference: ₱{Math.abs(data?.totalAssets - data?.totalLiabilitiesEquity).toLocaleString()}
+                Note: Total Assets do not match Total Liabilities & Equity. Difference: ₱{Math.abs((data?.totalAssets ?? 0) - (data?.totalLiabilitiesEquity ?? 0)).toLocaleString()}
               </div>
             )}
           </CardContent>
