@@ -59,23 +59,65 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { code, name, type, parentCode, description, normalBalance, hasSubsidiaryLedger, subsidiaryType } = body;
+    const { code, name, type, parentCode, description, normalBalance, hasSubsidiaryLedger, subsidiaryType, beginningBalance } = body;
 
     if (!code || !name || !type) {
       return NextResponse.json({ error: 'Code, name, and type are required' }, { status: 400 });
     }
 
-    const account = await prisma.account.create({
-      data: {
-        code,
-        name,
-        type,
-        parentCode,
-        description,
-        normalBalance: normalBalance || 'DEBIT',
-        hasSubsidiaryLedger: hasSubsidiaryLedger || false,
-        subsidiaryType: hasSubsidiaryLedger && subsidiaryType ? subsidiaryType : undefined,
-      },
+    // Use a transaction to ensure both account and beginning balance entry are created
+    const account = await prisma.$transaction(async (tx) => {
+      const newAccount = await tx.account.create({
+        data: {
+          code,
+          name,
+          type,
+          parentCode,
+          description,
+          normalBalance: normalBalance || 'DEBIT',
+          hasSubsidiaryLedger: hasSubsidiaryLedger || false,
+          subsidiaryType: hasSubsidiaryLedger && subsidiaryType ? subsidiaryType : undefined,
+        },
+      });
+
+      // Create beginning balance entry if balance is non-zero
+      if (beginningBalance && beginningBalance !== 0) {
+        const amount = Math.abs(beginningBalance);
+        const isDebit = beginningBalance > 0;
+        
+        // Find Retained Earnings for balancing entry
+        const retainedEarnings = await tx.account.findFirst({
+          where: { name: 'Retained Earnings' }
+        });
+
+        if (retainedEarnings) {
+          await tx.journalEntry.create({
+            data: {
+              date: new Date(),
+              description: `Opening Balance for ${name}`,
+              status: 'POSTED',
+              lines: {
+                create: [
+                  {
+                    accountId: newAccount.id,
+                    debit: isDebit ? amount : 0,
+                    credit: isDebit ? 0 : amount,
+                    memo: 'Initial balance'
+                  },
+                  {
+                    accountId: retainedEarnings.id,
+                    debit: isDebit ? 0 : amount,
+                    credit: isDebit ? amount : 0,
+                    memo: `Offsetting entry for ${name} opening balance`
+                  }
+                ]
+              }
+            }
+          });
+        }
+      }
+
+      return newAccount;
     });
 
     return NextResponse.json(account);
@@ -91,7 +133,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { id, code, name, type, parentCode, description, isActive, normalBalance, hasSubsidiaryLedger, subsidiaryType } = body;
+    const { id, code, name, type, parentCode, description, isActive, normalBalance, hasSubsidiaryLedger, subsidiaryType, beginningBalance } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });

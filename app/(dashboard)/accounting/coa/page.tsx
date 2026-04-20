@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ export default function ChartOfAccountsPage() {
     isActive: true,
     hasSubsidiaryLedger: false,
     subsidiaryType: '',
+    beginningBalance: 0,
   });
 
   useEffect(() => {
@@ -108,6 +110,7 @@ export default function ChartOfAccountsPage() {
       isActive: true,
       hasSubsidiaryLedger: false,
       subsidiaryType: '',
+      beginningBalance: 0,
     });
   }
 
@@ -139,7 +142,6 @@ export default function ChartOfAccountsPage() {
           <h1 className="text-3xl font-bold">Chart of Accounts</h1>
           <p className="text-muted-foreground">Manage your organization&apos;s financial account structure</p>
         </div>
-
         <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button className="flex items-center gap-2">
@@ -233,6 +235,23 @@ export default function ChartOfAccountsPage() {
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Initial Balance (Beginning Balance)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.beginningBalance}
+                  onChange={e => setFormData({...formData, beginningBalance: parseFloat(e.target.value) || 0})}
+                  disabled={!!editingAccount}
+                />
+                <p className="text-[0.75rem] text-muted-foreground italic">
+                  {editingAccount 
+                    ? "Initial balance cannot be changed after creation. Use journal entries for adjustments."
+                    : "Enter current balance. (Equity accounts use negative for Credit balance)."}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -363,6 +382,23 @@ export default function ChartOfAccountsPage() {
               </div>
 
               <div className="space-y-2">
+                <Label>Initial Balance (Beginning Balance)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.beginningBalance}
+                  onChange={e => setFormData({...formData, beginningBalance: parseFloat(e.target.value) || 0})}
+                  disabled={!!editingAccount}
+                />
+                <p className="text-[0.75rem] text-muted-foreground italic">
+                  {editingAccount 
+                    ? "Initial balance cannot be changed after creation. Use journal entries for adjustments."
+                    : "Enter current balance. (Equity accounts use negative for Credit balance)."}
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -446,7 +482,16 @@ export default function ChartOfAccountsPage() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {acc.parentCode && <FolderTree className="w-3 h-3 text-muted-foreground" />}
-                        {acc.name}
+                        {acc.id ? (
+                          <Link
+                            href={`/accounting/coa/${acc.id}`}
+                            className="text-primary hover:underline font-medium"
+                          >
+                            {acc.name}
+                          </Link>
+                        ) : (
+                          <span className="text-primary font-medium">{acc.name}</span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>

@@ -38,16 +38,16 @@ const navItems = [
     icon: Wallet,
     subItems: [
       { href: '/accounting', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/accounting/coa', label: 'Chart of Accounts', icon: FileText },
+      { href: '/accounting/coa', label: 'Chart of Accounts', icon: FileText, adminOnly: true },
       { href: '/accounting/customers', label: 'Customers', icon: Users },
       { href: '/accounting/vendors', label: 'Vendors', icon: Building },
       { href: '/accounting/subsidiary-ledgers', label: 'Subsidiary Ledgers', icon: Database },
-      { href: '/accounting/reconciliation', label: 'Reconciliation', icon: CheckCircle2 },
-      { href: '/accounting/journal', label: 'Journal Entries', icon: Timer },
+      { href: '/accounting/reconciliation', label: 'Reconciliation', icon: CheckCircle2, adminOnly: true },
+      { href: '/accounting/journal', label: 'Journal Entries', icon: Timer, adminOnly: true },
       { href: '/accounting/expenses', label: 'Expenses', icon: DollarSign },
       { href: '/accounting/sales', label: 'Sales (AR)', icon: DollarSign },
       { href: '/accounting/purchases', label: 'Purchases (AP)', icon: Package },
-      { href: '/accounting/reports', label: 'Financial Reports', icon: Printer },
+      { href: '/accounting/reports', label: 'Financial Reports', icon: Printer, adminOnly: true },
     ],
   },
   {
@@ -149,13 +149,13 @@ export default function DashboardLayout({
       </div>
 
       {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 z-50 h-full w-64 bg-card text-card-foreground border-r-2 border-r-amber-400/30 dark:border-r-amber-500/20 shadow-soft dark:shadow-soft-dark transition-transform lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed top-0 left-0 z-50 h-full w-64 bg-card text-card-foreground border-r-2 border-r-amber-400/30 dark:border-r-amber-500/20 shadow-soft dark:shadow-soft-dark transition-transform lg:translate-x-0 flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6">
           <h1 className="text-xl font-bold">HRIS</h1>
           <p className="text-sm text-muted-foreground">Philippines</p>
         </div>
         
-        <nav className="px-3">
+        <nav className="flex-1 px-3 overflow-y-auto custom-scrollbar">
           {filteredNavItems.map((item) => {
             const Icon = item.icon;
 
@@ -214,7 +214,7 @@ export default function DashboardLayout({
                     return true;
                   }).map((subItem) => {
                     const SubIcon = subItem.icon;
-                    const isActive = pathname === subItem.href;
+                    const isSubActive = pathname === subItem.href;
                     return (
                       <Link
                         key={subItem.href}
@@ -223,7 +223,7 @@ export default function DashboardLayout({
                           setSidebarOpen(false);
                         }}
                         className={`flex items-center gap-3 pl-10 pr-3 py-2 rounded-lg mb-1 ${
-                          isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                          isSubActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                         }`}
                       >
                         <SubIcon className="w-4 h-4" />
@@ -254,7 +254,7 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border flex items-center justify-between gap-2">
+        <div className="p-3 border-t border-border flex items-center justify-between gap-2 bg-card">
           <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg flex-1">
             <LogOut className="w-5 h-5" />
             <span>Logout</span>

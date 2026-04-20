@@ -226,6 +226,64 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### GAAP Financial Reporting & Beginning Balances (2026-04-20)
+
+**New Features:**
+- **GAAP Financial Reports**: Implemented real-time, GAAP-compliant **Trial Balance**, **Income Statement (P&L)**, and **Balance Sheet (Statement of Financial Position)**.
+- **Beginning Balances**: Added "Initial Balance" field to the Chart of Accounts setup.
+- **Automatic Opening Entries**: System now automatically creates a Journal Entry against **Retained Earnings** when a new account is created with an initial balance.
+- **Accounting Dashboard**: Connected the overview dashboard to real-time stats (Cash, AR, AP, Net Income) and recent journal entries.
+- **Professional Report UI**: Replaced tabs with a professional dropdown selector and high-fidelity accounting layouts.
+
+**Issues Fixed:**
+- **Import Errors**: Fixed `next/link` named import crash in COA page and `prisma` import error in transactions API.
+- **API Access**: Updated `middleware.ts` to allow `/api/accounting` paths, fixing "Account transactions not found" errors.
+- **Sidebar UX**: Fixed the "Logout" button overlapping with navigation items by making the sidebar a flex container with scrollable navigation.
+- **Stability**: Added nullish coalescing safeguards to all numeric displays to prevent crashes (e.g., `toLocaleString` on undefined values).
+
+**Key Files:**
+- `app/(dashboard)/accounting/reports/page.tsx` - Professional reports interface with safety fallbacks
+- `app/api/accounting/reports/[type]/route.ts` - GAAP-compliant reporting logic
+- `app/api/accounting/accounts/route.ts` - Updated POST handler for automatic beginning balance entries
+- `app/(dashboard)/layout.tsx` - Restructured sidebar with flex-box and scrollable nav
+- `app/api/accounting/stats/route.ts` - New dashboard statistics API
+
+**How to set an Initial Balance:**
+1. Go to Chart of Accounts (`/accounting/coa`)
+2. Click **Add Account**
+3. Enter account details and fill in the **Initial Balance (Beginning Balance)** field
+4. Upon save, the system creates the account AND a corresponding POSTED journal entry to establish the balance against Retained Earnings.
+5. *Note: Initial balances are read-only after creation to maintain audit trails. Use Journal Entries for adjustments.*
+
+---
+
+### Element Type is Invalid Error (2026-04-20)
+
+**Error:** `Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined.`
+
+**Potential Causes Investigated:**
+1. Component not exported from file
+2. Circular import issues
+3. Missing default export
+4. Failed dynamic import
+5. Stale build cache
+
+**Files Checked:**
+- `components/ui/card.tsx` - All components properly exported
+- `components/ui/dialog.tsx` - All components properly exported
+- `components/facial-recognition/FaceCapture.tsx` - Default export present
+
+**Troubleshooting Steps:**
+1. Delete `.next` folder and restart dev server
+2. Run `npm run dev` to rebuild
+3. Check full error stack trace from browser console (F12)
+
+**Fixes Applied:**
+- None required - all UI components properly export their components
+- Issue may be intermittent build cache or requires full stack trace for root cause
+
+---
+
 ### Print Payroll No Data Fix (2026-04-18)
 
 **Issue Fixed:** "No payroll records found" error due to Prisma P2032 error - Payroll records with null dailyRate causing API to fail

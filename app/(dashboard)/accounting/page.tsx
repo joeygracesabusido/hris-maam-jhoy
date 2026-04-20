@@ -6,6 +6,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Wallet, ArrowUpRight, ArrowDownRight, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+interface JournalEntry {
+  id: string;
+  date: string;
+  description: string;
+  reference?: string;
+}
+
 export default function AccountingDashboard() {
   const [stats, setStats] = useState({
     cashBalance: 0,
@@ -13,34 +20,35 @@ export default function AccountingDashboard() {
     totalPayables: 0,
     netIncome: 0,
   });
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchStats() {
+    async function fetchData() {
       try {
-        // In a real implementation, this would call a specific stats API
-        // For now, we'll simulate a fetch
-        const res = await fetch('/api/accounting/reports/trial-balance');
-        const data = await res.json();
-
-        // Simple aggregation logic for the dashboard
-        // Summing Assets (Cash) vs Liabilities
-        setStats({
-          cashBalance: 1250000, // Mocked for UI
-          totalReceivables: 45000,
-          totalPayables: 12000,
-          netIncome: 85000,
-        });
+        const [statsRes, entriesRes] = await Promise.all([
+          fetch('/api/accounting/stats'),
+          fetch('/api/accounting/journal?limit=5')
+        ]);
+        
+        const statsData = await statsRes.json();
+        const entriesData = await entriesRes.json();
+        
+        if (!statsData.error) setStats(statsData);
+        if (!entriesData.error) setEntries(Array.isArray(entriesData) ? entriesData : []);
       } catch (err) {
-        console.error('Error fetching accounting stats:', err);
+        console.error('Error fetching accounting dashboard data:', err);
       } finally {
         setLoading(false);
       }
     }
-    fetchStats();
+    fetchData();
   }, []);
 
-  if (loading) return <div className="p-8 text-center">Loading Dashboard...</div>;
+  if (loading) return <div className="p-8 text-center flex flex-col items-center gap-2">
+    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+    <p>Loading Accounting Overview...</p>
+  </div>;
 
   return (
     <div className="space-y-6">
@@ -50,7 +58,7 @@ export default function AccountingDashboard() {
         <StatCard title="Cash on Hand" value={stats.cashBalance} icon={Wallet} color="text-green-600" />
         <StatCard title="Accounts Receivable" value={stats.totalReceivables} icon={ArrowUpRight} color="text-blue-600" />
         <StatCard title="Accounts Payable" value={stats.totalPayables} icon={ArrowDownRight} color="text-red-600" />
-        <StatCard title="Estimated Net Income" value={stats.netIncome} icon={FileText} color="text-purple-600" />
+        <StatCard title="Net Income (Period)" value={stats.netIncome} icon={FileText} color="text-purple-600" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -64,22 +72,28 @@ export default function AccountingDashboard() {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Reference</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                  <TableCell>2026-04-13</TableCell>
-                  <TableCell>Monthly Payroll Accrual</TableCell>
-                  <TableCell className="text-right">₱450,000</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>2026-04-12</TableCell>
-                  <TableCell>Office Rent - April</TableCell>
-                  <TableCell className="text-right">₱25,000</TableCell>
-                </TableRow>
+                {entries.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">No recent entries</TableCell>
+                  </TableRow>
+                ) : (
+                  entries.slice(0, 5).map((entry: JournalEntry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>{new Date(entry.date).toLocaleDateString('en-PH')}</TableCell>
+                      <TableCell className="font-medium">{entry.description}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{entry.reference || '-'}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
+            <Button variant="link" className="mt-2 w-full text-xs" onClick={() => window.location.href='/accounting/journal'}>
+              View All Entries
+            </Button>
           </CardContent>
         </Card>
 

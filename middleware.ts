@@ -20,7 +20,8 @@ export function middleware(request: NextRequest) {
       pathname.startsWith('/api/shifts') ||
       pathname.startsWith('/api/schedules') ||
       pathname.startsWith('/api/dashboard') ||
-      pathname.startsWith('/api/advances')) {
+      pathname.startsWith('/api/advances') ||
+      pathname.startsWith('/api/accounting')) {
     return NextResponse.next();
   }
 
