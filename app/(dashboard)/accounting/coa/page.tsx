@@ -126,6 +126,7 @@ export default function ChartOfAccountsPage() {
       isActive: account.isActive,
       hasSubsidiaryLedger: account.hasSubsidiaryLedger || false,
       subsidiaryType: account.subsidiaryType || '',
+      beginningBalance: account.beginningBalance || 0,
     });
     setEditDialogOpen(true);
   }
