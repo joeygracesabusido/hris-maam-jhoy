@@ -206,7 +206,7 @@ export async function DELETE(request: Request) {
   }
 }
 
-// Helper function to check if a location is within the office geofence
+// Helper function to check if a location is within any active office geofence
 async function checkGeofence(latitude: number, longitude: number): Promise<{
   isValid: boolean;
   distance: number;
@@ -216,12 +216,11 @@ async function checkGeofence(latitude: number, longitude: number): Promise<{
   };
 }> {
   try {
-    const activeLocation = await prisma.officeLocation.findFirst({
+    const activeLocations = await prisma.officeLocation.findMany({
       where: { isActive: true },
-      orderBy: { createdAt: 'desc' },
     });
 
-    if (!activeLocation) {
+    if (activeLocations.length === 0) {
       return {
         isValid: true,
         distance: 0,
@@ -229,19 +228,40 @@ async function checkGeofence(latitude: number, longitude: number): Promise<{
       };
     }
 
-    const distance = calculateDistance(
-      latitude,
-      longitude,
-      activeLocation.latitude,
-      activeLocation.longitude
-    );
+    let minDistance = Infinity;
+    let closestOffice = activeLocations[0];
+
+    for (const location of activeLocations) {
+      const distance = calculateDistance(
+        latitude,
+        longitude,
+        location.latitude,
+        location.longitude
+      );
+
+      if (distance <= location.radius) {
+        return {
+          isValid: true,
+          distance,
+          office: {
+            name: location.name,
+            radius: location.radius,
+          },
+        };
+      }
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestOffice = location;
+      }
+    }
 
     return {
-      isValid: distance <= activeLocation.radius,
-      distance,
+      isValid: false,
+      distance: minDistance,
       office: {
-        name: activeLocation.name,
-        radius: activeLocation.radius,
+        name: closestOffice.name,
+        radius: closestOffice.radius,
       },
     };
   } catch (error) {

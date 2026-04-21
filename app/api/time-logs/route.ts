@@ -37,40 +37,57 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; // Distance in meters
 }
 
-// Get active office location
-async function getActiveOfficeLocation() {
+// Get all active office locations
+async function getActiveOfficeLocations() {
   try {
-    const location = await prisma.officeLocation.findFirst({
+    const locations = await prisma.officeLocation.findMany({
       where: { isActive: true },
-      orderBy: { createdAt: 'desc' },
     });
-    return location;
+    return locations;
   } catch (error) {
-    console.error('Error fetching office location:', error);
-    return null;
+    console.error('Error fetching office locations:', error);
+    return [];
   }
 }
 
-// Validate GPS location against office geofence
+// Validate GPS location against all active office geofences
 async function validateGPS(latitude: number, longitude: number) {
-  const officeLocation = await getActiveOfficeLocation();
-  
-  // If no office location is set, allow by default
-  if (!officeLocation) {
+  const activeLocations = await getActiveOfficeLocations();
+
+  // If no office locations are set, allow by default
+  if (activeLocations.length === 0) {
     return { valid: true, distance: 0 };
   }
 
-  const distance = calculateDistance(
-    latitude,
-    longitude,
-    officeLocation.latitude,
-    officeLocation.longitude
-  );
+  let minDistance = Infinity;
+  let minRadius = 0;
+
+  for (const location of activeLocations) {
+    const distance = calculateDistance(
+      latitude,
+      longitude,
+      location.latitude,
+      location.longitude
+    );
+
+    if (distance <= location.radius) {
+      return {
+        valid: true,
+        distance,
+        radius: location.radius,
+      };
+    }
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      minRadius = location.radius;
+    }
+  }
 
   return {
-    valid: distance <= officeLocation.radius,
-    distance,
-    radius: officeLocation.radius,
+    valid: false,
+    distance: minDistance,
+    radius: minRadius,
   };
 }
 
