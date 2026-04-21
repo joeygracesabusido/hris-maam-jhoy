@@ -187,8 +187,8 @@ export async function POST(request: Request) {
       gpsRadius = gpsResult.radius ?? 0;
     } else {
       // If no GPS provided, check if office location is configured
-      const officeLocation = await getActiveOfficeLocation();
-      if (officeLocation) {
+      const activeLocations = await getActiveOfficeLocations();
+      if (activeLocations.length > 0) {
         return NextResponse.json(
           { error: 'GPS location is required. Please enable location services.' },
           { status: 400 }
