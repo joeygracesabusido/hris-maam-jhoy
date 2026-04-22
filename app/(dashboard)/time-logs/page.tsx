@@ -285,7 +285,7 @@ useEffect(() => {
       return;
     }
 
-    if (!userLocation && officeLocation) {
+    if (!userLocation && officeLocations.length > 0) {
       alert('Please enable location services to clock in');
       getUserLocation();
       return;
@@ -332,7 +332,7 @@ useEffect(() => {
       return;
     }
 
-    if (!userLocation && officeLocation) {
+    if (!userLocation && officeLocations.length > 0) {
       alert('Please enable location services to clock out');
       getUserLocation();
       return;
@@ -430,8 +430,8 @@ useEffect(() => {
     }
   };
 
-  const canClockIn = (!todayLog || !todayLog.clockIn) && (!officeLocations.length || (withinRange && userLocation));
-  const canClockOut = (todayLog && todayLog.clockIn && !todayLog.clockOut) && (!officeLocations.length || (withinRange && userLocation));
+  const canClockIn = (!todayLog || !todayLog.clockIn) && (!officeLocations.length || (userLocation && (withinRange || !gpsError)));
+  const canClockOut = (todayLog && todayLog.clockIn && !todayLog.clockOut) && (!officeLocations.length || (userLocation && (withinRange || !gpsError)));
 
   const handleVerifyFace = async (isMatch: boolean, distance: number) => {
     if (isMatch) {
