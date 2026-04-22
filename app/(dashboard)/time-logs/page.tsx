@@ -118,7 +118,7 @@ export default function TimeLogsPage() {
 
 useEffect(() => {
     if (timeLogs.length > 0 && employeeId) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
       const todayEntry = timeLogs.find((log: TimeLog) => 
         log.date.startsWith(today) && log.employeeId === employeeId
       );
@@ -430,8 +430,8 @@ useEffect(() => {
     }
   };
 
-  const canClockIn = (!todayLog || !todayLog.clockIn) && (!officeLocations.length || (userLocation && (withinRange || !gpsError)));
-  const canClockOut = (todayLog && todayLog.clockIn && !todayLog.clockOut) && (!officeLocations.length || (userLocation && (withinRange || !gpsError)));
+  const canClockIn = (!todayLog || !todayLog.clockIn);
+  const canClockOut = !!(todayLog && todayLog.clockIn && !todayLog.clockOut);
 
   const handleVerifyFace = async (isMatch: boolean, distance: number) => {
     if (isMatch) {
@@ -728,8 +728,8 @@ useEffect(() => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Time Logs</h1>
-          <p className="text-gray-500">Record your daily attendance</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Time Logs</h1>
+          <p className="text-gray-500 dark:text-gray-400">Record your daily attendance</p>
         </div>
         {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
           <div className="flex items-center gap-2">
@@ -1097,14 +1097,14 @@ useEffect(() => {
           </Button>
         )}
       </div>
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-6">
         <div className="flex flex-col items-center justify-center space-y-4">
-          <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center">
-            <Clock className="w-12 h-12 text-blue-600" />
+          <div className="w-24 h-24 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+            <Clock className="w-12 h-12 text-blue-600 dark:text-blue-400" />
           </div>
           
           <div className="text-center">
-            <p className="text-lg font-medium">
+            <p className="text-lg font-medium dark:text-gray-200">
               {new Date().toLocaleDateString('en-US', { 
                 weekday: 'long', 
                 year: 'numeric', 
@@ -1113,7 +1113,7 @@ useEffect(() => {
                 timeZone: 'Asia/Manila'
               })}
             </p>
-            <p className="text-3xl font-bold text-gray-900">
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">
               {new Date().toLocaleTimeString('en-US', { 
                 hour: '2-digit', 
                 minute: '2-digit',
@@ -1190,15 +1190,15 @@ useEffect(() => {
 
           {/* Employee Selector */}
           <div className="w-full max-w-md">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select Employee</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Employee</label>
             <select
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:border-gray-700 dark:text-white"
             >
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
-                  {emp.fullName} (#{emp.employeeNumber})
+                  {emp.fullName} ({emp.employeeId || `#${emp.employeeNumber}`})
                 </option>
               ))}
             </select>
@@ -1207,14 +1207,25 @@ useEffect(() => {
           <div className="flex gap-4 w-full max-w-md">
               <button
                 onClick={() => {
+                  if (officeLocations.length > 0) {
+                    if (!userLocation) {
+                      alert('Please enable location services to clock in. ' + (gpsError || ''));
+                      getUserLocation();
+                      return;
+                    }
+                    if (!withinRange) {
+                      const locNames = officeLocations.map(l => l.name).join(', ');
+                      alert(`You must be within range of at least one office location to clock in.\nAvailable locations: ${locNames}\nCurrent distance to closest: ${Math.round(closestLocation?.distance || 0)}m`);
+                      return;
+                    }
+                  }
                   if (canClockIn) initiateVerification();
-                  else handleClockIn();
                 }}
                 disabled={!canClockIn || clockingIn}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors ${
                   canClockIn
                     ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500'
                 }`}
               >
                 <Play className="w-5 h-5" />
@@ -1223,14 +1234,25 @@ useEffect(() => {
 
               <button
                 onClick={() => {
+                  if (officeLocations.length > 0) {
+                    if (!userLocation) {
+                      alert('Please enable location services to clock out. ' + (gpsError || ''));
+                      getUserLocation();
+                      return;
+                    }
+                    if (!withinRange) {
+                      const locNames = officeLocations.map(l => l.name).join(', ');
+                      alert(`You must be within range of at least one office location to clock out.\nAvailable locations: ${locNames}\nCurrent distance to closest: ${Math.round(closestLocation?.distance || 0)}m`);
+                      return;
+                    }
+                  }
                   if (canClockOut) initiateVerification();
-                  else handleClockOut();
                 }}
                 disabled={!canClockOut || clockingIn}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors ${
                   canClockOut
                     ? 'bg-red-600 text-white hover:bg-red-700'
-                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500'
                 }`}
               >
                 <Square className="w-5 h-5" />
@@ -1239,20 +1261,20 @@ useEffect(() => {
             </div>
 
           {todayLog && employeeId === todayLog.employeeId && (
-            <div className="w-full max-w-md bg-gray-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-gray-700 mb-2">Today&apos;s Status</p>
+            <div className="w-full max-w-md bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border dark:border-gray-800">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Today&apos;s Status</p>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-gray-500">Clock In</p>
-                  <p className="font-medium">{formatTime(todayLog.clockIn)}</p>
+                  <p className="text-gray-500 dark:text-gray-400">Clock In</p>
+                  <p className="font-medium dark:text-white">{formatTime(todayLog.clockIn)}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Clock Out</p>
-                  <p className="font-medium">{formatTime(todayLog.clockOut)}</p>
+                  <p className="text-gray-500 dark:text-gray-400">Clock Out</p>
+                  <p className="font-medium dark:text-white">{formatTime(todayLog.clockOut)}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-gray-500">Hours Worked</p>
-                  <p className="font-medium">{todayLog.workHours.toFixed(2)} hours</p>
+                  <p className="text-gray-500 dark:text-gray-400">Hours Worked</p>
+                  <p className="font-medium dark:text-white">{todayLog.workHours.toFixed(2)} hours</p>
                 </div>
               </div>
             </div>
@@ -1262,9 +1284,9 @@ useEffect(() => {
 
        {/* Time Logs Table for Admin/Manager */}
        {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
-         <div className="bg-white rounded-xl border overflow-hidden">
-           <div className="p-6 border-b flex flex-col md:flex-row md:items-center justify-between gap-4">
-             <h2 className="text-lg font-semibold">All Time Logs</h2>
+         <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 overflow-hidden">
+           <div className="p-6 border-b dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+             <h2 className="text-lg font-semibold dark:text-white">All Time Logs</h2>
              <div className="relative w-full md:w-72">
                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                  <Search className="w-4 h-4" />
@@ -1288,19 +1310,19 @@ useEffect(() => {
            ) : (
              <div className="overflow-x-auto">
                <table className="w-full">
-                 <thead className="bg-gray-50">
+                 <thead className="bg-gray-50 dark:bg-gray-900/50">
                    <tr>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Schedule</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clock In</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clock Out</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remarks</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Employee</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Schedule</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock In</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock Out</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hours</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Remarks</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
                    </tr>
                  </thead>
-                 <tbody className="divide-y divide-gray-200">
+                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                    {timeLogs
                      .filter(log => 
                        log.employee?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -1308,18 +1330,18 @@ useEffect(() => {
                      .map((log) => {
                        const remarks = getLatenessRemarks(log);
                        return (
-                         <tr key={log.id} className="hover:bg-gray-50">
+                         <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-900 dark:text-gray-200">
                            <td className="px-6 py-4 text-sm whitespace-nowrap">{formatDate(log.date)}</td>
                            <td className="px-6 py-4">
                              <div className="flex items-center gap-2">
-                               <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                 <span className="text-blue-600 text-xs font-medium">
+                               <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                                 <span className="text-blue-600 dark:text-blue-400 text-xs font-medium">
                                    {log.employee?.fullName?.[0] || 'E'}
                                  </span>
                                </div>
                                <div>
-                                 <p className="text-sm font-medium">{log.employee?.fullName || 'Unknown'}</p>
-                                 <p className="text-xs text-gray-500">{log.employee?.employeeId}</p>
+                                 <p className="text-sm font-medium dark:text-gray-200">{log.employee?.fullName || 'Unknown'}</p>
+                                 <p className="text-xs text-gray-500 dark:text-gray-400">{log.employee?.employeeId}</p>
                                </div>
                              </div>
                            </td>
@@ -1363,9 +1385,9 @@ useEffect(() => {
 
        {/* Time Logs Table for Employee (only their own data) */}
        {userRole === 'EMPLOYEE' && (
-         <div className="bg-white rounded-xl border overflow-hidden">
-           <div className="p-6 border-b">
-             <h2 className="text-lg font-semibold">My Time Logs</h2>
+         <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 overflow-hidden">
+           <div className="p-6 border-b dark:border-gray-700">
+             <h2 className="text-lg font-semibold dark:text-white">My Time Logs</h2>
            </div>
            
            {loading ? (
@@ -1375,21 +1397,21 @@ useEffect(() => {
            ) : (
              <div className="overflow-x-auto">
                <table className="w-full">
-                 <thead className="bg-gray-50">
+                 <thead className="bg-gray-50 dark:bg-gray-900/50">
                    <tr>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Schedule</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clock In</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clock Out</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remarks</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Schedule</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock In</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock Out</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hours</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Remarks</th>
                    </tr>
                  </thead>
-                 <tbody className="divide-y divide-gray-200">
+                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                    {timeLogs.map((log) => {
                      const remarks = getLatenessRemarks(log);
                      return (
-                       <tr key={log.id} className="hover:bg-gray-50">
+                       <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-900 dark:text-gray-200">
                          <td className="px-6 py-4 text-sm whitespace-nowrap">{formatDate(log.date)}</td>
                          <td className="px-6 py-4 text-sm whitespace-nowrap">
                            {log.shift ? (
