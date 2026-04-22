@@ -70,10 +70,11 @@ export default function TimeLogsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const biometricFileInputRef = useRef<HTMLInputElement>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
-  const [distance, setDistance] = useState<number | null>(null);
-  const [officeLocation, setOfficeLocation] = useState<{ name: string; lat: number; lon: number; radius: number } | null>(null);
+  const [distances, setDistances] = useState<Map<string, number>>(new Map());
+  const [officeLocations, setOfficeLocations] = useState<Array<{ id: string; name: string; lat: number; lon: number; radius: number; isActive: boolean }>>([]);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [withinRange, setWithinRange] = useState(false);
+  const [closestLocation, setClosestLocation] = useState<{ name: string; distance: number } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [timeLogToDelete, setTimeLogToDelete] = useState<TimeLog | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -160,16 +161,15 @@ useEffect(() => {
         console.error('Failed to fetch office location:', res.statusText);
         return;
       }
-      const locations = await res.json() as Array<{ isActive: boolean; name: string; latitude: number; longitude: number; radius: number }>;
-      const activeLocation = locations.find((loc) => loc.isActive);
-      if (activeLocation) {
-        setOfficeLocation({
-          name: activeLocation.name,
-          lat: activeLocation.latitude,
-          lon: activeLocation.longitude,
-          radius: activeLocation.radius,
-        });
-      }
+      const locations = await res.json() as Array<{ id: string; isActive: boolean; name: string; latitude: number; longitude: number; radius: number }>;
+      setOfficeLocations(locations.map((loc) => ({
+        id: loc.id,
+        name: loc.name,
+        lat: loc.latitude,
+        lon: loc.longitude,
+        radius: loc.radius,
+        isActive: loc.isActive,
+      })));
     } catch (err) {
       console.error('Failed to fetch office location:', err);
     }
@@ -217,17 +217,34 @@ useEffect(() => {
   };
 
   useEffect(() => {
-    if (userLocation && officeLocation) {
-      const dist = calculateDistance(
-        userLocation.lat,
-        userLocation.lon,
-        officeLocation.lat,
-        officeLocation.lon
-      );
-      setDistance(dist);
-      setWithinRange(dist <= officeLocation.radius);
+    if (userLocation && officeLocations.length > 0) {
+      const newDistances = new Map<string, number>();
+      let minDistance = Infinity;
+      let closestName = '';
+
+      for (const loc of officeLocations) {
+        const dist = calculateDistance(
+          userLocation.lat,
+          userLocation.lon,
+          loc.lat,
+          loc.lon
+        );
+        newDistances.set(loc.id, dist);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestName = loc.name;
+        }
+      }
+
+      setDistances(newDistances);
+      const anyInRange = officeLocations.some(loc => {
+        const dist = newDistances.get(loc.id) || Infinity;
+        return dist <= loc.radius;
+      });
+      setWithinRange(anyInRange);
+      setClosestLocation(minDistance !== Infinity ? { name: closestName, distance: minDistance } : null);
     }
-  }, [userLocation, officeLocation]);
+  }, [userLocation, officeLocations]);
 
   const fetchEmployees = async (role: string, email: string) => {
     try {
@@ -244,6 +261,16 @@ useEffect(() => {
       }
       
       setEmployees(data);
+      
+      // For admin/manager roles, try to auto-select the logged-in user's employee record
+      if ((role === 'ADMIN' || role === 'MANAGER' || role === 'HR') && email) {
+        const myEmployee = data.find((emp) => emp.email === email);
+        if (myEmployee) {
+          setEmployeeId(myEmployee.id);
+          return;
+        }
+      }
+      
       if (data.length > 0) {
         setEmployeeId(data[0].id);
       }
@@ -264,8 +291,9 @@ useEffect(() => {
       return;
     }
 
-    if (officeLocation && !withinRange) {
-      alert(`You must be within ${officeLocation.radius} meters of ${officeLocation.name} to clock in.\nCurrent distance: ${Math.round(distance || 0)} meters`);
+    if (officeLocations.length > 0 && !withinRange) {
+      const locNames = officeLocations.map(l => l.name).join(', ');
+      alert(`You must be within range of at least one office location to clock in.\nAvailable locations: ${locNames}\nCurrent distance to closest: ${Math.round(closestLocation?.distance || 0)}m`);
       return;
     }
 
@@ -310,8 +338,9 @@ useEffect(() => {
       return;
     }
 
-    if (officeLocation && !withinRange) {
-      alert(`You must be within ${officeLocation.radius} meters of ${officeLocation.name} to clock out.\nCurrent distance: ${Math.round(distance || 0)} meters`);
+    if (officeLocations.length > 0 && !withinRange) {
+      const locNames = officeLocations.map(l => l.name).join(', ');
+      alert(`You must be within range of at least one office location to clock out.\nAvailable locations: ${locNames}\nCurrent distance to closest: ${Math.round(closestLocation?.distance || 0)}m`);
       return;
     }
 
@@ -401,8 +430,8 @@ useEffect(() => {
     }
   };
 
-  const canClockIn = (!todayLog || !todayLog.clockIn) && (!officeLocation || (withinRange && userLocation));
-  const canClockOut = (todayLog && todayLog.clockIn && !todayLog.clockOut) && (!officeLocation || (withinRange && userLocation));
+  const canClockIn = (!todayLog || !todayLog.clockIn) && (!officeLocations.length || (withinRange && userLocation));
+  const canClockOut = (todayLog && todayLog.clockIn && !todayLog.clockOut) && (!officeLocations.length || (withinRange && userLocation));
 
   const handleVerifyFace = async (isMatch: boolean, distance: number) => {
     if (isMatch) {
@@ -1096,7 +1125,7 @@ useEffect(() => {
 
           {/* GPS Status */}
           <div className={`w-full max-w-md rounded-lg p-4 border-2 ${
-            !officeLocation 
+            !officeLocations.length 
               ? 'bg-blue-50 border-blue-200'
               : withinRange 
                 ? 'bg-green-50 border-green-200' 
@@ -1105,7 +1134,7 @@ useEffect(() => {
                   : 'bg-yellow-50 border-yellow-200'
           }`}>
             <div className="flex items-center gap-3">
-              {!officeLocation ? (
+              {!officeLocations.length ? (
                 <MapPin className="w-8 h-8 text-blue-600" />
               ) : withinRange ? (
                 <CheckCircle2 className="w-8 h-8 text-green-600" />
@@ -1114,27 +1143,40 @@ useEffect(() => {
               )}
               <div className="flex-1">
                 <p className="font-semibold text-gray-900">
-                  {!officeLocation 
+                  {!officeLocations.length 
                     ? 'GPS Not Required' 
                     : withinRange 
                       ? 'Within Clock-In Range' 
                       : 'Outside Clock-In Range'}
                 </p>
                 <p className="text-sm text-gray-600">
-                  {!officeLocation ? (
+                  {!officeLocations.length ? (
                     'No office location configured. Clock-in is allowed from anywhere.'
                   ) : gpsError ? (
                     <span className="text-red-600">{gpsError}</span>
                   ) : userLocation === null ? (
                     'Click refresh to get your location'
-                  ) : distance !== null ? (
-                    `Distance: ${Math.round(distance)}m from ${officeLocation.name} (Required: ${officeLocation.radius}m)`
+                  ) : officeLocations.length > 0 ? (
+                    <div className="space-y-1">
+                      {officeLocations.map((loc) => {
+                        const dist = distances.get(loc.id);
+                        const inRange = dist !== undefined && dist <= loc.radius;
+                        return (
+                          <div key={loc.id} className="flex items-center gap-1">
+                            <span className={inRange ? 'text-green-600' : 'text-red-600'}>
+                              {inRange ? '✓' : '✗'}
+                            </span>
+                            <span>{loc.name}: {Math.round(dist || 0)}m / {loc.radius}m</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   ) : (
                     'Getting location...'
                   )}
                 </p>
               </div>
-              {officeLocation && (
+              {officeLocations.length > 0 && (
                 <button 
                   onClick={getUserLocation}
                   className="p-2 hover:bg-white/50 rounded-lg transition-colors"

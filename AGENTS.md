@@ -226,6 +226,47 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### Multi-Location Clock In/Out Support (2026-04-22)
+
+**Issue Fixed:** Clock In/Clock Out buttons were disabled when employees were outside the geofence of the single active office location, even if they were within range of another configured office.
+
+**Root Cause:** The `fetchOfficeLocation` function in `time-logs/page.tsx` only fetched and used the single active location (`locations.find((loc) => loc.isActive)`). The `withinRange` state was computed against only that one location.
+
+**Files Updated:**
+- `app/(dashboard)/time-logs/page.tsx` - Updated state, fetching, distance calculation, UI, and clock-in/clock-out logic to support multiple office locations
+
+**Changes Made:**
+1. **Replaced single location with array:** Changed `officeLocation` (single object) to `officeLocations` (array of all locations)
+2. **Multiple distance tracking:** Replaced single `distance` with `distances` (Map of location ID → distance) and `closestLocation` (for error messages)
+3. **Updated fetching:** `fetchOfficeLocation` now loads all locations, not just the active one
+4. **Updated distance calculation:** The `useEffect` computes distance to **each** location and sets `withinRange = true` if **any** location is within range
+5. **Updated clock-in/clock-out conditions:** `canClockIn` / `canClockOut` now use `officeLocations.length` instead of `officeLocation`
+6. **Updated GPS status UI:** Displays all locations with their distances (✓/✗ per location)
+7. **Updated alert messages:** Error messages in `handleClockIn` and `handleClockOut` list all available locations
+
+```typescript
+// Before: Single active location
+const [officeLocation, setOfficeLocation] = useState<OfficeLocation | null>(null);
+const [distance, setDistance] = useState<number | null>(null);
+const withinRange = distance !== null && distance <= (officeLocation?.rangeMeters || 100);
+
+// After: Multiple locations
+const [officeLocations, setOfficeLocations] = useState<OfficeLocation[]>([]);
+const [distances, setDistances] = useState<Map<string, number>>(new Map());
+const [closestLocation, setClosestLocation] = useState<OfficeLocation | null>(null);
+const withinRange = officeLocations.some(loc => {
+  const d = distances.get(loc.id);
+  return d !== undefined && d <= (loc.rangeMeters || 100);
+});
+```
+
+**Key Files:**
+- `app/(dashboard)/time-logs/page.tsx` - Updated to support multiple office locations for clock in/out
+- `app/api/office-location/route.ts` - Already supports multiple locations (no changes needed)
+- `app/(dashboard)/settings/page.tsx` - Where users configure office locations
+
+---
+
 ### GAAP Financial Reporting & Beginning Balances (2026-04-20)
 
 **New Features:**
