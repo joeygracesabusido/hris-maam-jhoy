@@ -193,7 +193,7 @@ export async function PATCH(request: Request) {
     const result = await prisma.$transaction(async (tx) => {
       // 1. Delete old subsidiary transaction
       await tx.subsidiaryTransaction.deleteMany({
-        where: { journalEntryId: existingPayment.journalEntryId?.id },
+        where: { journalEntryId: existingPayment.journalEntryId || undefined },
       });
 
       // 2. Delete old journal entry
@@ -338,7 +338,7 @@ export async function DELETE(request: Request) {
     const result = await prisma.$transaction(async (tx) => {
       // 1. Delete old subsidiary transaction
       await tx.subsidiaryTransaction.deleteMany({
-        where: { journalEntryId: existingPayment.journalEntryId?.id },
+        where: { journalEntryId: existingPayment.journalEntryId || undefined },
       });
 
       // 2. Delete old journal entry
