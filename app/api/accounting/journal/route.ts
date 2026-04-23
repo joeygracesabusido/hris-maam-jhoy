@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Date, description, and lines are required' }, { status: 400 });
     }
 
-    if (lines.length <<  2) {
+    if (lines.length < 2) {
       return NextResponse.json({ error: 'A journal entry must have at least two lines' }, { status: 400 });
     }
 
@@ -19,8 +19,8 @@ export async function POST(request: Request) {
     let totalCredit = 0;
 
     for (const line of lines) {
-      totalDebit += parseFloat(line.debit || 0);
-      totalCredit += parseFloat(line.credit || 0);
+      totalDebit += parseFloat(line.debit || 0) || 0;
+      totalCredit += parseFloat(line.credit || 0) || 0;
     }
 
     // Use a small epsilon for floating point comparison
@@ -41,8 +41,8 @@ export async function POST(request: Request) {
           lines: {
             create: lines.map(line => ({
               accountId: line.accountId,
-              debit: parseFloat(line.debit || 0),
-              credit: parseFloat(line.credit || 0),
+              debit: parseFloat(line.debit) || 0,
+              credit: parseFloat(line.credit) || 0,
               memo: line.memo,
             }))
           }

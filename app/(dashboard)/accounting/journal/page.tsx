@@ -32,8 +32,8 @@ export default function JournalPage() {
     description: '',
     reference: '',
     lines: [
-      { accountId: '', accountName: '', debit: 0, credit: 0, memo: '' },
-      { accountId: '', accountName: '', debit: 0, credit: 0, memo: '' },
+      { accountId: '', accountName: '', debit: '', credit: '', memo: '' },
+      { accountId: '', accountName: '', debit: '', credit: '', memo: '' },
     ],
   });
 
@@ -62,7 +62,7 @@ export default function JournalPage() {
   const addLine = () => {
     setFormData({
       ...formData,
-      lines: [...formData.lines, { accountId: '', accountName: '', debit: 0, credit: 0, memo: '' }],
+      lines: [...formData.lines, { accountId: '', accountName: '', debit: '', credit: '', memo: '' }],
     });
   };
 
@@ -86,6 +86,13 @@ export default function JournalPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    const hasDebitOrCredit = formData.lines.some(l => l.debit || l.credit);
+    if (!hasDebitOrCredit) {
+      alert('Please enter at least one debit or credit amount');
+      return;
+    }
+
     try {
       const res = await fetch('/api/accounting/journal', {
         method: 'POST',
@@ -100,8 +107,8 @@ export default function JournalPage() {
           description: '',
           reference: '',
           lines: [
-            { accountId: '', accountName: '', debit: 0, credit: 0, memo: '' },
-            { accountId: '', accountName: '', debit: 0, credit: 0, memo: '' },
+            { accountId: '', accountName: '', debit: '', credit: '', memo: '' },
+            { accountId: '', accountName: '', debit: '', credit: '', memo: '' },
           ],
         });
         fetchData();
@@ -117,6 +124,7 @@ export default function JournalPage() {
   const totalDebit = formData.lines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
   const totalCredit = formData.lines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
+  const hasAnyValue = formData.lines.some(l => l.debit || l.credit);
 
   const filteredEntries = entries.filter(entry =>
     entry.description.toLowerCase().includes(search.toLowerCase()) ||
@@ -210,7 +218,7 @@ export default function JournalPage() {
                               step="0.01"
                               placeholder="0.00"
                               value={line.debit}
-                              onChange={e => updateLine(index, 'debit', parseFloat(e.target.value) || 0)}
+                              onChange={e => updateLine(index, 'debit', e.target.value === '' ? '' : parseFloat(e.target.value))}
                             />
                           </TableCell>
                           <TableCell>
@@ -219,7 +227,7 @@ export default function JournalPage() {
                               step="0.01"
                               placeholder="0.00"
                               value={line.credit}
-                              onChange={e => updateLine(index, 'credit', parseFloat(e.target.value) || 0)}
+                              onChange={e => updateLine(index, 'credit', e.target.value === '' ? '' : parseFloat(e.target.value))}
                             />
                           </TableCell>
                           <TableCell>
@@ -243,7 +251,7 @@ export default function JournalPage() {
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={!isBalanced}>Post Transaction</Button>
+                <Button type="submit" disabled={!isBalanced || !hasAnyValue}>Post Transaction</Button>
               </DialogFooter>
             </form>
           </DialogContent>

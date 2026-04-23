@@ -462,6 +462,7 @@ model Account {
 
   lines                 JournalLine[]
   subsidiaryLedgers     SubsidiaryLedger[]
+  payments              Payment[]
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 
@@ -474,27 +475,27 @@ model SubsidiaryLedger {
   id              String          @id @default(auto()) @map("_id") @db.ObjectId
   accountId       String          @db.ObjectId
   account         Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  
+
   // The subsidiary entity (customer, supplier, inventory item, etc.)
   entityCode      String          // e.g., CUST-001, SUP-001, INV-001
   entityName      String          // e.g., "ABC Corporation", "XYZ Supplier"
   entityType      SubsidiaryType  // Links to account.subsidiaryType
-  
+
   // Running balance
   debitTotal      Float           @default(0)
   creditTotal     Float           @default(0)
   balance         Float           @default(0) // Calculated: debitTotal - creditTotal
-  
+
   // Metadata
   description     String?
   isActive        Boolean         @default(true)
-  
+
   // Transactions link to this subsidiary
   transactions    SubsidiaryTransaction[]
-  
+
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
-  
+
   @@unique([accountId, entityCode])
   @@index([accountId])
   @@index([entityType])
@@ -506,19 +507,19 @@ model SubsidiaryTransaction {
   id              String          @id @default(auto()) @map("_id") @db.ObjectId
   ledgerId        String          @db.ObjectId
   ledger          SubsidiaryLedger @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
-  
+
   date            DateTime        @default(now())
   referenceNo     String          // e.g., INV-2024-001, PO-2024-001
   description     String
-  
+
   debit           Float           @default(0)
   credit          Float           @default(0)
-  
+
   // Link to journal entry for reconciliation
   journalEntryId  String?         @db.ObjectId
-  
+
   createdAt       DateTime        @default(now())
-  
+
   @@index([ledgerId])
   @@index([date])
   @@map("subsidiary_transactions")
@@ -532,6 +533,7 @@ model JournalEntry {
   status       String   @default("POSTED") // DRAFT, POSTED, VOID
 
   lines       JournalLine[]
+  payments    Payment[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -664,6 +666,7 @@ model PurchaseBill {
   amountPaid     Float    @default(0)
 
   journalEntryId String?  @db.ObjectId
+  payments       Payment[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -684,6 +687,22 @@ model PurchaseBillItem {
   @@map("purchase_bill_items")
 }
 
+model Payment {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  billId         String       @map("purchaseBillId")
+  bill           PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  amount         Float        @default(0)
+  paymentDate    DateTime     @db.Date
+  referenceNumber String?     // Check number, transfer ref, etc.
+  notes          String?
+  cashAccountId  String       @map("cashAccountId")
+  cashAccount    Account      @relation(fields: [cashAccountId], references: [id])
+  journalEntryId String?      @map("journalEntryId")
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  createdAt      DateTime     @default(now()) @db.Date
+
+  @@map("payments")
+}
 enum AssetStatus {
   ACTIVE
   INACTIVE

@@ -226,6 +226,45 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### EWT & Input VAT for Expense Vouchers (2026-04-23)
+
+**Issue Fixed:** Expense Vouchers did not have EWT (Expanded Withholding Tax) and Input VAT handling, unlike Purchase Bills which already had this feature.
+
+**Files Updated:**
+- `app/(dashboard)/accounting/expenses/page.tsx` - Added EWT/VAT form fields to both new and edit dialogs
+- `app/api/accounting/expenses/route.ts` - Updated POST and PATCH handlers with VAT/EWT journal entry logic
+
+**UI Fields Added:**
+- `isVatInclusive` checkbox - Toggle 12% VAT calculation
+- `noInputVat` checkbox - Opt out of Input VAT claim
+- `ewtAccountId` dropdown - Select EWT account (234x codes)
+- `ewtPercentage` input - Enter withholding tax rate
+- Computed EWT Amount display (based on net of VAT)
+
+**Journal Entry Logic:**
+When VAT/EWT is applied, the journal entry now includes:
+- Debit: Expense accounts (per line items)
+- Debit: Input VAT (2320) if VAT toggle enabled and not opted out
+- Credit: EWT account for withholding amount
+- Credit: Cash for (Total - EWT), keeping entry balanced
+
+```typescript
+// Journal entry lines with VAT and EWT
+const journalEntryLines = [
+  ...items.map(item => ({ debit: item.amount, credit: 0 })),  // Expense debits
+  { accountId: inputVATAccount.id, debit: vatAmount, credit: 0 },   // Input VAT debit (if applicable)
+  { accountId: ewtAccountId, debit: 0, credit: ewtAmount }, // EWT credit
+  { accountId: cashAccountId, debit: 0, credit: totalAmount - ewtAmount }, // Cash credit (reduced by EWT)
+]
+```
+
+**Key Files:**
+- `app/(dashboard)/accounting/expenses/page.tsx` - Form UI with EWT/VAT fields
+- `app/api/accounting/expenses/route.ts` - API with tax-aware journal entries
+- `app/(dashboard)/accounting/purchases/page.tsx` - Reference implementation
+
+---
+
 ### Multi-Location Clock In/Out Support (2026-04-22)
 
 **Issue Fixed:** Clock In/Clock Out buttons were disabled when employees were outside the geofence of the single active office location, even if they were within range of another configured office.
