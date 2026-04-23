@@ -181,6 +181,9 @@ export default function PurchasesPage() {
     let expenseAccountId = '';
     let apAccountId = '';
     let ewtAccountId = '';
+    let ewtPercentage = '';
+    let hasInputVat = false;
+
     if (bill.journalEntry && bill.journalEntry.lines) {
       for (const line of bill.journalEntry.lines) {
         if (line.debit > 0 && line.account?.type === 'EXPENSE') {
@@ -191,6 +194,14 @@ export default function PurchasesPage() {
         }
         if (line.credit > 0 && line.account?.code?.startsWith('234')) {
           ewtAccountId = line.accountId;
+          // Try to extract percentage from memo like "Bill BILL-2026-5857 EWT (1%)"
+          const match = line.memo?.match(/\((\d+(?:\.\d+)?)\%\)/);
+          if (match) {
+            ewtPercentage = match[1];
+          }
+        }
+        if (line.account?.code === '2320') {
+          hasInputVat = true;
         }
       }
       if (!expenseAccountId && bill.journalEntry.lines.length > 0) {
@@ -208,10 +219,10 @@ export default function PurchasesPage() {
       dueDate: new Date(bill.dueDate).toISOString().split('T')[0],
       expenseAccountId,
       apAccountId,
-      isVatInclusive: false,
-      noInputVat: false,
+      isVatInclusive: false, // Hard to determine after the fact, default to false
+      noInputVat: !hasInputVat,
       ewtAccountId,
-      ewtPercentage: '',
+      ewtPercentage,
       items: bill.items.map((item: any) => ({
         description: item.description,
         quantity: item.quantity.toString(),

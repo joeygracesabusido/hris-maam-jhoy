@@ -226,6 +226,27 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### Vercel Deployment & EWT Balance Fix (2026-04-23)
+
+**Issues Fixed:**
+- **TypeScript Build Error**: Fixed `Type error: Property 'id' does not exist on type 'string'` in `app/api/accounting/payments/route.ts` where `journalEntryId.id` was incorrectly used on a string field.
+- **Unbalanced Journal Entries**: Fixed an issue in `app/api/accounting/purchases/route.ts` where journal entries were created with mismatched debits and credits when EWT was involved.
+- **Missing EWT Account (2340)**: Implemented an automatic fallback in the backend. If an EWT percentage is provided but the account is missing, it now defaults to **2340 (Expanded Withholding Tax)**.
+- **Smart Form Editing**: Updated the Purchases page UI to correctly extract EWT percentage and VAT status from existing journal entries when editing, preventing data loss on re-save.
+
+**Vercel Readiness Audit:**
+- **Dependencies**: Identified version mismatches between `next` (v14) and `eslint-config-next` (v15) that should be synced for stable builds.
+- **Prisma**: Verified singleton pattern and `@prisma/client` version compatibility.
+- **Environment**: Noted that `DATABASE_URL` and `NEXTAUTH_SECRET` are mandatory in Vercel.
+- **Face-API**: Confirmed `face-api.js` is handled correctly via dynamic imports and webpack shims to avoid server-side build failures.
+
+**Key Files:**
+- `app/api/accounting/payments/route.ts` - Fixed journalEntryId type error
+- `app/api/accounting/purchases/route.ts` - Balanced EWT journal entry logic
+- `app/(dashboard)/accounting/purchases/page.tsx` - Smart extraction of EWT/VAT from entries
+
+---
+
 ### EWT & Input VAT for Expense Vouchers (2026-04-23)
 
 **Issue Fixed:** Expense Vouchers did not have EWT (Expanded Withholding Tax) and Input VAT handling, unlike Purchase Bills which already had this feature.

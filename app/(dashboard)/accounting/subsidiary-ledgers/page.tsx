@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -29,29 +29,24 @@ export default function SubsidiaryLedgerPage() {
   });
 
   // Fetch accounts with subsidiary ledgers
-  useEffect(() => {
-    async function fetchAccounts() {
-      try {
-        const res = await fetch('/api/accounting/accounts');
-        const data = await res.json();
-        // Filter accounts that have subsidiary ledgers
-        const controlAccounts = data.filter((acc: any) => acc.hasSubsidiaryLedger === true || acc.subsidiaryType !== undefined);
-        setAccounts(controlAccounts);
-      } catch (err) {
-        console.error('Error fetching accounts:', err);
-      }
+  const fetchAccounts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/accounting/accounts');
+      const data = await res.json();
+      // Filter accounts that have subsidiary ledgers
+      const controlAccounts = data.filter((acc: any) => acc.hasSubsidiaryLedger === true || acc.subsidiaryType !== undefined);
+      setAccounts(controlAccounts);
+    } catch (err) {
+      console.error('Error fetching accounts:', err);
     }
-    fetchAccounts();
   }, []);
 
-  // Fetch subsidiary ledgers when account selected
   useEffect(() => {
-    if (selectedAccountId) {
-      fetchLedgers();
-    }
-  }, [selectedAccountId]);
+    fetchAccounts();
+  }, [fetchAccounts]);
 
-  async function fetchLedgers() {
+  // Fetch subsidiary ledgers when account selected
+  const fetchLedgers = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/accounting/subsidiary-ledgers?accountId=${selectedAccountId}`);
@@ -64,7 +59,13 @@ export default function SubsidiaryLedgerPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [selectedAccountId]);
+
+  useEffect(() => {
+    if (selectedAccountId) {
+      fetchLedgers();
+    }
+  }, [selectedAccountId, fetchLedgers]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

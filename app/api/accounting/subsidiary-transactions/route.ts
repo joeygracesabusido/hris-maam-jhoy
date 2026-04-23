@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 // GET transactions for a specific subsidiary ledger
 export async function GET(request: Request) {
   try {
@@ -112,7 +114,7 @@ export async function POST(request: Request) {
 }
 
 // DELETE to reconcile
-export async function DELETE(request: Request) {
+export async function DELETE(_request: Request) {
   try {
     // Get all control accounts
     const controlAccounts = await (prisma as any).account.findMany({

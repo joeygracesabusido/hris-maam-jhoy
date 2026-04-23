@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   format, 
   startOfWeek, 
@@ -96,16 +96,16 @@ export default function ShiftSchedulePage() {
     end: addDays(startDate, 6),
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const startStr = format(startDate, 'yyyy-MM-dd');
       const endStr = format(addDays(startDate, 6), 'yyyy-MM-dd');
-      
+
       console.log(`[Fetch] Range: ${startStr} to ${endStr}`);
-      
+
       const [shiftsRes, schedulesRes] = await Promise.all([
         fetch('/api/shifts', { credentials: 'include' }),
         fetch(`/api/schedules?startDate=${startStr}&endDate=${endStr}`, { credentials: 'include' })
@@ -125,7 +125,7 @@ export default function ShiftSchedulePage() {
       setShifts(Array.isArray(shiftsData) ? shiftsData : []);
       setEmployees(Array.isArray(scheduleDataJson.employees) ? scheduleDataJson.employees : []);
       setSchedules(Array.isArray(scheduleDataJson.schedules) ? scheduleDataJson.schedules : []);
-      
+
       console.log(`[Fetch] Loaded ${scheduleDataJson.employees?.length || 0} employees`);
     } catch (err: unknown) {
       console.error('[Fetch] Error:', err);
@@ -133,11 +133,11 @@ export default function ShiftSchedulePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate]);
 
   useEffect(() => {
     fetchData();
-  }, [currentDate]);
+  }, [fetchData]);
 
   const handleCreateShift = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/accounting/vendors - Get all vendors (suppliers)
 export async function GET(request: Request) {
   try {

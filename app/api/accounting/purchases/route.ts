@@ -19,6 +19,15 @@ export async function POST(request: Request) {
     const ewtAmount = netAmount * (ewtPercent / 100);
 
     const result = await prisma.$transaction(async (tx) => {
+      // Find EWT account if not provided but percentage exists
+      let effectiveEwtAccountId = ewtAccountId;
+      if (ewtPercent > 0 && !effectiveEwtAccountId) {
+        const ewtAccount = await tx.account.findFirst({
+          where: { code: '2340' },
+        });
+        effectiveEwtAccountId = ewtAccount?.id;
+      }
+
       // 1. Create the Purchase Bill
       const bill = await tx.purchaseBill.create({
         data: {
@@ -41,21 +50,14 @@ export async function POST(request: Request) {
       });
 
       // 2. Create the corresponding Journal Entry (Double Entry)
-      const journalEntryData: any = {
-        date: new Date(date),
-        description: `Purchase Bill ${billNumber} - ${supplierName}`,
-        reference: billNumber,
-        lines: {
-          create: [
-            {
-              accountId: expenseAccountId,
-              debit: netAmount,
-              credit: 0,
-              memo: `Bill ${billNumber} Expense`,
-            },
-          ],
+      const lines = [
+        {
+          accountId: expenseAccountId,
+          debit: netAmount,
+          credit: 0,
+          memo: `Bill ${billNumber} Expense`,
         },
-      };
+      ];
 
       if (vatAmount > 0 && !noInputVat) {
         const inputVATAccount = await tx.account.findFirst({
@@ -63,7 +65,7 @@ export async function POST(request: Request) {
         });
 
         if (inputVATAccount) {
-          journalEntryData.lines.create.push({
+          lines.push({
             accountId: inputVATAccount.id,
             debit: vatAmount,
             credit: 0,
@@ -72,24 +74,41 @@ export async function POST(request: Request) {
         }
       }
 
-      if (ewtPercent > 0 && ewtAccountId) {
-        journalEntryData.lines.create.push({
-          accountId: ewtAccountId,
+      if (ewtPercent > 0 && effectiveEwtAccountId) {
+        lines.push({
+          accountId: effectiveEwtAccountId,
           debit: 0,
           credit: ewtAmount,
-          memo: `Bill ${billNumber} EWT`,
+          memo: `Bill ${billNumber} EWT (${ewtPercent}%)`,
         });
       }
 
-      journalEntryData.lines.create.push({
+      // AP is net of EWT
+      lines.push({
         accountId: apAccountId,
         debit: 0,
         credit: totalAmount - ewtAmount,
         memo: `Bill ${billNumber} AP`,
       });
 
+      // Sanity Check: Ensure balanced
+      const totalDebits = lines.reduce((sum, l) => sum + l.debit, 0);
+      const totalCredits = lines.reduce((sum, l) => sum + l.credit, 0);
+      const diff = Math.abs(totalDebits - totalCredits);
+
+      if (diff > 0.01) {
+        throw new Error(`Journal entry not balanced. Debits: ${totalDebits.toFixed(2)}, Credits: ${totalCredits.toFixed(2)}`);
+      }
+
       const journalEntry = await tx.journalEntry.create({
-        data: journalEntryData,
+        data: {
+          date: new Date(date),
+          description: `Purchase Bill ${billNumber} - ${supplierName}`,
+          reference: billNumber,
+          lines: {
+            create: lines,
+          },
+        },
       });
 
       // 3. Link journal entry to bill
@@ -168,6 +187,15 @@ export async function PATCH(request: Request) {
     const ewtAmount = netAmount * (ewtPercent / 100);
 
     const result = await prisma.$transaction(async (tx) => {
+      // Find EWT account if not provided but percentage exists
+      let effectiveEwtAccountId = ewtAccountId;
+      if (ewtPercent > 0 && !effectiveEwtAccountId) {
+        const ewtAccount = await tx.account.findFirst({
+          where: { code: '2340' },
+        });
+        effectiveEwtAccountId = ewtAccount?.id;
+      }
+
       // 1. Update the Purchase Bill
       const updatedBill = await tx.purchaseBill.update({
         where: { id },
@@ -205,21 +233,14 @@ export async function PATCH(request: Request) {
       }
 
       // 4. Create new journal entry with updated amounts
-      const journalEntryData: any = {
-        date: new Date(date),
-        description: `Purchase Bill ${existingBill.billNumber} - ${supplierName}`,
-        reference: existingBill.billNumber,
-        lines: {
-          create: [
-            {
-              accountId: expenseAccountId,
-              debit: netAmount,
-              credit: 0,
-              memo: `Bill ${existingBill.billNumber} Expense`,
-            },
-          ],
+      const lines = [
+        {
+          accountId: expenseAccountId,
+          debit: netAmount,
+          credit: 0,
+          memo: `Bill ${existingBill.billNumber} Expense`,
         },
-      };
+      ];
 
       if (vatAmount > 0 && !noInputVat) {
         const inputVATAccount = await tx.account.findFirst({
@@ -227,7 +248,7 @@ export async function PATCH(request: Request) {
         });
 
         if (inputVATAccount) {
-          journalEntryData.lines.create.push({
+          lines.push({
             accountId: inputVATAccount.id,
             debit: vatAmount,
             credit: 0,
@@ -236,24 +257,41 @@ export async function PATCH(request: Request) {
         }
       }
 
-      if (ewtPercent > 0 && ewtAccountId) {
-        journalEntryData.lines.create.push({
-          accountId: ewtAccountId,
+      if (ewtPercent > 0 && effectiveEwtAccountId) {
+        lines.push({
+          accountId: effectiveEwtAccountId,
           debit: 0,
           credit: ewtAmount,
-          memo: `Bill ${existingBill.billNumber} EWT`,
+          memo: `Bill ${existingBill.billNumber} EWT (${ewtPercent}%)`,
         });
       }
 
-      journalEntryData.lines.create.push({
+      // AP is net of EWT
+      lines.push({
         accountId: apAccountId,
         debit: 0,
         credit: totalAmount - ewtAmount,
         memo: `Bill ${existingBill.billNumber} AP`,
       });
 
+      // Sanity Check: Ensure balanced
+      const totalDebits = lines.reduce((sum, l) => sum + l.debit, 0);
+      const totalCredits = lines.reduce((sum, l) => sum + l.credit, 0);
+      const diff = Math.abs(totalDebits - totalCredits);
+
+      if (diff > 0.01) {
+        throw new Error(`Journal entry not balanced. Debits: ${totalDebits.toFixed(2)}, Credits: ${totalCredits.toFixed(2)}`);
+      }
+
       const journalEntry = await tx.journalEntry.create({
-        data: journalEntryData,
+        data: {
+          date: new Date(date),
+          description: `Purchase Bill ${existingBill.billNumber} - ${supplierName}`,
+          reference: existingBill.billNumber,
+          lines: {
+            create: lines,
+          },
+        },
       });
 
       // 5. Link journal entry to bill

@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 import { cache } from '@/lib/redis';
 import { hasAdminAccess } from '@/lib/auth-helpers';
 
+export const dynamic = 'force-dynamic';
+
 // Use a fresh client if the singleton is stale
 const localPrisma = new PrismaClient();
 const ADVANCES_CACHE_PREFIX = 'advances:';

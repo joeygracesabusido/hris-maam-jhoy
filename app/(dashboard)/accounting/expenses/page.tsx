@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Search, Filter, Trash2, Save, Edit, XCircle,
   Calendar as CalendarIcon,
@@ -77,15 +77,7 @@ export default function ExpensesPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  useEffect(() => {
-    fetchExpenses();
-  }, [search, statusFilter]);
-
-  async function fetchInitialData() {
+  const fetchInitialData = useCallback(async () => {
     try {
       const [accRes, vendorsRes] = await Promise.all([
         fetch('/api/accounting/accounts').then(res => res.json()),
@@ -106,9 +98,9 @@ export default function ExpensesPage() {
     } catch {
       console.error('Error fetching initial data');
     }
-  }
+  }, []);
 
-  async function fetchExpenses() {
+  const fetchExpenses = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -123,7 +115,15 @@ export default function ExpensesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [search, statusFilter]);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
+  useEffect(() => {
+    fetchExpenses();
+  }, [fetchExpenses]);
 
   const addItem = () => {
     setFormData(prev => ({
