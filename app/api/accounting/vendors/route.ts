@@ -26,7 +26,17 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Vendor not found' }, { status: 404 });
       }
 
-      return NextResponse.json(vendor);
+      // Calculate balance from transactions
+      const debitTotal = vendor.transactions.reduce((sum, t) => sum + t.debit, 0);
+      const creditTotal = vendor.transactions.reduce((sum, t) => sum + t.credit, 0);
+      const vendorWithBalance = {
+        ...vendor,
+        debitTotal,
+        creditTotal,
+        balance: debitTotal - creditTotal,
+      };
+
+      return NextResponse.json(vendorWithBalance);
     }
 
     // Get all vendors (entityType = SUPPLIER)
@@ -37,11 +47,24 @@ export async function GET(request: Request) {
       },
       include: {
         account: true,
+        transactions: true,
       },
       orderBy: { entityName: 'asc' },
     });
 
-    return NextResponse.json(vendors);
+    // Calculate balance for each vendor from transactions
+    const vendorsWithBalance = vendors.map(vendor => {
+      const debitTotal = vendor.transactions.reduce((sum, t) => sum + t.debit, 0);
+      const creditTotal = vendor.transactions.reduce((sum, t) => sum + t.credit, 0);
+      return {
+        ...vendor,
+        debitTotal,
+        creditTotal,
+        balance: debitTotal - creditTotal,
+      };
+    });
+
+    return NextResponse.json(vendorsWithBalance);
   } catch (error) {
     console.error('Error fetching vendors:', error);
     return NextResponse.json({ error: 'Failed to fetch vendors' }, { status: 500 });

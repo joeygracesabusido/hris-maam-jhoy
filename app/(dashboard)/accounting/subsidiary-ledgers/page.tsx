@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, RefreshCw, CheckCircle2, XCircle, ChevronRight } from 'lucide-react';
+import { Plus, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 
 export default function SubsidiaryLedgerPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -178,33 +178,33 @@ export default function SubsidiaryLedgerPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <div>
-                <div className="text-muted-foreground">General Ledger Balance</div>
-                <div className="text-lg font-bold font-mono">
-                  ₱{Math.abs(reconciliation.glBalance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Subsidiary Ledger Total</div>
-                <div className="text-lg font-bold font-mono">
-                  ₱{Math.abs(reconciliation.slBalance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Difference</div>
-                <div className={`text-lg font-bold font-mono ${
-                  Math.abs(reconciliation.difference) > 0.01 ? 'text-red-600' : 'text-green-600'
-                }`}>
-                  ₱{Math.abs(reconciliation.difference).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-            </div>
-            {!reconciliation.isBalanced && (
-              <p className="text-sm text-red-600 mt-2">
-                Warning: General Ledger and Subsidiary Ledger do not match. Review transactions.
-              </p>
-            )}
+             <div className="grid grid-cols-3 gap-4 text-sm">
+               <div>
+                 <div className="text-muted-foreground">General Ledger Balance</div>
+                 <div className="text-lg font-bold font-mono">
+                   ₱{reconciliation.glBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                 </div>
+               </div>
+               <div>
+                 <div className="text-muted-foreground">Subsidiary Ledger Total</div>
+                 <div className="text-lg font-bold font-mono">
+                   ₱{reconciliation.slBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                 </div>
+               </div>
+               <div>
+                 <div className="text-muted-foreground">Difference</div>
+                 <div className={`text-lg font-bold font-mono ${
+                   Math.abs(reconciliation.difference) > 0.01 ? 'text-red-600' : 'text-green-600'
+                 }`}>
+                   ₱{reconciliation.difference.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                 </div>
+               </div>
+             </div>
+             {!reconciliation.isBalanced && (
+               <p className="text-sm text-red-600 mt-2">
+                 Warning: General Ledger and Subsidiary Ledger do not match. Review transactions.
+               </p>
+             )}
           </CardContent>
         </Card>
       )}

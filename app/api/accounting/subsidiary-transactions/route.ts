@@ -98,11 +98,7 @@ export async function POST(request: Request) {
       data: {
         debitTotal: { increment: debitAmount },
         creditTotal: { increment: creditAmount },
-        balance: {
-          increment: ledger.account.normalBalance === 'DEBIT' 
-            ? (debitAmount - creditAmount) 
-            : (creditAmount - debitAmount),
-        },
+        balance: { increment: debitAmount - creditAmount },
       },
     });
 
@@ -114,7 +110,7 @@ export async function POST(request: Request) {
 }
 
 // DELETE to reconcile
-export async function DELETE(_request: Request) {
+export async function DELETE(_: Request) {
   try {
     // Get all control accounts
     const controlAccounts = await (prisma as any).account.findMany({
@@ -128,9 +124,17 @@ export async function DELETE(_request: Request) {
     const reconciliations = [];
 
     for (const account of controlAccounts) {
-      // Calculate SL total
-      const slTotal = account.subsidiaryLedgers.reduce((sum: number, l: any) => sum + l.balance, 0);
-      
+      // Calculate SL total from transactions (not stored balance)
+      const ledgers = await (prisma as any).subsidiaryLedger.findMany({
+        where: { accountId: account.id },
+        include: { transactions: true },
+      });
+      const slTotal = ledgers.reduce((sum: number, l: any) => {
+        const debitTotal = l.transactions.reduce((s: number, t: any) => s + t.debit, 0);
+        const creditTotal = l.transactions.reduce((s: number, t: any) => s + t.credit, 0);
+        return sum + debitTotal - creditTotal;
+      }, 0);
+
       // Calculate GL total
       const glDebit = account.lines.reduce((sum: number, l: any) => sum + l.debit, 0);
       const glCredit = account.lines.reduce((sum: number, l: any) => sum + l.credit, 0);

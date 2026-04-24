@@ -28,13 +28,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'This account does not have a subsidiary ledger' }, { status: 400 });
     }
 
-    // Get subsidiary ledgers
+    // Get subsidiary ledgers with transactions
     const ledgers = await prisma.subsidiaryLedger.findMany({
       where: {
         accountId,
         ...(entityCode ? { entityCode } : {}),
       },
       include: {
+        transactions: true,
         _count: {
           select: { transactions: true },
         },
@@ -42,22 +43,38 @@ export async function GET(request: Request) {
       orderBy: { entityCode: 'asc' },
     });
 
-    // Calculate reconciliation
-    const totalBalance = ledgers.reduce((sum, ledger) => sum + ledger.balance, 0);
-    
-    // Get GL balance from journal lines
+    // Calculate reconciliation from transactions (not stored balance)
+    // Use account.normalBalance to match GL convention
+    const isCreditNormal = account.normalBalance === 'CREDIT';
+    const ledgersWithBalance = ledgers.map(ledger => {
+      const debitTotal = ledger.transactions.reduce((sum, t) => sum + t.debit, 0);
+      const creditTotal = ledger.transactions.reduce((sum, t) => sum + t.credit, 0);
+      const balance = isCreditNormal
+        ? creditTotal - debitTotal  // Credits - Debits for CREDIT-normal (AP, Revenue)
+        : debitTotal - creditTotal;  // Debits - Credits for DEBIT-normal (AR, Expenses, Assets)
+      return {
+        ...ledger,
+        debitTotal,
+        creditTotal,
+        balance,
+      };
+    });
+
+    const totalBalance = ledgersWithBalance.reduce((sum, ledger) => sum + ledger.balance, 0);
+
+    // Get GL balance from journal lines - use same normalBalance convention
     const glBalance = await prisma.journalLine.aggregate({
       where: { accountId },
       _sum: { debit: true, credit: true },
     });
 
-    const glTotal = account.normalBalance === 'DEBIT' 
-      ? (glBalance._sum.debit || 0) - (glBalance._sum.credit || 0)
-      : (glBalance._sum.credit || 0) - (glBalance._sum.debit || 0);
+    const glTotal = isCreditNormal
+      ? (glBalance._sum.credit || 0) - (glBalance._sum.debit || 0)
+      : (glBalance._sum.debit || 0) - (glBalance._sum.credit || 0);
 
     return NextResponse.json({
       account,
-      ledgers,
+      ledgers: ledgersWithBalance,
       reconciliation: {
         glBalance: Math.round(glTotal * 100) / 100,
         slBalance: Math.round(totalBalance * 100) / 100,

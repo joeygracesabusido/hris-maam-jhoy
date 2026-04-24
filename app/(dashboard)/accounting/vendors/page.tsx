@@ -197,6 +197,10 @@ export default function VendorsPage() {
     fetch(`/api/accounting/vendors?id=${vendor.id}`)
       .then((res: Response) => res.json() as Promise<VendorWithTransactions>)
       .then((data: VendorWithTransactions) => {
+        // Sort transactions by date descending (latest first)
+        if (data.transactions) {
+          data.transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        }
         setViewingVendor(data);
         setViewDialogOpen(true);
       })
@@ -547,12 +551,12 @@ export default function VendorsPage() {
                 </TableRow>
               ) : (
                 filteredVendors.map(vendor => (
-                  <TableRow key={vendor.id}>
+                  <TableRow key={vendor.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openViewDialog(vendor)}>
                     <TableCell className="font-mono font-medium">{vendor.entityCode}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Building className="w-4 h-4 text-muted-foreground" />
-                        <span className="font-medium">{vendor.entityName}</span>
+                        <span className="font-medium text-blue-600 hover:text-blue-800 hover:underline">{vendor.entityName}</span>
                       </div>
                     </TableCell>
                     <TableCell>

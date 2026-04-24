@@ -126,19 +126,34 @@ export async function POST(request: Request) {
         },
       });
 
-      if (supplierLedger) {
-        await tx.subsidiaryTransaction.create({
-          data: {
-            ledgerId: supplierLedger.id,
-            date: new Date(date),
-            referenceNo: billNumber,
-            description: `Purchase Bill ${billNumber} - ${supplierName}`,
-            debit: 0,
-            credit: totalAmount - ewtAmount,
-            journalEntryId: journalEntry.id,
-          },
-        });
-      }
+        if (supplierLedger) {
+          await tx.subsidiaryTransaction.create({
+            data: {
+              ledgerId: supplierLedger.id,
+              date: new Date(date),
+              referenceNo: billNumber,
+              description: `Purchase Bill ${billNumber} - ${supplierName}`,
+              debit: 0,
+              credit: totalAmount - ewtAmount,
+              journalEntryId: journalEntry.id,
+            },
+          });
+
+          // Update supplier ledger totals
+          const ledgerTransactions = await tx.subsidiaryTransaction.findMany({
+            where: { ledgerId: supplierLedger.id },
+          });
+          const debitTotal = ledgerTransactions.reduce((sum, t) => sum + t.debit, 0);
+          const creditTotal = ledgerTransactions.reduce((sum, t) => sum + t.credit, 0);
+          await tx.subsidiaryLedger.update({
+            where: { id: supplierLedger.id },
+            data: {
+              debitTotal,
+              creditTotal,
+              balance: debitTotal - creditTotal,
+            },
+          });
+        }
 
       return { bill, journalEntry, netAmount, vatAmount, ewtAmount };
     });
@@ -316,19 +331,34 @@ export async function PATCH(request: Request) {
         },
       });
 
-      if (supplierLedger) {
-        await tx.subsidiaryTransaction.create({
-          data: {
-            ledgerId: supplierLedger.id,
-            date: new Date(date),
-            referenceNo: existingBill.billNumber,
-            description: `Purchase Bill ${existingBill.billNumber} - ${supplierName}`,
-            debit: 0,
-            credit: totalAmount - ewtAmount,
-            journalEntryId: journalEntry.id,
-          },
-        });
-      }
+        if (supplierLedger) {
+          await tx.subsidiaryTransaction.create({
+            data: {
+              ledgerId: supplierLedger.id,
+              date: new Date(date),
+              referenceNo: existingBill.billNumber,
+              description: `Purchase Bill ${existingBill.billNumber} - ${supplierName}`,
+              debit: 0,
+              credit: totalAmount - ewtAmount,
+              journalEntryId: journalEntry.id,
+            },
+          });
+
+          // Update supplier ledger totals
+          const ledgerTransactions = await tx.subsidiaryTransaction.findMany({
+            where: { ledgerId: supplierLedger.id },
+          });
+          const debitTotal = ledgerTransactions.reduce((sum, t) => sum + t.debit, 0);
+          const creditTotal = ledgerTransactions.reduce((sum, t) => sum + t.credit, 0);
+          await tx.subsidiaryLedger.update({
+            where: { id: supplierLedger.id },
+            data: {
+              debitTotal,
+              creditTotal,
+              balance: debitTotal - creditTotal,
+            },
+          });
+        }
 
       return { bill: updatedBill, journalEntry, netAmount, vatAmount, ewtAmount };
     });
