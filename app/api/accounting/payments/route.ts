@@ -34,11 +34,18 @@ export async function POST(request: Request) {
     if (bill.journalEntryId) {
       const je = await prisma.journalEntry.findUnique({
         where: { id: bill.journalEntryId },
-        include: { lines: true },
+        include: { lines: { include: { account: true } } },
       });
       if (je) {
-        const creditLine = je.lines.find((l: any) => l.credit > 0);
-        apAccountId = creditLine?.accountId || '';
+        // Find the AP account (2100) specifically - avoid EWT or other credit accounts
+        const apLine = je.lines.find((l: any) => l.credit > 0 && l.account?.code === '2100');
+        apAccountId = apLine?.accountId || '';
+        
+        // Fallback: if no 2100 found, try any credit line that's NOT EWT (2340)
+        if (!apAccountId) {
+          const fallbackLine = je.lines.find((l: any) => l.credit > 0 && l.account?.code !== '2340');
+          apAccountId = fallbackLine?.accountId || '';
+        }
       }
     }
 
@@ -175,11 +182,18 @@ export async function PATCH(request: Request) {
     if (existingPayment.bill.journalEntryId) {
       const je = await prisma.journalEntry.findUnique({
         where: { id: existingPayment.bill.journalEntryId },
-        include: { lines: true },
+        include: { lines: { include: { account: true } } },
       });
       if (je) {
-        const creditLine = je.lines.find((l: any) => l.credit > 0);
-        apAccountId = creditLine?.accountId || '';
+        // Find the AP account (2100) specifically - avoid EWT or other credit accounts
+        const apLine = je.lines.find((l: any) => l.credit > 0 && l.account?.code === '2100');
+        apAccountId = apLine?.accountId || '';
+        
+        // Fallback: if no 2100 found, try any credit line that's NOT EWT (2340)
+        if (!apAccountId) {
+          const fallbackLine = je.lines.find((l: any) => l.credit > 0 && l.account?.code !== '2340');
+          apAccountId = fallbackLine?.accountId || '';
+        }
       }
     }
 
@@ -260,8 +274,8 @@ export async function PATCH(request: Request) {
         },
       });
 
-      // 8. Create new SubsidiaryTransaction
-      const supplierLedger = await tx.subsidiaryLedger.findFirst({
+      // 8. Create or find new SubsidiaryTransaction
+      let supplierLedger = await tx.subsidiaryLedger.findFirst({
         where: {
           entityType: 'SUPPLIER',
           entityName: existingPayment.bill.supplierName,
@@ -269,19 +283,30 @@ export async function PATCH(request: Request) {
         },
       });
 
-      if (supplierLedger) {
-        await tx.subsidiaryTransaction.create({
+      // Auto-create vendor if not found to ensure GL and subsidiary are in sync
+      if (!supplierLedger) {
+        supplierLedger = await tx.subsidiaryLedger.create({
           data: {
-            ledgerId: supplierLedger.id,
-            date: new Date(paymentDate),
-            referenceNo: referenceNumber || `PAY-${existingPayment.bill.billNumber}`,
-            description: `Payment for Bill ${existingPayment.bill.billNumber}`,
-            debit: amount,
-            credit: 0,
-            journalEntryId: journalEntry.id,
+            accountId: apAccountId,
+            entityCode: `SUP-${Date.now()}`,
+            entityName: existingPayment.bill.supplierName,
+            entityType: 'SUPPLIER',
+            description: `Auto-created from Payment`,
           },
         });
       }
+
+      await tx.subsidiaryTransaction.create({
+        data: {
+          ledgerId: supplierLedger.id,
+          date: new Date(paymentDate),
+          referenceNo: referenceNumber || `PAY-${existingPayment.bill.billNumber}`,
+          description: `Payment for Bill ${existingPayment.bill.billNumber}`,
+          debit: amount,
+          credit: 0,
+          journalEntryId: journalEntry.id,
+        },
+      });
 
       return { payment, journalEntry, bill: updatedBill };
     });
@@ -376,10 +401,14 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const billId = searchParams.get('billId');
+    const reference = searchParams.get('reference');
 
     const where: any = {};
     if (billId) {
       where.billId = billId;
+    }
+    if (reference) {
+      where.referenceNumber = { contains: reference, mode: 'insensitive' };
     }
 
     const payments = await prisma.payment.findMany({
@@ -387,7 +416,15 @@ export async function GET(request: Request) {
       include: {
         bill: true,
         cashAccount: true,
-        journalEntry: true,
+        journalEntry: {
+          include: {
+            lines: {
+              include: {
+                account: true,
+              }
+            }
+          }
+        },
       },
       orderBy: { paymentDate: 'desc' },
     });

@@ -22,6 +22,7 @@ export default function SubsidiaryLedgerPage() {
   
   // Dialog states
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [formData, setFormData] = useState({
     entityCode: '',
     entityName: '',
@@ -96,6 +97,25 @@ export default function SubsidiaryLedgerPage() {
     }
   }
 
+  async function handleSync() {
+    setIsSyncing(true);
+    try {
+      const res = await fetch('/api/accounting/subsidiary-ledgers/sync', {
+        method: 'POST',
+      });
+      if (res.ok) {
+        if (selectedAccountId) fetchLedgers();
+        alert('Balances synchronized successfully!');
+      } else {
+        alert('Failed to sync balances');
+      }
+    } catch (err) {
+      console.error('Error syncing:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
   const getEntityTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       CUSTOMER: 'Customer',
@@ -150,14 +170,22 @@ export default function SubsidiaryLedgerPage() {
               </div>
             )}
 
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
               <Button 
                 onClick={fetchLedgers} 
                 disabled={!selectedAccountId || loading}
-                className="w-full"
+                className="flex-1"
               >
-                <RefreshCw className="w-4 h-4 mr-2" />
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Load Ledgers
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={handleSync} 
+                disabled={isSyncing}
+                title="Recalculate all subsidiary balances from transactions"
+              >
+                <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
               </Button>
             </div>
           </div>

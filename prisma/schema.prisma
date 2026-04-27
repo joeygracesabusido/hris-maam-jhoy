@@ -492,6 +492,7 @@ model SubsidiaryLedger {
 
   // Transactions link to this subsidiary
   transactions    SubsidiaryTransaction[]
+  journalLines    JournalLine[]
 
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -517,6 +518,7 @@ model SubsidiaryTransaction {
 
   // Link to journal entry for reconciliation
   journalEntryId  String?         @db.ObjectId
+  journalLineId   String?         @db.ObjectId
 
   createdAt       DateTime        @default(now())
 
@@ -548,6 +550,10 @@ model JournalLine {
 
   accountId      String   @db.ObjectId
   account        Account  @relation(fields: [accountId], references: [id])
+
+  // Optional link to subsidiary ledger for AR/AP accounts
+  subsidiaryLedgerId String? @db.ObjectId
+  subsidiaryLedger   SubsidiaryLedger? @relation(fields: [subsidiaryLedgerId], references: [id])
 
   debit          Float    @default(0)
   credit         Float    @default(0)

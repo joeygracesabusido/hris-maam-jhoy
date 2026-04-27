@@ -4,84 +4,89 @@ import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-// GET subsidiary ledgers for a specific control account
+// GET subsidiary ledgers
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get('accountId');
     const entityCode = searchParams.get('entityCode');
 
-    if (!accountId) {
-      return NextResponse.json({ error: 'accountId is required' }, { status: 400 });
-    }
+    if (accountId) {
+      // Get the control account info
+      const account = await prisma.account.findUnique({
+        where: { id: accountId },
+      });
 
-    // Get the control account info
-    const account = await prisma.account.findUnique({
-      where: { id: accountId },
-    });
+      if (!account) {
+        return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+      }
 
-    if (!account) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
-    }
+      if (!account.hasSubsidiaryLedger) {
+        return NextResponse.json({ error: 'This account does not have a subsidiary ledger' }, { status: 400 });
+      }
 
-    if (!account.hasSubsidiaryLedger) {
-      return NextResponse.json({ error: 'This account does not have a subsidiary ledger' }, { status: 400 });
-    }
-
-    // Get subsidiary ledgers with transactions
-    const ledgers = await prisma.subsidiaryLedger.findMany({
-      where: {
-        accountId,
-        ...(entityCode ? { entityCode } : {}),
-      },
-      include: {
-        transactions: true,
-        _count: {
-          select: { transactions: true },
+      // Get subsidiary ledgers with transactions
+      const ledgers = await prisma.subsidiaryLedger.findMany({
+        where: {
+          accountId,
+          ...(entityCode ? { entityCode } : {}),
         },
-      },
-      orderBy: { entityCode: 'asc' },
-    });
+        include: {
+          transactions: true,
+          _count: {
+            select: { transactions: true },
+          },
+        },
+        orderBy: { entityCode: 'asc' },
+      });
 
-    // Calculate reconciliation from transactions (not stored balance)
-    // Use account.normalBalance to match GL convention
-    const isCreditNormal = account.normalBalance === 'CREDIT';
-    const ledgersWithBalance = ledgers.map(ledger => {
-      const debitTotal = ledger.transactions.reduce((sum, t) => sum + t.debit, 0);
-      const creditTotal = ledger.transactions.reduce((sum, t) => sum + t.credit, 0);
-      const balance = isCreditNormal
-        ? creditTotal - debitTotal  // Credits - Debits for CREDIT-normal (AP, Revenue)
-        : debitTotal - creditTotal;  // Debits - Credits for DEBIT-normal (AR, Expenses, Assets)
-      return {
-        ...ledger,
-        debitTotal,
-        creditTotal,
-        balance,
-      };
-    });
+      // Calculate reconciliation from transactions (not stored balance)
+      const isCreditNormal = account.normalBalance === 'CREDIT';
+      const ledgersWithBalance = ledgers.map(ledger => {
+        const debitTotal = ledger.transactions.reduce((sum, t) => sum + t.debit, 0);
+        const creditTotal = ledger.transactions.reduce((sum, t) => sum + t.credit, 0);
+        const balance = isCreditNormal
+          ? creditTotal - debitTotal
+          : debitTotal - creditTotal;
+        return {
+          ...ledger,
+          debitTotal,
+          creditTotal,
+          balance,
+        };
+      });
 
-    const totalBalance = ledgersWithBalance.reduce((sum, ledger) => sum + ledger.balance, 0);
+      const totalBalance = ledgersWithBalance.reduce((sum, ledger) => sum + ledger.balance, 0);
 
-    // Get GL balance from journal lines - use same normalBalance convention
-    const glBalance = await prisma.journalLine.aggregate({
-      where: { accountId },
-      _sum: { debit: true, credit: true },
-    });
+      // Get GL balance from journal lines
+      const glBalance = await prisma.journalLine.aggregate({
+        where: { accountId },
+        _sum: { debit: true, credit: true },
+      });
 
-    const glTotal = isCreditNormal
-      ? (glBalance._sum.credit || 0) - (glBalance._sum.debit || 0)
-      : (glBalance._sum.debit || 0) - (glBalance._sum.credit || 0);
+      const glTotal = isCreditNormal
+        ? (glBalance._sum.credit || 0) - (glBalance._sum.debit || 0)
+        : (glBalance._sum.debit || 0) - (glBalance._sum.credit || 0);
 
-    return NextResponse.json({
-      account,
-      ledgers: ledgersWithBalance,
-      reconciliation: {
-        glBalance: Math.round(glTotal * 100) / 100,
-        slBalance: Math.round(totalBalance * 100) / 100,
-        difference: Math.round((glTotal - totalBalance) * 100) / 100,
-        isBalanced: Math.abs(glTotal - totalBalance) < 0.01,
-      },
-    });
+      return NextResponse.json({
+        account,
+        ledgers: ledgersWithBalance,
+        reconciliation: {
+          glBalance: Math.round(glTotal * 100) / 100,
+          slBalance: Math.round(totalBalance * 100) / 100,
+          difference: Math.round((glTotal - totalBalance) * 100) / 100,
+          isBalanced: Math.abs(glTotal - totalBalance) < 0.01,
+        },
+      });
+    } else {
+      // Fetch all subsidiary ledgers if no accountId provided
+      const ledgers = await prisma.subsidiaryLedger.findMany({
+        where: { isActive: true },
+        include: { account: true },
+        orderBy: { entityName: 'asc' },
+      });
+      return NextResponse.json(ledgers);
+    }
   } catch (error) {
     console.error('Error fetching subsidiary ledgers:', error);
     return NextResponse.json({ error: 'Failed to fetch subsidiary ledgers' }, { status: 500 });

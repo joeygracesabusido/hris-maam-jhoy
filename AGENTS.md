@@ -226,6 +226,72 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### GL vs Subsidiary Ledger Balance Discrepancy Fix (2026-04-27)
+
+**Issue:** COA shows 2100 Accounts Payable balance of ₱67,162.94 while Subsidiary Ledger (Supplier) total is only ₱57,662.94 - a difference of ₱9,500.
+
+**Root Cause:** When Purchase Bills were created for suppliers NOT in the Vendors list (or with mismatched names), the GL journal entry was created but NO subsidiary transaction was recorded. The system only found the supplier ledger if the name EXACTLY matched an existing vendor entry.
+
+**Files Updated:**
+- `app/api/accounting/purchases/route.ts` - Auto-creates vendor in subsidiary ledger if not found
+- `app/api/accounting/payments/route.ts` - Auto-creates vendor in subsidiary ledger if not found
+- `app/api/accounting/journal/route.ts` - Added filter by reference for querying
+- `app/api/accounting/payments/route.ts` - Enhanced GET with reference filter and journal details
+
+**Fix Applied:**
+```typescript
+// Auto-create vendor if not found to ensure GL and subsidiary are in sync
+let supplierLedger = await tx.subsidiaryLedger.findFirst({
+  where: {
+    entityType: 'SUPPLIER',
+    entityName: supplierName,
+    accountId: apAccountId,
+  },
+});
+
+if (!supplierLedger) {
+  supplierLedger = await tx.subsidiaryLedger.create({
+    data: {
+      accountId: apAccountId,
+      entityCode: `SUP-${Date.now()}`,
+      entityName: supplierName,
+      entityType: 'SUPPLIER',
+      description: `Auto-created from Purchase Bill ${billNumber}`,
+    },
+  });
+}
+```
+
+**Querying Journal Entries:**
+- `GET /api/accounting/journal?reference=BILL-2026-5711` - Find bill journal entry
+- `GET /api/accounting/payments?reference=BILL-2026-5711` - Find payment with journal details
+
+---
+
+### Payment Debit Account Fix (2026-04-27)
+
+**Issue:** When paying a Purchase Bill with EWT (Expanded Withholding Tax), the journal entry was debiting the wrong account (2340 EWT instead of 2100 Accounts Payable).
+
+**Root Cause:** The code picked ANY credit line from the bill's journal entry, but if there were multiple credit lines (EWT and AP), it picked the first one found (EWT 2340).
+
+**Files Updated:**
+- `app/api/accounting/payments/route.ts` - Fixed POST and PATCH handlers to specifically find 2100
+
+**Fix Applied:**
+```typescript
+// Find the AP account (2100) specifically - avoid EWT or other credit accounts
+const apLine = je.lines.find((l: any) => l.credit > 0 && l.account?.code === '2100');
+apAccountId = apLine?.accountId || '';
+
+// Fallback: if no 2100 found, try any credit line that's NOT EWT (2340)
+if (!apAccountId) {
+  const fallbackLine = je.lines.find((l: any) => l.credit > 0 && l.account?.code !== '2340');
+  apAccountId = fallbackLine?.accountId || '';
+}
+```
+
+---
+
 ### Vercel Deployment & EWT Balance Fix (2026-04-23)
 
 **Issues Fixed:**
