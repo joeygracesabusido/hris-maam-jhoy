@@ -435,3 +435,123 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to fetch payments' }, { status: 500 });
   }
 }
+
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { supplierName, paymentDate, referenceNumber, notes, cashAccountId } = body;
+
+    if (!supplierName || !paymentDate || !cashAccountId) {
+      return NextResponse.json({ error: 'Missing required fields: supplierName, paymentDate, or cashAccountId' }, { status: 400 });
+    }
+
+    const unpaidBills = await prisma.purchaseBill.findMany({
+      where: {
+        supplierName,
+        status: { in: ['UNPAID', 'PARTIALLY_PAID'] },
+      },
+      include: { items: true, journalEntry: { include: { lines: { include: { account: true } } } },
+      },
+    });
+
+    if (unpaidBills.length === 0) {
+      return NextResponse.json({ error: 'No unpaid bills found for this supplier' }, { status: 404 });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const bill of unpaidBills) {
+      try {
+        const remainingBalance = bill.totalAmount - bill.amountPaid;
+        if (remainingBalance <= 0) continue;
+
+        let apAccountId = '';
+        if (bill.journalEntryId) {
+          const je = bill.journalEntry;
+          if (je) {
+            const apLine = je.lines.find((l: any) => l.credit > 0 && l.account?.code === '2100');
+            apAccountId = apLine?.accountId || '';
+            if (!apAccountId) {
+              const fallbackLine = je.lines.find((l: any) => l.credit > 0 && l.account?.code !== '2340');
+              apAccountId = fallbackLine?.accountId || '';
+            }
+          }
+        }
+
+        if (!apAccountId) {
+          errors.push({ bill: bill.billNumber, error: 'Could not find AP account' });
+          continue;
+        }
+
+        const result = await prisma.$transaction(async (tx) => {
+          const payRef = referenceNumber ? `${referenceNumber}-${bill.billNumber}` : `PAYALL-${bill.billNumber}`;
+
+          const payment = await tx.payment.create({
+            data: {
+              billId: bill.id,
+              amount: remainingBalance,
+              paymentDate: new Date(paymentDate),
+              referenceNumber: payRef,
+              notes: notes || `Full payment for ${bill.billNumber}`,
+              cashAccountId,
+            },
+          });
+
+          const journalEntry = await tx.journalEntry.create({
+            data: {
+              date: new Date(paymentDate),
+              description: `Payment for Purchase Bill ${bill.billNumber}`,
+              reference: payRef,
+              lines: {
+                create: [
+                  { accountId: apAccountId, debit: remainingBalance, credit: 0, memo: `Payment for Bill ${bill.billNumber}` },
+                  { accountId: cashAccountId, debit: 0, credit: remainingBalance, memo: `Payment for Bill ${bill.billNumber}` },
+                ],
+              },
+            },
+          });
+
+          await tx.payment.update({
+            where: { id: payment.id },
+            data: { journalEntryId: journalEntry.id },
+          });
+
+          const updatedBill = await tx.purchaseBill.update({
+            where: { id: bill.id },
+            data: { amountPaid: bill.totalAmount, status: 'PAID' },
+          });
+
+          const supplierLedger = await tx.subsidiaryLedger.findFirst({
+            where: { entityType: 'SUPPLIER', entityName: bill.supplierName, accountId: apAccountId },
+          });
+
+          if (supplierLedger) {
+            await tx.subsidiaryTransaction.create({
+              data: {
+                ledgerId: supplierLedger.id,
+                date: new Date(paymentDate),
+                referenceNo: payRef,
+                description: `Payment for Bill ${bill.billNumber}`,
+                debit: remainingBalance,
+                credit: 0,
+                journalEntryId: journalEntry.id,
+              },
+            });
+          }
+
+          return { payment, journalEntry, bill: updatedBill };
+        });
+
+        results.push({ bill: bill.billNumber, ...result });
+      } catch (err) {
+        errors.push({ bill: bill.billNumber, error: err instanceof Error ? err.message : 'Unknown error' });
+      }
+    }
+
+    return NextResponse.json({ success: results.length, errors, results });
+  } catch (error) {
+    console.error('Error paying all payables:', error);
+    return NextResponse.json({ error: `Failed to pay all: ${error instanceof Error ? error.message : 'Unknown error'}` }, { status: 500 });
+  }
+}

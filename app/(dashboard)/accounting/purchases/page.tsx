@@ -236,6 +236,27 @@ export default function PurchasesPage() {
     setIsDialogOpen(true);
   }
 
+  async function handleResetBill(bill: any) {
+    if (!confirm(`Are you sure you want to reset bill ${bill.billNumber} to UNPAID? This will delete all associated payments.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/accounting/purchases?id=${bill.id}&action=reset`, {
+        method: 'PUT',
+      });
+      if (res.ok) {
+        alert('Bill has been reset to UNPAID');
+        fetchData();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to reset bill');
+      }
+    } catch (err) {
+      console.error('Error resetting bill:', err);
+      alert('Failed to reset bill');
+    }
+  }
+
   function handleOpenPayDialog(bill: any) {
     if (bill.status === 'PAID' || bill.status === 'VOID') {
       alert('Cannot pay a settled bill');
@@ -894,6 +915,11 @@ export default function PurchasesPage() {
                         <Button variant="ghost" size="icon" onClick={() => handleOpenPayDialog(bill)} disabled={bill.status === 'PAID' || bill.status === 'VOID'} title="Pay bill">
                           <DollarSign className="w-4 h-4" />
                         </Button>
+                        {(bill.status === 'PAID' || bill.status === 'PARTIALLY_PAID') && (
+                          <Button variant="ghost" size="icon" onClick={() => handleResetBill(bill)} title="Reset to unpaid" className="text-red-600 hover:text-red-700">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" onClick={() => handleEditBill(bill)} disabled={bill.status !== 'UNPAID'} title="Edit bill">
                           <Edit className="w-4 h-4" />
                         </Button>

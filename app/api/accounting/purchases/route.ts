@@ -381,6 +381,43 @@ export async function PATCH(request: Request) {
   }
 }
 
+// Reset bill to UNPAID (for fixing erroneous payments)
+export async function PUT(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const action = searchParams.get('action');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Bill ID is required' }, { status: 400 });
+    }
+
+    // Reset bill status to UNPAID
+    if (action === 'reset') {
+      const bill = await prisma.purchaseBill.findUnique({ where: { id } });
+      if (!bill) {
+        return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+      }
+
+      // Delete associated payments first
+      await prisma.payment.deleteMany({ where: { billId: id } });
+
+      // Reset bill status and amount
+      const updatedBill = await prisma.purchaseBill.update({
+        where: { id },
+        data: { status: 'UNPAID', amountPaid: 0 },
+      });
+
+      return NextResponse.json({ success: true, bill: updatedBill });
+    }
+
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('Error resetting bill:', error);
+    return NextResponse.json({ error: `Failed to reset bill: ${error instanceof Error ? error.message : 'Unknown error'}` }, { status: 500 });
+  }
+}
+
 export async function GET() {
   try {
     const bills = await prisma.purchaseBill.findMany({

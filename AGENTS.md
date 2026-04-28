@@ -772,3 +772,30 @@ return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
 3. Check "Has Subsidiary Ledger (Control Account)"
 4. Select Subsidiary Type (Customer/Supplier/Inventory Item/Fixed Asset/Employee)
 5. The account will appear in the Subsidiary Ledgers dropdown
+
+---
+
+### Vendor Payment Feature (2026-04-28)
+
+**New Feature:**
+- **Pay Vendor Bills** - Click the `$` button on any vendor to open payment dialog
+- Payment Dialog shows:
+  - Total Outstanding Balance
+  - List of unpaid bills with balances
+  - Payment Amount field (editable)
+  - Cash Account dropdown (shows all accounts)
+  - Payment Date, Reference Number, Notes fields
+
+**How to Pay a Vendor:**
+1. Go to `/accounting/vendors`
+2. Click the `$` (dollar sign) button next to a vendor with balance
+3. Edit the payment amount if needed
+4. Select a cash account from dropdown
+5. Click "Pay" to process payment
+
+**API:**
+- `POST /api/accounting/payments/batch` - Process vendor payment
+
+**Files Updated:**
+- `app/(dashboard)/accounting/vendors/page.tsx` - Added payment dialog with $ button
+- `app/api/accounting/payments/batch/route.ts` - Payment processing API
