@@ -109,8 +109,14 @@ export default function ExpensesPage() {
 
       const res = await fetch(`/api/accounting/expenses?${params.toString()}`);
       const data = await res.json();
-      setExpenses(data);
+      if (Array.isArray(data)) {
+        setExpenses(data);
+      } else {
+        setExpenses([]);
+        toast.error('Failed to load expenses');
+      }
     } catch {
+      setExpenses([]);
       toast.error('Failed to load expenses');
     } finally {
       setLoading(false);

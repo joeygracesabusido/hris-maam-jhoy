@@ -79,18 +79,22 @@ export default function PurchasesPage() {
         fetch('/api/accounting/purchases'),
         fetch('/api/accounting/accounts'),
       ]);
-      if (!billsRes.ok) throw new Error(`Failed to fetch bills: ${billsRes.status}`);
-      if (!accRes.ok) throw new Error(`Failed to fetch accounts: ${accRes.status}`);
-      const billsData = await billsRes.json();
-      const accountsData = await accRes.json();
-      setBills(billsData);
-      setAccounts(accountsData);
-      const cashAccts = accountsData
-        .filter((a: any) => a.type === 'ASSET' && a.code.startsWith('11'))
-        .sort((a: any, b: any) => a.code.localeCompare(b.code));
-      setCashAccounts(cashAccts);
+      const billsData = billsRes.ok ? await billsRes.json() : [];
+      const accountsData = accRes.ok ? await accRes.json() : [];
+      
+      setBills(Array.isArray(billsData) ? billsData : []);
+      setAccounts(Array.isArray(accountsData) ? accountsData : []);
+      
+      if (Array.isArray(accountsData)) {
+        const cashAccts = accountsData
+          .filter((a: any) => a.type === 'ASSET' && a.code.startsWith('11'))
+          .sort((a: any, b: any) => a.code.localeCompare(b.code));
+        setCashAccounts(cashAccts);
+      }
     } catch (err) {
       console.error('Error fetching bills:', err);
+      setBills([]);
+      setAccounts([]);
     } finally {
       setLoading(false);
     }
@@ -100,20 +104,24 @@ export default function PurchasesPage() {
     setIsVendorsLoading(true);
     try {
       const res = await fetch('/api/accounting/vendors');
-      if (!res.ok) throw new Error(`Failed to fetch vendors: ${res.status}`);
       const data = await res.json() as Vendor[];
-      setVendors(data);
+      if (Array.isArray(data)) {
+        setVendors(data);
+      } else {
+        setVendors([]);
+      }
     } catch (err) {
       console.error('Error fetching vendors:', err);
+      setVendors([]);
     } finally {
       setIsVendorsLoading(false);
     }
   }
 
-  const filteredVendors = vendors.filter(v =>
+  const filteredVendors = Array.isArray(vendors) ? vendors.filter(v =>
     (v.entityName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (v.entityCode || '').toLowerCase().includes(searchTerm.toLowerCase())
-  ).slice(0, 10);
+  ).slice(0, 10) : [];
 
   function handleSelectVendor(vendor: Vendor) {
     setFormData(prev => ({

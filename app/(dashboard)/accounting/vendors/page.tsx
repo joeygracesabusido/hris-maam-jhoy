@@ -112,9 +112,14 @@ export default function VendorsPage() {
     try {
       const res = await fetch('/api/accounting/accounts');
       const data = await res.json() as CashAccount[];
-      setCashAccounts(data);
+      if (Array.isArray(data)) {
+        setCashAccounts(data);
+      } else {
+        setCashAccounts([]);
+      }
     } catch (err) {
       console.error('Error fetching accounts:', err);
+      setCashAccounts([]);
     }
   }
 
@@ -123,14 +128,22 @@ export default function VendorsPage() {
       // Fetch purchase bills
       const billsRes = await fetch('/api/accounting/purchases');
       const bills = await billsRes.json() as any[];
-      const unpaid = bills
-        .filter((b: any) => b.supplierName === supplierName && b.status !== 'PAID' && b.status !== 'VOID')
-        .map((b: any) => ({ id: b.id, billNumber: b.billNumber, totalAmount: b.totalAmount, amountPaid: b.amountPaid || 0, date: b.date }));
+      
+      const unpaid = Array.isArray(bills) 
+        ? bills
+          .filter((b: any) => b.supplierName === supplierName && b.status !== 'PAID' && b.status !== 'VOID')
+          .map((b: any) => ({ id: b.id, billNumber: b.billNumber, totalAmount: b.totalAmount, amountPaid: b.amountPaid || 0, date: b.date }))
+        : [];
       setUnpaidBills(unpaid);
 
       // Fetch all journal entries for liability accounts (payables)
       const jeRes = await fetch('/api/accounting/journal');
       const journalEntries = await jeRes.json() as any[];
+      
+      if (!Array.isArray(journalEntries)) {
+        setUnpaidJournalEntries([]);
+        return;
+      }
       
       // Get all unpaid purchase bill IDs for this vendor
       const unpaidBillIds = unpaid.map(b => b.id);
@@ -180,9 +193,14 @@ export default function VendorsPage() {
     try {
       const res = await fetch('/api/accounting/vendors');
       const data = await res.json() as Vendor[];
-      setVendors(data);
+      if (Array.isArray(data)) {
+        setVendors(data);
+      } else {
+        setVendors([]);
+      }
     } catch (err) {
       console.error('Error fetching vendors:', err);
+      setVendors([]);
     } finally {
       setLoading(false);
     }

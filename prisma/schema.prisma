@@ -796,3 +796,91 @@ model AssetTransaction {
   
   @@map("assettransactions")
 }
+
+model PettyCash {
+  id               String                  @id @default(auto()) @map("_id") @db.ObjectId
+  name             String
+  fundAmount       Float                  @default(0)
+  currentBalance  Float                  @default(0)
+  
+  cashAccountId    String                 @db.ObjectId
+  expenseAccountId String                @db.ObjectId
+  
+  custodianId     String?
+  createdById     String?
+  
+  description    String?
+  status        PettyCashStatus       @default(ACTIVE)
+  
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  
+  @@unique([name])
+  @@map("petty_cash")
+}
+
+model PettyCashDisbursement {
+  id               String                @id @default(auto()) @map("_id") @db.ObjectId
+  pettyCashId       String               @db.ObjectId
+  
+  employeeId       String?
+  createdById      String?
+  
+  amount           Float
+  description     String?
+  payeeName        String?
+  reference       String?
+  expenseAccountId String?
+  
+  status          DisbursementStatus  @default(PENDING)
+  
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  
+  @@map("petty_cash_disbursements")
+}
+
+model PettyCashLiquidation {
+  id               String                 @id @default(auto()) @map("_id") @db.ObjectId
+  pettyCashId      String                 @db.ObjectId
+  disbursementId  String                 @db.ObjectId
+  
+  submittedById    String?
+  
+  amount           Float
+  receipts         Json?
+  notes            String?
+  expenseAccountId String?
+  
+  approvedAmount   Float?
+  variance         Float?
+  approvedBy       String?
+  approvedAt       DateTime?
+  
+  status           LiquidationStatus   @default(PENDING)
+  
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  
+@@map("petty_cash_liquidations")
+}
+
+enum PettyCashStatus {
+  ACTIVE
+  INACTIVE
+  DEPLETED
+}
+
+enum DisbursementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  LIQUIDATING
+  LIQUIDATED
+}
+
+enum LiquidationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

@@ -47,6 +47,7 @@ const navItems = [
       { href: '/accounting/expenses', label: 'Expenses', icon: DollarSign },
       { href: '/accounting/sales', label: 'Sales (AR)', icon: DollarSign },
       { href: '/accounting/purchases', label: 'Purchases (AP)', icon: Package },
+      { href: '/accounting/petty-cash', label: 'Petty Cash', icon: DollarSign },
       { href: '/accounting/reports', label: 'Financial Reports', icon: Printer, adminOnly: true },
     ],
   },
