@@ -27,11 +27,6 @@ export async function GET(request: Request) {
     const pettyCash = await prisma.pettyCash.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: {
-        custodian: { select: { id: true, firstName: true, lastName: true } },
-        createdBy: { select: { id: true, firstName: true, lastName: true } },
-        _count: { select: { disbursements: true } },
-      },
     });
 
     return NextResponse.json(pettyCash);
@@ -121,12 +116,13 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(pettyCash);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error creating petty cash fund:', error);
     return NextResponse.json({ 
       error: 'Failed to create petty cash fund', 
-      details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: errorMessage,
+      stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
     }, { status: 500 });
   }
 }

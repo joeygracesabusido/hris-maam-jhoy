@@ -196,16 +196,16 @@ export async function POST(request: Request) {
       }
 
       // Create subsidiary transaction (debit reduces the payable)
-      const descParts = [];
-      if (paymentsMade.length > 0) descParts.push(paymentsMade.map(p => p.billNumber).join(', '));
-      if (jePaymentsMade.length > 0) descParts.push(jePaymentsMade.map(p => p.jeNumber).join(', '));
+      const subsidiaryDescParts = [];
+      if (paymentsMade.length > 0) subsidiaryDescParts.push(paymentsMade.map(p => p.billNumber).join(', '));
+      if (jePaymentsMade.length > 0) subsidiaryDescParts.push(jePaymentsMade.map(p => p.jeNumber).join(', '));
       
       await prisma.subsidiaryTransaction.create({
         data: {
           ledgerId: supplierLedger.id,
           date: new Date(paymentDate),
           referenceNo: referenceNumber || (paymentsMade.length > 0 ? `PAY-${paymentsMade[0].billNumber}` : (jePaymentsMade.length > 0 ? `PAY-${jePaymentsMade[0].jeNumber}` : 'PAY')),
-          description: `Payment for ${descParts.join('; ')}`,
+          description: `Payment for ${subsidiaryDescParts.join('; ')}`,
           debit: totalDebit,
           credit: 0,
           journalEntryId: journalEntry.id,

@@ -13,6 +13,7 @@ interface Account {
   id: string;
   code: string;
   name: string;
+  type: string;
 }
 
 interface PettyCashFund {
@@ -22,6 +23,7 @@ interface PettyCashFund {
   currentBalance: number;
   cashAccountId: string;
   expenseAccountId: string;
+  custodianId: string;
   status: string;
   createdAt: string;
   _count?: { disbursements: number };
@@ -31,10 +33,12 @@ interface Disbursement {
   id: string;
   pettyCashId: string;
   amount: number;
+  date: string;
   description: string;
   payeeName: string;
   status: string;
   createdAt: string;
+  approvedAt?: string;
 }
 
 export default function PettyCashPage() {
@@ -42,11 +46,18 @@ export default function PettyCashPage() {
   const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<Account[]>([]);
   const [disbursements, setDisbursements] = useState<Disbursement[]>([]);
-  const [liquidations, setLiquidations] = useState<any[]>([]);
+  const [liquidations, setLiquidations] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isDisburseDialogOpen, setDisburseDialogOpen] = useState(false);
   const [isLiquidateDialogOpen, setLiquidateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setEditDialogOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    fundAmount: '',
+    custodianId: '',
+    status: '',
+  });
   const [selectedDisbursement, setSelectedDisbursement] = useState<Disbursement | null>(null);
   const [selectedFund, setSelectedFund] = useState<PettyCashFund | null>(null);
   const [activeTab, setActiveTab] = useState<'funds' | 'disbursements' | 'liquidations'>('funds');
@@ -61,6 +72,7 @@ export default function PettyCashPage() {
 
   const [disburseData, setDisburseData] = useState({
     amount: '',
+    date: new Date().toISOString().split('T')[0],
     description: '',
     payeeName: '',
     expenseAccountId: '',
@@ -68,6 +80,7 @@ export default function PettyCashPage() {
 
   const [liquidateData, setLiquidateData] = useState({
     amount: '',
+    date: new Date().toISOString().split('T')[0],
     notes: '',
   });
 
@@ -240,6 +253,7 @@ export default function PettyCashPage() {
     setSelectedDisbursement(disb);
     setLiquidateData({
       amount: disb.amount,
+      date: new Date().toISOString().split('T')[0],
       notes: '',
     });
     setLiquidateDialogOpen(true);
@@ -257,6 +271,7 @@ export default function PettyCashPage() {
           pettyCashId: selectedDisbursement.pettyCashId,
           disbursementId: selectedDisbursement.id,
           amount: parseFloat(liquidateData.amount) || 0,
+          date: liquidateData.date,
           notes: liquidateData.notes,
         }),
       });
@@ -288,10 +303,50 @@ export default function PettyCashPage() {
   function resetDisburseForm() {
     setDisburseData({
       amount: '',
+      date: new Date().toISOString().split('T')[0],
       description: '',
       payeeName: '',
       expenseAccountId: '',
     });
+  }
+
+  async function handleUpdateFund(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedFund) return;
+
+    try {
+      const payload = {
+        id: selectedFund.id,
+        ...editFormData,
+        fundAmount: parseFloat(editFormData.fundAmount) || 0,
+      };
+      const res = await fetch('/api/accounting/petty-cash', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        setEditDialogOpen(false);
+        fetchFunds();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to update fund');
+      }
+    } catch (err) {
+      console.error('Error updating fund:', err);
+    }
+  }
+
+  function openEditDialog(fund: PettyCashFund) {
+    setSelectedFund(fund);
+    setEditFormData({
+      name: fund.name,
+      fundAmount: fund.fundAmount.toString(),
+      custodianId: fund.custodianId || '',
+      status: fund.status,
+    });
+    setEditDialogOpen(true);
   }
 
   const activeFunds = Array.isArray(funds) ? funds.filter(f => f.status === 'ACTIVE') : [];
@@ -431,6 +486,14 @@ export default function PettyCashPage() {
                       variant="outline"
                       size="sm"
                       className="flex-1"
+                      onClick={() => openEditDialog(fund)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
                       onClick={() => {
                         setSelectedFund(fund);
                         setDisburseDialogOpen(true);
@@ -484,6 +547,7 @@ export default function PettyCashPage() {
                   <TableHead>Payee</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Approval Date</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -497,7 +561,7 @@ export default function PettyCashPage() {
                 ) : (
                   disbursements.map(disb => (
                     <TableRow key={disb.id}>
-                      <TableCell>{new Date(disb.createdAt).toLocaleDateString('en-PH')}</TableCell>
+                      <TableCell>{new Date(disb.date || disb.createdAt).toLocaleDateString('en-PH')}</TableCell>
                       <TableCell>{disb.description || '-'}</TableCell>
                       <TableCell>{disb.payeeName || '-'}</TableCell>
                       <TableCell className="text-right font-mono">
@@ -512,6 +576,9 @@ export default function PettyCashPage() {
                         }`}>
                           {disb.status}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        {disb.approvedAt ? new Date(disb.approvedAt).toLocaleDateString('en-PH') : '-'}
                       </TableCell>
                       <TableCell>
                         {disb.status === 'PENDING' && (
@@ -547,6 +614,7 @@ export default function PettyCashPage() {
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Approval Date</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -560,7 +628,7 @@ export default function PettyCashPage() {
                 ) : (
                   liquidations.map(liq => (
                     <TableRow key={liq.id}>
-                      <TableCell>{new Date(liq.createdAt).toLocaleDateString('en-PH')}</TableCell>
+                      <TableCell>{new Date(liq.date || liq.createdAt).toLocaleDateString('en-PH')}</TableCell>
                       <TableCell>{liq.pettyCash?.name || '-'}</TableCell>
                       <TableCell className="text-right font-mono">
                         ₱{liq.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
@@ -575,6 +643,9 @@ export default function PettyCashPage() {
                         }`}>
                           {liq.status}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        {liq.approvedAt ? new Date(liq.approvedAt).toLocaleDateString('en-PH') : '-'}
                       </TableCell>
                       <TableCell>
                         {liq.status === 'PENDING' && (
@@ -624,6 +695,15 @@ export default function PettyCashPage() {
                 placeholder="0.00"
                 value={disburseData.amount}
                 onChange={e => setDisburseData({...disburseData, amount: parseFloat(e.target.value) || 0})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Date *</Label>
+              <Input
+                type="date"
+                value={disburseData.date}
+                onChange={e => setDisburseData({...disburseData, date: e.target.value})}
                 required
               />
             </div>
@@ -683,6 +763,15 @@ export default function PettyCashPage() {
                 step="0.01"
                 value={liquidateData.amount}
                 onChange={e => setLiquidateData({...liquidateData, amount: parseFloat(e.target.value) || 0})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Date *</Label>
+              <Input
+                type="date"
+                value={liquidateData.date}
+                onChange={e => setLiquidateData({...liquidateData, date: e.target.value})}
                 required
               />
             </div>

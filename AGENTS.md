@@ -226,6 +226,61 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### Petty Cash TypeScript Interface Fixes (2026-04-30)
+
+**Issue:** TypeScript errors in petty-cash page showing "Property does not exist" for `Account.type` and `PettyCashFund.custodianId`.
+
+**Files Updated:**
+- `app/(dashboard)/accounting/petty-cash/page.tsx` - Added missing properties to interfaces
+
+**Changes Made:**
+1. Added `type: string` to `Account` interface (used for filtering expense accounts by type)
+2. Added `custodianId: string` to `PettyCashFund` interface (used when editing fund details)
+
+```typescript
+// Before: Account interface missing type
+interface Account {
+  id: string;
+  code: string;
+  name: string;
+}
+
+// After: Account interface with type
+interface Account {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+}
+
+// Before: PettyCashFund interface missing custodianId
+interface PettyCashFund {
+  id: string;
+  name: string;
+  fundAmount: number;
+  currentBalance: number;
+  cashAccountId: string;
+  expenseAccountId: string;
+  status: string;
+  createdAt: string;
+}
+
+// After: PettyCashFund interface with custodianId
+interface PettyCashFund {
+  id: string;
+  name: string;
+  fundAmount: number;
+  currentBalance: number;
+  cashAccountId: string;
+  expenseAccountId: string;
+  custodianId: string;
+  status: string;
+  createdAt: string;
+}
+```
+
+---
+
 ### GL vs Subsidiary Ledger Balance Discrepancy Fix (2026-04-27)
 
 **Issue:** COA shows 2100 Accounts Payable balance of ₱67,162.94 while Subsidiary Ledger (Supplier) total is only ₱57,662.94 - a difference of ₱9,500.

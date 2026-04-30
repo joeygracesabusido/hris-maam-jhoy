@@ -64,6 +64,42 @@ interface VendorWithTransactions extends Vendor {
   };
 }
 
+interface PurchaseBill {
+  id: string;
+  billNumber: string;
+  supplierName: string;
+  totalAmount: number;
+  amountPaid: number;
+  status: string;
+  date: string;
+}
+
+interface JournalLine {
+  id: string;
+  debit: number;
+  credit: number;
+  account?: {
+    id: string;
+    code: string;
+    type: string;
+  };
+}
+
+interface JournalEntry {
+  id: string;
+  reference: string;
+  description: string;
+  lines?: JournalLine[];
+}
+
+interface UnpaidJournalEntry {
+  id: string;
+  jeNumber: string;
+  description: string;
+  totalAmount: number;
+  date: string;
+}
+
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +123,7 @@ export default function VendorsPage() {
   });
   const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([]);
   const [unpaidBills, setUnpaidBills] = useState<UnpaidBill[]>([]);
-  const [unpaidJournalEntries, setUnpaidJournalEntries] = useState<any[]>([]);
+  const [unpaidJournalEntries, setUnpaidJournalEntries] = useState<UnpaidJournalEntry[]>([]);
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
   const [selectedJeIds, setSelectedJeIds] = useState<string[]>([]);
   const [payAllLoading, setPayAllLoading] = useState(false);
@@ -111,7 +147,7 @@ export default function VendorsPage() {
   async function fetchCashAccounts() {
     try {
       const res = await fetch('/api/accounting/accounts');
-      const data = await res.json() as CashAccount[];
+      const data = (await res.json()) as CashAccount[];
       if (Array.isArray(data)) {
         setCashAccounts(data);
       } else {
@@ -127,18 +163,18 @@ export default function VendorsPage() {
     try {
       // Fetch purchase bills
       const billsRes = await fetch('/api/accounting/purchases');
-      const bills = await billsRes.json() as any[];
+      const bills = (await billsRes.json()) as PurchaseBill[];
       
       const unpaid = Array.isArray(bills) 
         ? bills
-          .filter((b: any) => b.supplierName === supplierName && b.status !== 'PAID' && b.status !== 'VOID')
-          .map((b: any) => ({ id: b.id, billNumber: b.billNumber, totalAmount: b.totalAmount, amountPaid: b.amountPaid || 0, date: b.date }))
+          .filter((b: PurchaseBill) => b.supplierName === supplierName && b.status !== 'PAID' && b.status !== 'VOID')
+          .map((b: PurchaseBill) => ({ id: b.id, billNumber: b.billNumber, totalAmount: b.totalAmount, amountPaid: b.amountPaid || 0, date: b.date }))
         : [];
       setUnpaidBills(unpaid);
 
       // Fetch all journal entries for liability accounts (payables)
       const jeRes = await fetch('/api/accounting/journal');
-      const journalEntries = await jeRes.json() as any[];
+      const journalEntries = (await jeRes.json()) as JournalEntry[];
       
       if (!Array.isArray(journalEntries)) {
         setUnpaidJournalEntries([]);
@@ -152,22 +188,29 @@ export default function VendorsPage() {
       // 1. Are not payments (skip PAY- references)
       // 2. Have credit to liability accounts (21xx)
       // 3. Don't have associated purchase bills (standalone JEs)
-      const relevantJEs = journalEntries.filter((je: any) => {
+      const relevantJEs = journalEntries.filter((je: JournalEntry) => {
         // Skip payment entries
         if (je.reference?.startsWith('PAY-') || je.reference?.includes('PAY-') || je.reference?.includes('BILL-')) {
           return false;
         }
         
         // Check if JE has credit to liability accounts
-        const hasLiabCredit = je.lines?.some((line: any) => 
-          line.credit > 0 && line.account?.type === 'LIABILITY'
+        const hasLiabCredit = je.lines?.some((line: JournalLine) => 
+          line.credit > 0 && (line.account?.type === 'LIABILITY' || line.account?.code?.startsWith('21'))
         );
         
         return hasLiabCredit;
-      }).map((je: any) => {
+      }).map((je: JournalEntry) => {
         // Calculate liability credit amount
-        const liabCredit = je.lines?.reduce((sum: number, line: any) => {
-          if (line.credit > 0 && line.account?.type === 'LIABILITY') {
+        const liabCredit = je.lines?.reduce((sum: number, line: JournalLine) => {
+          if (line.credit > 0 && (line.account?.type === 'LIABILITY' || line.account?.code?.startsWith('21'))) {
+            return sum + line.credit;
+          }
+          return sum;
+        }, 0) || 0;
+        
+        const liabCredit = je.lines?.reduce((sum: number, line: JournalLine) => {
+          if (line.credit > 0 && (line.account?.type === 'LIABILITY' || line.account?.code?.startsWith('21'))) {
             return sum + line.credit;
           }
           return sum;

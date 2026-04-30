@@ -24,10 +24,6 @@ export async function GET(request: Request) {
     const disbursements = await prisma.pettyCashDisbursement.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: {
-        pettyCash: { select: { name: true, currentBalance: true } },
-        employee: { select: { id: true, firstName: true, lastName: true } },
-      },
     });
 
     return NextResponse.json(disbursements);
@@ -45,7 +41,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { pettyCashId, amount, description, payeeName, reference, expenseAccountId } = body;
+    const { pettyCashId, amount, description, payeeName, reference, expenseAccountId, date } = body;
 
     if (!pettyCashId || !amount) {
       return NextResponse.json(
@@ -87,6 +83,7 @@ export async function POST(request: Request) {
       data: {
         pettyCashId,
         amount,
+        date: date ? new Date(date) : new Date(),
         description,
         payeeName: payeeName || userEmail,
         reference,
@@ -132,7 +129,6 @@ export async function PATCH(request: Request) {
 
     const disbursement = await prisma.pettyCashDisbursement.findUnique({
       where: { id },
-      include: { pettyCash: true },
     });
 
     if (!disbursement) {
@@ -146,7 +142,6 @@ export async function PATCH(request: Request) {
       where: { id },
       data: {
         status: newStatus,
-        notes,
         approvedBy: newStatus === 'APPROVED' ? userRole : null,
         approvedAt: newStatus === 'APPROVED' ? new Date() : null,
       },

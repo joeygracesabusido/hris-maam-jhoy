@@ -27,12 +27,20 @@ export async function GET(request: Request) {
     const liquidations = await prisma.pettyCashLiquidation.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: {
-        pettyCash: { select: { name: true, currentBalance: true } },
-      },
     });
 
-    return NextResponse.json(liquidations);
+    const pettyCashIds = [...new Set(liquidations.map(l => l.pettyCashId))];
+    const pettyCashes = await prisma.pettyCash.findMany({
+      where: { id: { in: pettyCashIds } }
+    });
+    const pcMap = new Map(pettyCashes.map(pc => [pc.id, pc]));
+
+    const result = liquidations.map(liq => ({
+      ...liq,
+      pettyCash: pcMap.get(liq.pettyCashId) || null
+    }));
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching liquidations:', error);
     return NextResponse.json({ error: 'Failed to fetch liquidations' }, { status: 500 });
@@ -42,7 +50,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { pettyCashId, disbursementId, amount, receipts, notes, expenseAccountId } = body;
+    const { pettyCashId, disbursementId, amount, receipts, notes, expenseAccountId, date } = body;
 
     if (!pettyCashId || !disbursementId || !amount) {
       return NextResponse.json(
@@ -53,7 +61,6 @@ export async function POST(request: Request) {
 
     const disbursement = await prisma.pettyCashDisbursement.findUnique({
       where: { id: disbursementId },
-      include: { pettyCash: true },
     });
 
     if (!disbursement) {
@@ -81,6 +88,7 @@ export async function POST(request: Request) {
         pettyCashId,
         disbursementId,
         amount,
+        date: date ? new Date(date) : new Date(),
         receipts: receipts || [],
         notes,
         expenseAccountId: expenseAccountId || disbursement.expenseAccountId,
@@ -117,7 +125,6 @@ export async function PATCH(request: Request) {
 
     const liquidation = await prisma.pettyCashLiquidation.findUnique({
       where: { id },
-      include: { disbursement: true, pettyCash: true },
     });
 
     if (!liquidation) {
@@ -157,15 +164,22 @@ export async function PATCH(request: Request) {
         });
       }
 
+      const pettyCash = await prisma.pettyCash.findUnique({
+        where: { id: liquidation.pettyCashId }
+      });
+      const disbursement = await prisma.pettyCashDisbursement.findUnique({
+        where: { id: liquidation.disbursementId }
+      });
+
       const expenseAccountId = liquidation.expenseAccountId;
-      const cashAccountId = liquidation.pettyCash.cashAccountId;
+      const cashAccountId = pettyCash?.cashAccountId;
 
       if (expenseAccountId && cashAccountId) {
         await prisma.journalEntry.create({
           data: {
             date: new Date(),
             reference: `LIQ-${Date.now()}`,
-            description: `Petty Cash Liquidation - ${liquidation.disbursement?.description || 'Disbursement'}`,
+            description: `Petty Cash Liquidation - ${disbursement?.description || 'Disbursement'}`,
             status: 'POSTED',
             lines: {
               create: [
