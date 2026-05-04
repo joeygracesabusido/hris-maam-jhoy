@@ -91,6 +91,7 @@ export default function ShiftSchedulePage() {
 
   // Calculate the 7 days to display
   const startDate = startOfWeek(currentDate, { weekStartsOn: 1 }); // Start on Monday
+  const startDateStr = format(startDate, 'yyyy-MM-dd'); // stable string key for deps
   const weekDays = eachDayOfInterval({
     start: startDate,
     end: addDays(startDate, 6),
@@ -101,8 +102,8 @@ export default function ShiftSchedulePage() {
       setLoading(true);
       setError(null);
 
-      const startStr = format(startDate, 'yyyy-MM-dd');
-      const endStr = format(addDays(startDate, 6), 'yyyy-MM-dd');
+      const startStr = startDateStr;
+      const endStr = format(addDays(new Date(startDateStr), 6), 'yyyy-MM-dd');
 
       console.log(`[Fetch] Range: ${startStr} to ${endStr}`);
 
@@ -133,7 +134,7 @@ export default function ShiftSchedulePage() {
     } finally {
       setLoading(false);
     }
-  }, [startDate]);
+  }, [startDateStr]);
 
   useEffect(() => {
     fetchData();
@@ -316,11 +317,11 @@ export default function ShiftSchedulePage() {
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="outline" 
-                className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
-                disabled={loading || employees.length === 0}
+                className="gap-2 border-gray-200 text-gray-400 cursor-not-allowed opacity-50"
+                disabled={true}
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
-                Bulk Assign
+                Bulk Assign (Disabled)
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">

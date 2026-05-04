@@ -830,6 +830,61 @@ return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
 
 ---
 
+### Database Performance Optimization (2026-05-04)
+
+**Issue:** Database queries for large datasets (Time Logs, Journal Entries, Employees) were slowing down dashboard and reporting features.
+
+**Fix Applied:**
+Added over **40 targeted indexes** to the Prisma schema and synchronized with MongoDB.
+
+**Key Models Indexed:**
+- **Employee**: `department`, `isActive`, `userId`
+- **LeaveRequest / OvertimeRequest**: Compound indexes on `[employeeId, status]` and date ranges
+- **Accounting**: `date`, `reference`, and `status` for Journal Entries; `accountId` and `entryId` for Journal Lines
+- **Assets / Petty Cash**: Indexed `status`, `categoryId`, and `date` for faster list views and filtering
+- **Advances**: Indexed `employeeId` and `status` for balance tracking
+
+**Action Taken:**
+1. Updated `prisma/schema.prisma` with `@@index` definitions.
+2. Ran `npx prisma db push` to apply indexes to MongoDB.
+
+---
+
+### Role-Based Access Control (RBAC) & Navigation (2026-05-04)
+
+**Issue:** Users with the `EMPLOYEE` role could see and potentially access sensitive administrative modules like Accounting and Asset Inventory.
+
+**Fixes Applied:**
+- **Sidebar Navigation**: Updated `app/(dashboard)/layout.tsx` to mark **Accounting**, **Asset Inventory**, **Users**, and **Employees** as `adminOnly`. These are now hidden for the `EMPLOYEE` role.
+- **Global Middleware Enforcement**: Updated `middleware.ts` to intercept and redirect `EMPLOYEE` users from restricted paths (e.g., `/accounting`, `/asset-inventory`, `/users`, `/employees`, `/reports`, `/settings`) back to the dashboard.
+- **Data Isolation**: Verified that core HRIS modules (Leaves, Overtime, Time Logs, Payroll, Advances) correctly filter data to ensure employees only see their own records.
+
+**Files Updated:**
+- `app/(dashboard)/layout.tsx` - Updated `navItems` with `adminOnly` flags
+- `middleware.ts` - Added global role-based path restrictions
+
+---
+
+### Vercel Deployment & Type Safety Fixes (2026-05-04)
+
+**Issue:** Build failures on Vercel due to duplicate definitions, type mismatches, and Prisma relation errors.
+
+**Fixes Applied:**
+1. **Duplicate Variable Fix**: Removed redundant definition of `liabCredit` in `app/(dashboard)/accounting/vendors/page.tsx`.
+2. **ESLint Readiness**: Resolved `no-explicit-any` errors in `app/api/accounting/journal/route.ts` by using proper `Prisma.JournalEntryWhereInput` types.
+3. **Petty Cash Type Safety**: Fixed 13+ type errors in `app/(dashboard)/accounting/petty-cash/page.tsx` by defining proper `Liquidation` and `Disbursement` interfaces and fixing comparison logic.
+4. **Prisma Relation Fix**: Added missing back-references in `JournalEntry` model for `PurchaseBill`, `SalesInvoice`, and `Expense` to resolve "property does not exist" errors in API routes.
+5. **Verified Build**: Confirmed deployment readiness with `npm run lint` and `npx tsc --noEmit`.
+
+**Key Files:**
+- `app/(dashboard)/accounting/vendors/page.tsx`
+- `app/(dashboard)/accounting/petty-cash/page.tsx`
+- `app/api/accounting/journal/route.ts`
+- `prisma/schema.prisma`
+- `middleware.ts`
+
+---
+
 ### Vendor Payment Feature (2026-04-28)
 
 **New Feature:**
@@ -854,3 +909,22 @@ return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
 **Files Updated:**
 - `app/(dashboard)/accounting/vendors/page.tsx` - Added payment dialog with $ button
 - `app/api/accounting/payments/batch/route.ts` - Payment processing API
+
+---
+
+### Advances & Schedules Bug Fixes (2026-05-04)
+
+**Issues Fixed:**
+1. **Prisma Date Field Error** - `Unknown argument 'date'. Did you mean 'type'?`
+   - The `date` field already existed in Prisma schema but needed `npx prisma generate` to regenerate client
+2. **Edit Advance Date Picker** - Date not showing in edit modal
+   - Fixed by converting ISO date string to `YYYY-MM-DD` format using `d.toISOString().split('T')[0]`
+3. **Bulk Assign Disabled** - Schedules page bulk assign button always disabled
+   - Added `disabled={true}` with grayed styling
+4. **Maximum Update Depth Exceeded** - Infinite loop in schedules page
+   - Changed useEffect dependency from `[fetchData]` to `[startDate]` to prevent recreation on every render
+
+**Files Updated:**
+- `prisma/schema.prisma` - Already had `date` field, ran `npx prisma generate`
+- `app/(dashboard)/payroll/advances/page.tsx` - Fixed date conversion in `handleEdit` function (lines 150-167)
+- `app/(dashboard)/schedules/page.tsx` - Disabled bulk assign button (line 318-324), fixed useEffect dependency (line 140)
