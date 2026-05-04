@@ -543,7 +543,7 @@ export async function PUT(request: Request) {
           return { payment, journalEntry, bill: updatedBill };
         });
 
-        results.push({ bill: bill.billNumber, ...result });
+        results.push({ ...result, billNumber: bill.billNumber });
       } catch (err) {
         errors.push({ bill: bill.billNumber, error: err instanceof Error ? err.message : 'Unknown error' });
       }

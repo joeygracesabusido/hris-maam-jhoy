@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(request: Request) {
   try {
@@ -105,7 +106,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const reference = searchParams.get('reference');
 
-    const where = reference 
+    const where: Prisma.JournalEntryWhereInput = reference 
       ? { reference: { contains: reference, mode: 'insensitive' } } 
       : {};
 

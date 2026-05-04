@@ -536,6 +536,9 @@ model JournalEntry {
 
   lines       JournalLine[]
   payments    Payment[]
+  purchaseBills PurchaseBill[]
+  salesInvoices SalesInvoice[]
+  expenses      Expense[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -585,6 +588,7 @@ model Expense {
 
   // Double-Entry Link
   journalEntryId  String?       @db.ObjectId
+  journalEntry    JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -629,6 +633,7 @@ model SalesInvoice {
   amountPaid     Float    @default(0)
 
   journalEntryId String?  @db.ObjectId
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -672,6 +677,7 @@ model PurchaseBill {
   amountPaid     Float    @default(0)
 
   journalEntryId String?  @db.ObjectId
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
   payments       Payment[]
 
   createdAt     DateTime @default(now())

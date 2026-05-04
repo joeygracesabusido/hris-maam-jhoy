@@ -41,37 +41,54 @@ interface Disbursement {
   approvedAt?: string;
 }
 
+interface Liquidation {
+  id: string;
+  pettyCashId: string;
+  disbursementId: string;
+  amount: number;
+  date: string;
+  notes?: string;
+  status: string;
+  approvedAt?: string;
+  createdAt: string;
+  pettyCash?: {
+    name: string;
+  };
+}
+
 export default function PettyCashPage() {
   const [funds, setFunds] = useState<PettyCashFund[]>([]);
   const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<Account[]>([]);
   const [disbursements, setDisbursements] = useState<Disbursement[]>([]);
-  const [liquidations, setLiquidations] = useState<Record<string, unknown>[]>([]);
+  const [liquidations, setLiquidations] = useState<Liquidation[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isDisburseDialogOpen, setDisburseDialogOpen] = useState(false);
   const [isLiquidateDialogOpen, setLiquidateDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
+  
   const [editFormData, setEditFormData] = useState({
     name: '',
-    fundAmount: '',
+    fundAmount: 0 as string | number,
     custodianId: '',
     status: '',
   });
+
   const [selectedDisbursement, setSelectedDisbursement] = useState<Disbursement | null>(null);
   const [selectedFund, setSelectedFund] = useState<PettyCashFund | null>(null);
   const [activeTab, setActiveTab] = useState<'funds' | 'disbursements' | 'liquidations'>('funds');
 
   const [formData, setFormData] = useState({
     name: '',
-    fundAmount: '',
+    fundAmount: 0 as string | number,
     cashAccountId: '',
     expenseAccountId: '',
     description: '',
   });
 
   const [disburseData, setDisburseData] = useState({
-    amount: '',
+    amount: 0 as string | number,
     date: new Date().toISOString().split('T')[0],
     description: '',
     payeeName: '',
@@ -79,7 +96,7 @@ export default function PettyCashPage() {
   });
 
   const [liquidateData, setLiquidateData] = useState({
-    amount: '',
+    amount: 0 as string | number,
     date: new Date().toISOString().split('T')[0],
     notes: '',
   });
@@ -180,7 +197,7 @@ export default function PettyCashPage() {
     try {
       const payload = {
         ...formData,
-        fundAmount: parseFloat(formData.fundAmount) || 0,
+        fundAmount: parseFloat(String(formData.fundAmount)) || 0,
       };
       const res = await fetch('/api/accounting/petty-cash', {
         method: 'POST',
@@ -270,7 +287,7 @@ export default function PettyCashPage() {
         body: JSON.stringify({
           pettyCashId: selectedDisbursement.pettyCashId,
           disbursementId: selectedDisbursement.id,
-          amount: parseFloat(liquidateData.amount) || 0,
+          amount: parseFloat(String(liquidateData.amount)) || 0,
           date: liquidateData.date,
           notes: liquidateData.notes,
         }),
@@ -318,7 +335,7 @@ export default function PettyCashPage() {
       const payload = {
         id: selectedFund.id,
         ...editFormData,
-        fundAmount: parseFloat(editFormData.fundAmount) || 0,
+        fundAmount: parseFloat(String(editFormData.fundAmount)) || 0,
       };
       const res = await fetch('/api/accounting/petty-cash', {
         method: 'PATCH',
@@ -739,7 +756,7 @@ export default function PettyCashPage() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDisburseDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={!selectedFund || disburseData.amount > (selectedFund?.currentBalance || 0)}>
+              <Button type="submit" disabled={!selectedFund || Number(disburseData.amount) > (selectedFund?.currentBalance || 0)}>
                 Disburse
               </Button>
             </DialogFooter>

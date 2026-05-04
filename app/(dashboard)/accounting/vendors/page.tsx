@@ -89,6 +89,7 @@ interface JournalEntry {
   id: string;
   reference: string;
   description: string;
+  date: string;
   lines?: JournalLine[];
 }
 
@@ -202,13 +203,6 @@ export default function VendorsPage() {
         return hasLiabCredit;
       }).map((je: JournalEntry) => {
         // Calculate liability credit amount
-        const liabCredit = je.lines?.reduce((sum: number, line: JournalLine) => {
-          if (line.credit > 0 && (line.account?.type === 'LIABILITY' || line.account?.code?.startsWith('21'))) {
-            return sum + line.credit;
-          }
-          return sum;
-        }, 0) || 0;
-        
         const liabCredit = je.lines?.reduce((sum: number, line: JournalLine) => {
           if (line.credit > 0 && (line.account?.type === 'LIABILITY' || line.account?.code?.startsWith('21'))) {
             return sum + line.credit;
