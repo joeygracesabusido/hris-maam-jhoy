@@ -928,3 +928,30 @@ Added over **40 targeted indexes** to the Prisma schema and synchronized with Mo
 - `prisma/schema.prisma` - Already had `date` field, ran `npx prisma generate`
 - `app/(dashboard)/payroll/advances/page.tsx` - Fixed date conversion in `handleEdit` function (lines 150-167)
 - `app/(dashboard)/schedules/page.tsx` - Disabled bulk assign button (line 318-324), fixed useEffect dependency (line 140)
+
+---
+
+### Employee Face Self-Enrollment (2026-05-05)
+
+**New Feature:**
+Employees can now enroll their own face from the Time Logs page without needing admin assistance.
+
+**How to Enroll:**
+1. Employee logs in and visits `/time-logs`
+2. Clicks the green "Enroll My Face" button in the header
+3. Opens face capture modal in enrollment mode
+4. Captures face → saved to database via API
+5. Can now use face verification for clock-in/out
+
+**UI Elements Added:**
+- "Enroll My Face" button in header (visible only to EMPLOYEE role)
+- Face enrollment modal with status message display
+- State variables: `isEnrolling`, `faceEnrollStatus`
+
+**Authorization Logic:**
+- EMPLOYEE: Can enroll their own face (email must match logged-in user)
+- ADMIN/HR: Can enroll any employee's face
+
+**Files Updated:**
+- `app/(dashboard)/time-logs/page.tsx` - Added enrollment button, modal, and handler
+- `app/api/employees/[id]/face/route.ts` - Updated to allow EMPLOYEE role to enroll own face

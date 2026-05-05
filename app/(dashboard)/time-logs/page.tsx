@@ -84,6 +84,8 @@ export default function TimeLogsPage() {
   const xclsFileInputRef = useRef<HTMLInputElement>(null);
   const [showFaceModal, setShowFaceModal] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isEnrolling, setIsEnrolling] = useState(false);
+  const [faceEnrollStatus, setFaceEnrollStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
   useEffect(() => {
     const getCookies = () => {
@@ -251,20 +253,34 @@ useEffect(() => {
       const res = await fetch('/api/employees', { credentials: 'include' });
       const data = await res.json() as Employee[];
       
+      // For EMPLOYEE role, filter to only show their own record by email match (case-insensitive)
       if (role === 'EMPLOYEE' && email) {
-        const myEmployee = data.find((emp) => emp.email === email || emp.userId);
+        const lowerEmail = email.toLowerCase();
+        const myEmployee = data.find((emp) => emp.email?.toLowerCase() === lowerEmail);
         if (myEmployee) {
           setEmployeeId(myEmployee.id);
           setEmployees([myEmployee]);
           return;
         }
+        // If no email match, try to find by userId
+        const myEmployeeByUserId = data.find((emp) => emp.userId === userId);
+        if (myEmployeeByUserId) {
+          setEmployeeId(myEmployeeByUserId.id);
+          setEmployees([myEmployeeByUserId]);
+          return;
+        }
+        // No match found - show empty and log error
+        console.error('[Time Logs] EMPLOYEE role but no matching employee found for email:', email, 'Available employees:', data.map(e => e.email));
+        setEmployees([]);
+        return;
       }
       
+      // For admin/manager/HR roles, show all employees and auto-select logged-in user's record
       setEmployees(data);
       
-      // For admin/manager roles, try to auto-select the logged-in user's employee record
       if ((role === 'ADMIN' || role === 'MANAGER' || role === 'HR') && email) {
-        const myEmployee = data.find((emp) => emp.email === email);
+        const lowerEmail = email.toLowerCase();
+        const myEmployee = data.find((emp) => emp.email?.toLowerCase() === lowerEmail);
         if (myEmployee) {
           setEmployeeId(myEmployee.id);
           return;
@@ -457,7 +473,7 @@ useEffect(() => {
     setIsVerifying(true);
     try {
       console.log('[Face Verification] Fetching descriptor for employeeId:', employeeId);
-      const res = await fetch(`/api/employees/${employeeId}/face-descriptor`);
+      const res = await fetch(`/api/employees/${employeeId}/face-descriptor`, { credentials: 'include' });
       const responseData = await res.json().catch(() => ({}));
       
       console.log('[Face Verification] Response status:', res.status, responseData);
@@ -485,6 +501,33 @@ useEffect(() => {
       const error = err instanceof Error ? err : new Error('Unknown error');
       alert(error.message);
       setIsVerifying(false);
+    }
+  };
+
+  const handleFaceEnroll = async (descriptor: Float32Array) => {
+    if (!employeeId) return;
+    setFaceEnrollStatus(null);
+
+    try {
+      const res = await fetch(`/api/employees/${employeeId}/face`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ faceDescriptor: Array.from(descriptor) }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setFaceEnrollStatus({ ok: false, msg: data.error || 'Failed to enroll face' });
+        return;
+      }
+
+      setFaceEnrollStatus({ ok: true, msg: '✓ Your face has been enrolled successfully!' });
+      setTimeout(() => { setShowFaceModal(false); setIsEnrolling(false); setFaceEnrollStatus(null); }, 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong';
+      setFaceEnrollStatus({ ok: false, msg });
     }
   };
 
@@ -731,6 +774,15 @@ useEffect(() => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Time Logs</h1>
           <p className="text-gray-500 dark:text-gray-400">Record your daily attendance</p>
         </div>
+        {userRole === 'EMPLOYEE' && employeeId && (
+          <button
+            onClick={() => { setIsEnrolling(true); setFaceEnrollStatus(null); setShowFaceModal(true); }}
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <User className="w-4 h-4" />
+            Enroll My Face
+          </button>
+        )}
         {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
           <div className="flex items-center gap-2">
             <Dialog open={biometricImportOpen} onOpenChange={setBiometricImportOpen}>
@@ -1383,32 +1435,34 @@ useEffect(() => {
          </div>
        )}
 
-       {/* Time Logs Table for Employee (only their own data) */}
-       {userRole === 'EMPLOYEE' && (
-         <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 overflow-hidden">
-           <div className="p-6 border-b dark:border-gray-700">
-             <h2 className="text-lg font-semibold dark:text-white">My Time Logs</h2>
-           </div>
-           
-           {loading ? (
-             <div className="p-8 text-center text-gray-500">Loading...</div>
-           ) : timeLogs.length === 0 ? (
-             <div className="p-8 text-center text-gray-500">No time logs found</div>
-           ) : (
-             <div className="overflow-x-auto">
-               <table className="w-full">
-                 <thead className="bg-gray-50 dark:bg-gray-900/50">
-                   <tr>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Schedule</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock In</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock Out</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hours</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Remarks</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                   {timeLogs.map((log) => {
+{/* Time Logs Table for Employee (only their own data) */}
+        {userRole === 'EMPLOYEE' && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 overflow-hidden">
+            <div className="p-6 border-b dark:border-gray-700">
+              <h2 className="text-lg font-semibold dark:text-white">My Time Logs</h2>
+            </div>
+            
+            {loading ? (
+              <div className="p-8 text-center text-gray-500">Loading...</div>
+            ) : timeLogs.filter(log => employeeId && log.employeeId === employeeId).length === 0 ? (
+              <div className="p-8 text-center text-gray-500">No time logs found</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-900/50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Schedule</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock In</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock Out</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hours</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                    {timeLogs
+                      .filter(log => employeeId && log.employeeId === employeeId)
+                      .map((log) => {
                      const remarks = getLatenessRemarks(log);
                      return (
                        <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-900 dark:text-gray-200">
@@ -1476,33 +1530,52 @@ useEffect(() => {
         </DialogContent>
        </Dialog>
 
-       {/* Face Verification Modal */}
-       {showFaceModal && (
-         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-             <div className="p-6 border-b flex justify-between items-center">
-               <div className="flex items-center gap-2">
-                 <div className="p-2 bg-blue-50 rounded-lg text-blue-600"><User className="w-5 h-5" /></div>
-                 <div>
-                   <h2 className="text-xl font-bold text-gray-900">Face Verification</h2>
-                   <p className="text-xs text-gray-500">Please verify your identity to continue</p>
-                 </div>
-               </div>
-               <button 
-                 onClick={() => { setShowFaceModal(false); setIsVerifying(false); }} 
-                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-               >
-                 <X className="w-5 h-5" />
-               </button>
-             </div>
-             <div className="p-6 space-y-4">
-               <FaceCapture 
-                 mode="verify" 
-                 storedDescriptor={storedDescriptor} 
-                 onVerify={handleVerifyFace} 
-               />
-             </div>
-           </div>
+{/* Face Verification/Enrollment Modal */}
+        {showFaceModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+              <div className="p-6 border-b flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className={`p-2 rounded-lg ${isEnrolling ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                    <User className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">
+                      {isEnrolling ? 'Face Enrollment' : 'Face Verification'}
+                    </h2>
+                    <p className="text-xs text-gray-500">
+                      {isEnrolling ? 'Capture your face for attendance verification' : 'Please verify your identity to continue'}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => { setShowFaceModal(false); setIsVerifying(false); setIsEnrolling(false); setFaceEnrollStatus(null); }} 
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {faceEnrollStatus && (
+                  <div className={`p-3 rounded-lg border text-sm font-medium ${
+                    faceEnrollStatus.ok
+                      ? 'bg-green-50 border-green-200 text-green-700'
+                      : 'bg-red-50 border-red-200 text-red-700'
+                  }`}>
+                    {faceEnrollStatus.msg}
+                  </div>
+                )}
+                {isEnrolling ? (
+                  <FaceCapture mode="enroll" onCapture={handleFaceEnroll} />
+                ) : (
+                  <FaceCapture 
+                    mode="verify" 
+                    storedDescriptor={storedDescriptor} 
+                    onVerify={handleVerifyFace} 
+                  />
+                )}
+              </div>
+            </div>
          </div>
        )}
      </div>
