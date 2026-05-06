@@ -27,9 +27,20 @@ interface Asset {
   location: string;
 }
 
+interface CombinedAsset {
+  name: string;
+  purchaseDate: string;
+  quantity: number;
+  purchaseCost: number;
+  residualValue: number;
+  usefulLife: number;
+  depreciationMethod: string;
+  assetCodes: string[];
+}
+
 interface CategoryGroup {
   name: string;
-  assets: Asset[];
+  assets: CombinedAsset[];
 }
 
 interface QuarterlyData {
@@ -65,18 +76,40 @@ export default function PPEReportsPage() {
   }, []);
 
   const groupedAssets = useMemo((): CategoryGroup[] => {
-    const groups: Record<string, Asset[]> = {};
+    const groups: Record<string, Record<string, CombinedAsset>> = {};
     
     assets.forEach(asset => {
       const categoryName = asset.category?.name || 'UNCATEGORIZED';
+      const key = `${asset.name}|${asset.purchaseDate}`;
+      
       if (!groups[categoryName]) {
-        groups[categoryName] = [];
+        groups[categoryName] = {};
       }
-      groups[categoryName].push(asset);
+      
+      if (!groups[categoryName][key]) {
+        groups[categoryName][key] = {
+          name: asset.name,
+          purchaseDate: asset.purchaseDate,
+          quantity: 0,
+          purchaseCost: asset.purchaseCost,
+          residualValue: asset.residualValue,
+          usefulLife: asset.usefulLife,
+          depreciationMethod: asset.depreciationMethod,
+          assetCodes: [],
+        };
+      }
+      
+      groups[categoryName][key].quantity += (asset.quantity || 1);
+      groups[categoryName][key].assetCodes.push(asset.assetCode);
     });
 
     return Object.entries(groups)
-      .map(([name, assets]) => ({ name, assets }))
+      .map(([categoryName, combinedMap]) => ({
+        name: categoryName,
+        assets: Object.values(combinedMap).sort((a, b) => 
+          new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()
+        ),
+      }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [assets]);
 
@@ -88,10 +121,11 @@ export default function PPEReportsPage() {
       const quarterlyData: QuarterlyData[] = [];
 
       group.assets.forEach(asset => {
-        const cost = asset.purchaseCost * (asset.quantity || 1);
-        const vat = cost * 0.12;
-        const amount = cost + vat;
-        totalCost += cost;
+        const totalCostForAsset = asset.purchaseCost * asset.quantity;
+        const unitCost = totalCostForAsset / asset.quantity;
+        const vat = unitCost * 0.12 * asset.quantity;
+        const amount = unitCost * asset.quantity + vat;
+        totalCost += totalCostForAsset;
         totalVat += vat;
         totalAmount += amount;
       });
@@ -362,13 +396,10 @@ export default function PPEReportsPage() {
                 <TableHead rowSpan={2} className="text-right align-middle">AMOUNT</TableHead>
                 <TableHead rowSpan={2} className="text-center align-middle w-20">USEFUL LIFE</TableHead>
                 <TableHead rowSpan={2} className="text-right align-middle w-20">MONTHLY DEP</TableHead>
-                <TableColGroup>Quarter</TableColGroup>
-              </TableRow>
-              <TableRow className="bg-muted">
-                <TableHead colSpan={3} className="text-center">Q1</TableHead>
-                <TableHead colSpan={3} className="text-center">Q2</TableHead>
-                <TableHead colSpan={3} className="text-center">Q3</TableHead>
-                <TableHead colSpan={3} className="text-center">Q4</TableHead>
+                <TableHead colSpan={3} className="text-center align-middle">Q1</TableHead>
+                <TableHead colSpan={3} className="text-center align-middle">Q2</TableHead>
+                <TableHead colSpan={3} className="text-center align-middle">Q3</TableHead>
+                <TableHead colSpan={3} className="text-center align-middle">Q4</TableHead>
               </TableRow>
               <TableRow className="bg-muted">
                 {[1, 2, 3, 4].map(q =>
@@ -398,30 +429,64 @@ export default function PPEReportsPage() {
                     </TableCell>
                     <TableCell colSpan={3} />
                     {category.quarterlyData.map(qd => (
-                      <TableCell key={qd.quarter} colSpan={3} className="hidden" />
+                      <>
+                        <TableCell className="text-right">{formatCurrency(qd.dep)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(qd.accum)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(qd.nbv)}</TableCell>
+                      </>
                     ))}
                   </TableRow>
-                  {groupedAssets[idx].assets.map(asset => {
-                    const cost = asset.purchaseCost * (asset.quantity || 1);
-                    const vat = cost * 0.12;
-                    const amount = cost + vat;
-                    const qd = category.quarterlyData;
+                  {groupedAssets[idx].assets.map((asset, assetIdx) => {
+                    const totalCost = asset.purchaseCost * asset.quantity; // Total from DB
+                    const unitCost = totalCost / asset.quantity; // Unit cost = total / qty
+                    const vat = unitCost * 0.12 * asset.quantity; // VAT on unit cost × qty
+                    const amount = unitCost * asset.quantity + vat; // Total amount with VAT
+
+                    const assetQuarterlyData = [1, 2, 3, 4].map(q => {
+                      const asOfDate = getQuarterDate(selectedYear, q);
+                      const prevAsOfDate = getQuarterDate(selectedYear, q - 1);
+                      const prevResult = calculateDepreciation({
+                        purchaseCost: totalCost,
+                        residualValue: asset.residualValue * asset.quantity,
+                        usefulLife: asset.usefulLife,
+                        purchaseDate: new Date(asset.purchaseDate),
+                        method: asset.depreciationMethod,
+                        asOfDate: prevAsOfDate,
+                      });
+                      const currentResult = calculateDepreciation({
+                        purchaseCost: totalCost,
+                        residualValue: asset.residualValue * asset.quantity,
+                        usefulLife: asset.usefulLife,
+                        purchaseDate: new Date(asset.purchaseDate),
+                        method: asset.depreciationMethod,
+                        asOfDate: asOfDate,
+                      });
+                      return {
+                        dep: currentResult.accumulatedDepreciation - prevResult.accumulatedDepreciation,
+                        accum: currentResult.accumulatedDepreciation,
+                        nbv: currentResult.netBookValue,
+                      };
+                    });
 
                     return (
-                      <TableRow key={asset.id}>
-                        <TableCell className="text-center">{asset.quantity || 1}</TableCell>
+                      <TableRow key={`${asset.name}-${asset.purchaseDate}-${assetIdx}`}>
+                        <TableCell className="text-center">{asset.quantity}</TableCell>
                         <TableCell className="text-center">unit</TableCell>
                         <TableCell>{asset.name}</TableCell>
                         <TableCell className="text-center">
                           {new Date(asset.purchaseDate).toLocaleDateString()}
                         </TableCell>
-                        <TableCell className="text-right">{formatCurrency(cost)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(unitCost)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(vat)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(amount)}</TableCell>
                         <TableCell className="text-center">{asset.usefulLife} yrs</TableCell>
                         <TableCell className="text-right">-</TableCell>
-                        {qd.map(q => (
-                          <TableCell key={q.quarter} className="hidden" />
+                        {assetQuarterlyData.map((q, i) => (
+                          <>
+                            <TableCell key={`q${i+1}-dep`} className="text-right">{formatCurrency(q.dep)}</TableCell>
+                            <TableCell key={`q${i+1}-accum`} className="text-right">{formatCurrency(q.accum)}</TableCell>
+                            <TableCell key={`q${i+1}-nbv`} className="text-right">{formatCurrency(q.nbv)}</TableCell>
+                          </>
                         ))}
                       </TableRow>
                     );
