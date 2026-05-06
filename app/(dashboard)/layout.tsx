@@ -62,6 +62,7 @@ const navItems = [
       { href: '/asset-inventory/new', label: 'Add Asset', icon: FileText },
       { href: '/asset-inventory/categories', label: 'Categories', icon: Settings },
       { href: '/asset-inventory/transactions', label: 'Transactions', icon: Clock },
+      { href: '/asset-inventory/reports', label: 'PPE Reports', icon: FileText },
     ],
   },
   {
