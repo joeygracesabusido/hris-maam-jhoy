@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { FileDown } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -372,7 +372,7 @@ export default function PPEReportsPage() {
               </TableRow>
               <TableRow className="bg-muted">
                 {[1, 2, 3, 4].map(q =>
-                  ['DEP', 'ACCUM', 'NBV'].map((label, i) => (
+                  ['DEP', 'ACCUM', 'NBV'].map((label) => (
                     <TableHead key={`${q}-${label}`} className="text-right">
                       {label}
                     </TableHead>
