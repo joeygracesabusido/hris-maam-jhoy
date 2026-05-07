@@ -91,15 +91,17 @@ export default function PPEReportsPage() {
           name: asset.name,
           purchaseDate: asset.purchaseDate,
           quantity: 0,
-          purchaseCost: asset.purchaseCost,
-          residualValue: asset.residualValue,
-          usefulLife: asset.usefulLife,
-          depreciationMethod: asset.depreciationMethod,
+          purchaseCost: 0,
+          residualValue: 0,
+          usefulLife: categoryName.toUpperCase() === 'LAND' ? 0 : asset.usefulLife,
+          depreciationMethod: categoryName.toUpperCase() === 'LAND' ? 'NONE' : asset.depreciationMethod,
           assetCodes: [],
         };
       }
       
       groups[categoryName][key].quantity += (asset.quantity || 1);
+      groups[categoryName][key].purchaseCost += asset.purchaseCost;
+      groups[categoryName][key].residualValue += asset.residualValue;
       groups[categoryName][key].assetCodes.push(asset.assetCode);
     });
 
@@ -115,18 +117,11 @@ export default function PPEReportsPage() {
 
   const categoryTotals = useMemo(() => {
     return groupedAssets.map(group => {
-      let totalCost = 0;
-      let totalVat = 0;
       let totalAmount = 0;
       const quarterlyData: QuarterlyData[] = [];
 
       group.assets.forEach(asset => {
-        const totalCostForAsset = asset.purchaseCost * asset.quantity;
-        const unitCost = totalCostForAsset / asset.quantity;
-        const vat = unitCost * 0.12 * asset.quantity;
-        const amount = unitCost * asset.quantity + vat;
-        totalCost += totalCostForAsset;
-        totalVat += vat;
+        const amount = asset.purchaseCost;
         totalAmount += amount;
       });
 
@@ -141,8 +136,8 @@ export default function PPEReportsPage() {
           const prevAsOfDate = getQuarterDate(selectedYear, q - 1);
           
           const prevResult = calculateDepreciation({
-            purchaseCost: asset.purchaseCost * qty,
-            residualValue: asset.residualValue * qty,
+            purchaseCost: asset.purchaseCost,
+            residualValue: asset.residualValue,
             usefulLife: asset.usefulLife,
             purchaseDate: new Date(asset.purchaseDate),
             method: asset.depreciationMethod,
@@ -150,8 +145,8 @@ export default function PPEReportsPage() {
           });
 
           const currentResult = calculateDepreciation({
-            purchaseCost: asset.purchaseCost * qty,
-            residualValue: asset.residualValue * qty,
+            purchaseCost: asset.purchaseCost,
+            residualValue: asset.residualValue,
             usefulLife: asset.usefulLife,
             purchaseDate: new Date(asset.purchaseDate),
             method: asset.depreciationMethod,
@@ -173,8 +168,6 @@ export default function PPEReportsPage() {
 
       return {
         name: group.name,
-        totalCost,
-        totalVat,
         totalAmount,
         quarterlyData,
       };
@@ -184,8 +177,6 @@ export default function PPEReportsPage() {
   const grandTotals = useMemo(() => {
     return categoryTotals.reduce(
       (acc, cat) => ({
-        totalCost: acc.totalCost + cat.totalCost,
-        totalVat: acc.totalVat + cat.totalVat,
         totalAmount: acc.totalAmount + cat.totalAmount,
         q1: {
           dep: acc.q1.dep + cat.quarterlyData[0]?.dep,
@@ -209,8 +200,6 @@ export default function PPEReportsPage() {
         },
       }),
       {
-        totalCost: 0,
-        totalVat: 0,
         totalAmount: 0,
         q1: { dep: 0, accum: 0, nbv: 0 },
         q2: { dep: 0, accum: 0, nbv: 0 },
@@ -225,17 +214,13 @@ export default function PPEReportsPage() {
 
     groupedAssets.forEach(group => {
       group.assets.forEach(asset => {
-        const cost = asset.purchaseCost * (asset.quantity || 1);
-        const vat = cost * 0.12;
-        const amount = cost + vat;
+        const amount = asset.purchaseCost;
 
         const row: Record<string, unknown> = {
           'QTY': asset.quantity || 1,
           'UNIT': 'unit',
           'PARTICULARS': asset.name,
           'Date': asset.purchaseDate,
-          'COST': cost,
-          'VAT': vat,
           'AMOUNT': amount,
           'USEFUL LIFE': asset.usefulLife,
           'MONTHLY DEP': 0,
@@ -246,8 +231,8 @@ export default function PPEReportsPage() {
           const prevAsOfDate = getQuarterDate(selectedYear, q - 1);
 
           const prevResult = calculateDepreciation({
-            purchaseCost: cost,
-            residualValue: asset.residualValue * (asset.quantity || 1),
+            purchaseCost: amount,
+            residualValue: asset.residualValue,
             usefulLife: asset.usefulLife,
             purchaseDate: new Date(asset.purchaseDate),
             method: asset.depreciationMethod,
@@ -255,8 +240,8 @@ export default function PPEReportsPage() {
           });
 
           const currentResult = calculateDepreciation({
-            purchaseCost: cost,
-            residualValue: asset.residualValue * (asset.quantity || 1),
+            purchaseCost: amount,
+            residualValue: asset.residualValue,
             usefulLife: asset.usefulLife,
             purchaseDate: new Date(asset.purchaseDate),
             method: asset.depreciationMethod,
@@ -278,8 +263,6 @@ export default function PPEReportsPage() {
           'UNIT': '',
           'PARTICULARS': `Subtotal: ${group.name}`,
           'Date': '',
-          'COST': catTotals.totalCost,
-          'VAT': catTotals.totalVat,
           'AMOUNT': catTotals.totalAmount,
           'USEFUL LIFE': '',
           'MONTHLY DEP': '',
@@ -299,8 +282,6 @@ export default function PPEReportsPage() {
       'UNIT': '',
       'PARTICULARS': 'GRAND TOTAL',
       'Date': '',
-      'COST': grandTotals.totalCost,
-      'VAT': grandTotals.totalVat,
       'AMOUNT': grandTotals.totalAmount,
       'USEFUL LIFE': '',
       'MONTHLY DEP': '',
@@ -391,8 +372,6 @@ export default function PPEReportsPage() {
                 <TableHead rowSpan={2} className="text-center align-middle w-12">UNIT</TableHead>
                 <TableHead rowSpan={2} className="text-center align-middle">PARTICULARS</TableHead>
                 <TableHead rowSpan={2} className="text-center align-middle w-24">Date</TableHead>
-                <TableHead rowSpan={2} className="text-right align-middle">COST</TableHead>
-                <TableHead rowSpan={2} className="text-right align-middle">VAT</TableHead>
                 <TableHead rowSpan={2} className="text-right align-middle">AMOUNT</TableHead>
                 <TableHead rowSpan={2} className="text-center align-middle w-20">USEFUL LIFE</TableHead>
                 <TableHead rowSpan={2} className="text-right align-middle w-20">MONTHLY DEP</TableHead>
@@ -419,12 +398,6 @@ export default function PPEReportsPage() {
                       {category.name}
                     </TableCell>
                     <TableCell className="text-right">
-                      {formatCurrency(category.totalCost)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(category.totalVat)}
-                    </TableCell>
-                    <TableCell className="text-right">
                       {formatCurrency(category.totalAmount)}
                     </TableCell>
                     <TableCell colSpan={3} />
@@ -437,25 +410,22 @@ export default function PPEReportsPage() {
                     ))}
                   </TableRow>
                   {groupedAssets[idx].assets.map((asset, assetIdx) => {
-                    const totalCost = asset.purchaseCost * asset.quantity; // Total from DB
-                    const unitCost = totalCost / asset.quantity; // Unit cost = total / qty
-                    const vat = unitCost * 0.12 * asset.quantity; // VAT on unit cost × qty
-                    const amount = unitCost * asset.quantity + vat; // Total amount with VAT
+                    const amount = asset.purchaseCost; // Total amount
 
                     const assetQuarterlyData = [1, 2, 3, 4].map(q => {
                       const asOfDate = getQuarterDate(selectedYear, q);
                       const prevAsOfDate = getQuarterDate(selectedYear, q - 1);
                       const prevResult = calculateDepreciation({
-                        purchaseCost: totalCost,
-                        residualValue: asset.residualValue * asset.quantity,
+                        purchaseCost: amount,
+                        residualValue: asset.residualValue,
                         usefulLife: asset.usefulLife,
                         purchaseDate: new Date(asset.purchaseDate),
                         method: asset.depreciationMethod,
                         asOfDate: prevAsOfDate,
                       });
                       const currentResult = calculateDepreciation({
-                        purchaseCost: totalCost,
-                        residualValue: asset.residualValue * asset.quantity,
+                        purchaseCost: amount,
+                        residualValue: asset.residualValue,
                         usefulLife: asset.usefulLife,
                         purchaseDate: new Date(asset.purchaseDate),
                         method: asset.depreciationMethod,
@@ -476,8 +446,6 @@ export default function PPEReportsPage() {
                         <TableCell className="text-center">
                           {new Date(asset.purchaseDate).toLocaleDateString()}
                         </TableCell>
-                        <TableCell className="text-right">{formatCurrency(unitCost)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(vat)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(amount)}</TableCell>
                         <TableCell className="text-center">{asset.usefulLife} yrs</TableCell>
                         <TableCell className="text-right">-</TableCell>
@@ -493,8 +461,6 @@ export default function PPEReportsPage() {
                   })}
                   <TableRow key={`sub-${idx}`} className="font-bold bg-muted">
                     <TableCell colSpan={4}>Subtotal: {category.name}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(category.totalCost)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(category.totalVat)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(category.totalAmount)}</TableCell>
                     <TableCell colSpan={3} />
                     {category.quarterlyData.map(qd => (
@@ -515,8 +481,6 @@ export default function PPEReportsPage() {
               ))}
               <TableRow className="font-bold bg-primary text-primary-foreground">
                 <TableCell colSpan={4}>GRAND TOTAL</TableCell>
-                <TableCell className="text-right">{formatCurrency(grandTotals.totalCost)}</TableCell>
-                <TableCell className="text-right">{formatCurrency(grandTotals.totalVat)}</TableCell>
                 <TableCell className="text-right">{formatCurrency(grandTotals.totalAmount)}</TableCell>
                 <TableCell colSpan={3} />
                 {[grandTotals.q1, grandTotals.q2, grandTotals.q3, grandTotals.q4].map((q, i) => (
