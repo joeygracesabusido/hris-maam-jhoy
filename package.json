@@ -15,6 +15,7 @@
     "leave-accrual": "npx ts-node scripts/run-leave-accrual.ts",
     "link-users": "tsx scripts/link-users-to-employees.ts",
     "db:seed:coa": "tsx scripts/seed-coa.ts",
+    "recalculate-late": "tsx scripts/recalculate-late.ts",
     "pages:build": "npx @cloudflare/next-on-pages"
   },
   "dependencies": {
