@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import * as XLSX from 'xlsx';
+import { computeLateMinutes, computeUndertimeMinutes, parseTimeString } from '@/lib/late-computation';
 
 interface PunchTime {
   time: Date;
@@ -242,23 +243,18 @@ export async function POST(request: Request) {
           });
 
           if (shiftSchedule?.shift && !shiftSchedule.shift.isOff && shiftSchedule.shift.startTime !== '-') {
-            const [shiftHour, shiftMin] = shiftSchedule.shift.startTime.split(':').map(Number);
-            const scheduledTime = new Date(firstPunch.time);
-            scheduledTime.setUTCHours(shiftHour, shiftMin, 0, 0);
-            
-            const lateMs = firstPunch.time.getTime() - scheduledTime.getTime();
-            if (lateMs > 60000) {
-              lateMinutes = Math.floor(lateMs / 60000);
+            const timeParts = parseTimeString(shiftSchedule.shift.startTime);
+            if (timeParts) {
+              const [shiftHour, shiftMin] = timeParts;
+              const gracePeriod = shiftSchedule.shift.gracePeriodMinutes ?? 0;
+              lateMinutes = computeLateMinutes(firstPunch.time, shiftHour, shiftMin, gracePeriod);
             }
 
             if (shiftSchedule.shift.endTime !== '-') {
-              const [endHour, endMin] = shiftSchedule.shift.endTime.split(':').map(Number);
-              const scheduledEndTime = new Date(lastPunch.time);
-              scheduledEndTime.setUTCHours(endHour, endMin, 0, 0);
-              
-              const undertimeMs = scheduledEndTime.getTime() - lastPunch.time.getTime();
-              if (undertimeMs > 60000) {
-                undertimeMinutes = Math.floor(undertimeMs / 60000);
+              const endTimeParts = parseTimeString(shiftSchedule.shift.endTime);
+              if (endTimeParts) {
+                const [endHour, endMin] = endTimeParts;
+                undertimeMinutes = computeUndertimeMinutes(lastPunch.time, endHour, endMin);
               }
             }
           }

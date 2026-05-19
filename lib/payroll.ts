@@ -6,9 +6,6 @@
  * Philippine labor laws and statutory contribution rates (as of 2026).
  */
 
-// Date utilities from date-fns (currently unused but kept for future use)
-// import { startOfDay, endOfDay } from 'date-fns';
-
 // ============================================================================
 // SSS CONTRIBUTION CALCULATIONS (2026)
 // ============================================================================
@@ -66,9 +63,8 @@ const SSS_MSC_BRACKETS = [
   { min: 29250, max: 29750, msc: 29500 },
   { min: 29750, max: 30250, msc: 30000 },
   { min: 30250, max: 30750, msc: 30500 },
-  { min: 30750, max: 31250, msc: 31000 },
-  { min: 31250, max: 31750, msc: 31500 },
-  { min: 31750, max: 32250, msc: 32000 },
+  { min: 30750, max: 31250, msc: 31500 },
+  { min: 31250, max: 31750, msc: 32000 },
   { min: 32250, max: 32750, msc: 32500 },
   { min: 32750, max: 33250, msc: 33000 },
   { min: 33250, max: 33750, msc: 33500 },
@@ -145,24 +141,20 @@ const TAX_TABLE_2026 = {
   ]
 };
 
-export function calculateDailyRate(monthlySalary: number): number {
-  return monthlySalary / 26;
+export function calculateDailyRate(monthlySalary: number, divisor: number = 26): number {
+  return monthlySalary / divisor;
 }
 
-export function calculateHourlyRate(monthlySalary: number): number {
-  return calculateDailyRate(monthlySalary) / 8;
+export function calculateHourlyRate(monthlySalary: number, divisor: number = 26): number {
+  return calculateDailyRate(monthlySalary, divisor) / 8;
 }
 
 export function calculateWithholdingTax(taxableIncome: number, frequency: string = 'MONTHLY'): number {
   if (taxableIncome < 0) return 0;
-  
-  // For now, we only have MONTHLY table. If SEMIMONTHLY, we should theoretically use a different table
-  // or adjust the income. BIR usually has tables for Daily, Weekly, Semi-Monthly, Monthly.
-  // For simplicity, if Semi-monthly, we could double it to find the bracket, then divide the tax.
-  
+
   let adjustedIncome = taxableIncome;
   let factor = 1;
-  
+
   if (frequency === 'SEMIMONTHLY') {
     adjustedIncome = taxableIncome * 2;
     factor = 0.5;
@@ -171,10 +163,10 @@ export function calculateWithholdingTax(taxableIncome: number, frequency: string
   const table = TAX_TABLE_2026.MONTHLY;
   const bracket = table.find(b => adjustedIncome >= b.min && adjustedIncome <= b.max) || table[table.length - 1];
   if (!bracket || bracket.percentage === 0) return 0;
-  
+
   const excess = adjustedIncome - bracket.threshold;
   const tax = bracket.baseTax + (excess * bracket.percentage / 100);
-  
+
   return Math.round(tax * factor * 100) / 100;
 }
 
@@ -190,6 +182,7 @@ export interface EmployeePayrollData {
   payType: string // 'MONTHLY' or 'DAILY'
   basicSalary: number // Monthly fixed salary for MONTHLY type
   dailyRate: number   // Daily rate for DAILY type
+  payrollDivisor?: number
   tin: string
   sssNo: string
   philhealthNo: string
@@ -201,107 +194,208 @@ export interface TimeLogPayrollData {
   workHours: number
   otHours: number
   lateMinutes: number
+  undertimeMinutes: number
+  clockIn: Date | null
+  clockOut: Date | null
 }
 
-export interface PayslipComputation {
-  employeeId: string
-  employeeName: string
-  position: string
-  department: string
-  month: number
-  year: number
-  
-  // Earnings Breakdown
-  payType: string
-  baseAmount: number // Either basicSalary or DailyRate * daysWorked
-  hourlyRate: number
-  totalWorkHours: number
-  totalOtHours: number
-  otPay: number
-  grossPay: number
+export interface PayrollPeriod {
+  startDate: Date
+  endDate: Date
+  frequency: 'MONTHLY' | 'SEMIMONTHLY' | 'OTHER'
+}
 
-  // Deductions
-  sssEmployee: number
-  philhealthEmployee: number
-  pagibigEmployee: number
-  withholdingTax: number
-  totalDeductions: number
-  netPay: number
+export interface PayrollInputs {
+  employee: EmployeePayrollData
+  timeLogs: TimeLogPayrollData[]
+  leaves: { daysCount: number }[]
+  shiftSchedules: { shift: { isOff: boolean } }[]
+  holidays: { isActive: boolean; date: Date; type: HolidayType }[]
+  period: PayrollPeriod
+  deductionsFlags: {
+    sss: boolean
+    philhealth: boolean
+    pagibig: boolean
+    tax: boolean
+  }
+  adjustments: {
+    add: number
+    deduct: number
+  }
+}
 
-  // Info
+export interface PayrollResult {
+  basicSalary: number
+  dailyRate: number
+  workDays: number
   daysWorked: number
+  otHours: number
+  otPay: number
+  holidayPay: number
+  grossEarnings: number
+  attendanceDeductions: number
+  taxableGross: number
+  sssEmployee: number
+  sssEmployer: number
+  philhealthEmployee: number
+  philhealthEmployer: number
+  pagibigEmployee: number
+  pagibigEmployer: number
+  withholdingTax: number
+  totalGovDeductions: number
+  netPay: number
+  totalDeductions: number
+
+  lateMinutes: number
+  undertimeMinutes: number
+  absentDays: number
+  lateDeduction: number
+  undertimeDeduction: number
+  absenceDeduction: number
 }
 
-/**
- * Main Payslip Computation Logic
- */
-export function computePayslip(
-  employee: EmployeePayrollData,
-  timeLogs: TimeLogPayrollData[],
-  month: number,
-  year: number
-): PayslipComputation {
-  const daysWorked = timeLogs.filter(log => log.workHours > 0).length
-  const totalOtHours = timeLogs.reduce((sum, log) => sum + log.otHours, 0)
-  
-  let baseAmount = 0
-  let hourlyRate = 0
+export function calculateSemiMonthlySalary(monthlySalary: number, frequency: string): number {
+  if (frequency === 'SEMIMONTHLY') {
+    return monthlySalary / 2;
+  }
+  return monthlySalary;
+}
 
-  if (employee.payType === 'DAILY') {
-    // DAILY RATE Calculation
-    baseAmount = employee.dailyRate * daysWorked
-    hourlyRate = employee.dailyRate / 8
-  } else {
-    // MONTHLY FIXED Calculation
-    baseAmount = employee.basicSalary
-    hourlyRate = calculateHourlyRate(employee.basicSalary)
+export function countWorkingDays(
+  start: Date,
+  end: Date,
+  holidays: { isActive: boolean; date: Date }[] = []
+): number {
+  let count = 0;
+  const startStr = start.toISOString().split('T')[0];
+  const endStr = end.toISOString().split('T')[0];
+  const holidayDates = new Set(
+    holidays
+      .filter((h) => h.isActive)
+      .map((h) => new Date(h.date).toISOString().split('T')[0])
+  );
+
+  const cur = new Date(start);
+  while (cur <= end) {
+    const day = cur.getDay();
+    const dateStr = cur.toISOString().split('T')[0];
+    if (day !== 0 && day !== 6 && !holidayDates.has(dateStr)) {
+      count++;
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+export function computePayroll(inputs: PayrollInputs): PayrollResult {
+  const { employee, timeLogs, leaves, shiftSchedules, holidays, period, deductionsFlags, adjustments } = inputs;
+
+  const divisor = employee.payrollDivisor || 26;
+  const monthlySalary = employee.payType === 'DAILY'
+    ? (employee.dailyRate * divisor)
+    : employee.basicSalary;
+  const employeePayType = employee.payType || 'MONTHLY';
+  const dailyRate = employee.dailyRate || calculateDailyRate(monthlySalary, divisor) || 0;
+  const hourlyRate = calculateHourlyRate(employeePayType === 'DAILY' ? employee.dailyRate * divisor : monthlySalary, divisor);
+
+  const daysWorked = timeLogs.filter(log => log.clockIn !== null && log.clockOut !== null).length;
+  const totalOtHours = timeLogs.reduce((sum, log) => sum + (log.otHours || 0), 0);
+  const totalLates = timeLogs.reduce((sum, log) => sum + (log.lateMinutes || 0), 0);
+  const totalUndertime = timeLogs.reduce((sum, log) => sum + (log.undertimeMinutes || 0), 0);
+
+  const otPay = Math.round((totalOtHours * hourlyRate * 1.25) * 100) / 100;
+
+  let holidayPay = 0;
+  let regularHolidayDays = 0;
+  let specialHolidayDays = 0;
+
+  const timeLogByDate = new Map<string, typeof timeLogs[0]>();
+  for (const log of timeLogs) {
+    const dateStr = new Date(log.date).toLocaleDateString('en-CA');
+    timeLogByDate.set(dateStr, log);
   }
 
-  const otPay = Math.round((hourlyRate * totalOtHours * 1.25) * 100) / 100
-  const grossPay = Math.round((baseAmount + otPay) * 100) / 100
+  for (const holiday of holidays) {
+    if (!holiday.isActive) continue;
+    const hDateStr = new Date(holiday.date).toLocaleDateString('en-CA');
+    const holidayLog = timeLogByDate.get(hDateStr);
+    const workedOnHoliday = holidayLog && holidayLog.workHours > 0 && holidayLog.clockIn && holidayLog.clockOut;
 
-  // Calculate contributions based on Gross Pay (Simplified for PH standard)
-  const sss = calculateSSS(baseAmount)
-  const philhealth = calculatePhilHealth(baseAmount)
-  const pagibig = calculatePagIBIG(baseAmount)
-  
-  const taxableIncome = grossPay - (sss.employeeShare + philhealth.employeeShare + pagibig.employeeShare)
-  const tax = calculateWithholdingTax(taxableIncome)
+    if (holiday.type === 'REGULAR') {
+      // Regular holiday is paid even if no work, regardless of attendance before/after
+      regularHolidayDays += 1;
+    } else if (holiday.type === 'SPECIAL') {
+      if (workedOnHoliday) {
+        specialHolidayDays += 1;
+      }
+    }
+  }
 
-  const totalDeductions = Math.round((sss.employeeShare + philhealth.employeeShare + pagibig.employeeShare + tax) * 100) / 100
-  const netPay = Math.round((grossPay - totalDeductions) * 100) / 100
+  holidayPay += regularHolidayDays * dailyRate * 1.0;
+  holidayPay += specialHolidayDays * dailyRate * 0.3;
+  holidayPay = Math.round(holidayPay * 100) / 100;
+
+  const offDaysInPeriod = shiftSchedules.filter(s => s.shift.isOff).length;
+  let expectedWorkDays = 0;
+  if (period.frequency === 'SEMIMONTHLY') {
+    expectedWorkDays = 13 + offDaysInPeriod;
+  } else if (period.frequency === 'MONTHLY') {
+    expectedWorkDays = 26 + offDaysInPeriod;
+  } else {
+    expectedWorkDays = Math.max(0, countWorkingDays(period.startDate, period.endDate, holidays) - leaves.reduce((sum, l) => sum + l.daysCount, 0));
+  }
+  expectedWorkDays = Math.max(0, expectedWorkDays - leaves.reduce((sum, l) => sum + l.daysCount, 0));
+
+  const baseAmount = employeePayType === 'DAILY' ? (daysWorked * dailyRate) : calculateSemiMonthlySalary(monthlySalary, period.frequency);
+  const grossEarnings = Math.round((baseAmount + otPay + holidayPay + adjustments.add) * 100) / 100;
+
+  const absentDays = Math.max(0, expectedWorkDays - daysWorked);
+  const absenceDeduction = employeePayType === 'MONTHLY' ? absentDays * dailyRate : 0;
+  const lateDeduction = Math.round(((totalLates / 60) * (monthlySalary / divisor / 8)) * 100) / 100;
+  const undertimeDeduction = Math.round(((totalUndertime / 60) * (monthlySalary / divisor / 8)) * 100) / 100;
+  const attendanceDeductions = Math.round((absenceDeduction + lateDeduction + undertimeDeduction + adjustments.deduct) * 100) / 100;
+
+  const taxableGross = Math.round((grossEarnings - attendanceDeductions) * 100) / 100;
+
+  const sss = deductionsFlags.sss ? calculateSSS(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+  const philhealth = deductionsFlags.philhealth ? calculatePhilHealth(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+  const pagibig = deductionsFlags.pagibig ? calculatePagIBIG(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+
+  const totalGovDeductions = Math.round((sss.employeeShare + philhealth.employeeShare + pagibig.employeeShare) * 100) / 100;
+  const taxableIncome = Math.max(0, taxableGross - totalGovDeductions);
+  const withholdingTax = deductionsFlags.tax ? calculateWithholdingTax(taxableIncome, period.frequency) : 0;
+  const netPay = Math.round((taxableGross - totalGovDeductions - withholdingTax) * 100) / 100;
+  const totalDeductions = Math.round((attendanceDeductions + totalGovDeductions + withholdingTax) * 100) / 100;
 
   return {
-    employeeId: employee.id,
-    employeeName: employee.fullName,
-    position: employee.position,
-    department: employee.department,
-    month,
-    year,
-    payType: employee.payType,
-    baseAmount,
-    hourlyRate: Math.round(hourlyRate * 100) / 100,
-    totalWorkHours: timeLogs.reduce((sum, log) => sum + log.workHours, 0),
-    totalOtHours,
-    otPay,
-    grossPay,
-    sssEmployee: sss.employeeShare,
-    philhealthEmployee: philhealth.employeeShare,
-    pagibigEmployee: pagibig.employeeShare,
-    withholdingTax: tax,
-    totalDeductions,
-    netPay,
+    basicSalary: baseAmount,
+    dailyRate,
+    workDays: expectedWorkDays,
     daysWorked,
-  }
+    otHours: totalOtHours,
+    otPay,
+    holidayPay,
+    grossEarnings,
+    attendanceDeductions,
+    taxableGross,
+    sssEmployee: sss.employeeShare,
+    sssEmployer: sss.employerShare || 0,
+    philhealthEmployee: philhealth.employeeShare,
+    philhealthEmployer: philhealth.employerShare || 0,
+    pagibigEmployee: pagibig.employeeShare,
+    pagibigEmployer: pagibig.employerShare || 0,
+    withholdingTax,
+    totalGovDeductions,
+    netPay,
+    totalDeductions,
+    lateMinutes: totalLates,
+    undertimeMinutes: totalUndertime,
+    absentDays,
+    lateDeduction,
+    undertimeDeduction,
+    absenceDeduction
+  };
 }
-
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount)
-}
-
-// ============================================================================
-// HOLIDAY PAY CALCULATIONS (Philippine Labor Law)
-// ============================================================================
 
 export type HolidayType = 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORKING'
 
@@ -313,87 +407,68 @@ export interface Holiday {
   isActive: boolean
 }
 
-/**
- * Get holiday pay multiplier based on holiday type and whether employee works
- * Per Philippine Labor Law (DOLE)
- */
 export function getHolidayPayMultiplier(
   holidayType: HolidayType,
   isWorking: boolean
 ): number {
   if (!isWorking) {
-    // No work, no pay rules
     switch (holidayType) {
       case 'REGULAR':
-        return 1.0 // 100% - paid even if no work (Holiday Pay Law)
+        return 1.0
       case 'SPECIAL':
-        return 1.0 // 100% - paid even if no work
+        return 1.0
       case 'SPECIAL_NON_WORKING':
-        return 0 // No pay if no work
+        return 0
       default:
         return 0
     }
   }
 
-  // Working on holiday
   switch (holidayType) {
     case 'REGULAR':
-      return 2.0 // 200% for first 8 hours
+      return 2.0
     case 'SPECIAL':
-      return 1.5 // 150% for first 8 hours
+      return 1.5
     case 'SPECIAL_NON_WORKING':
-      return 1.0 // Normal pay
+      return 1.0
     default:
       return 1.0
   }
 }
 
-/**
- * Get overtime pay multiplier on holidays
- * Per Philippine Labor Law (DOLE)
- */
 export function getHolidayOTMultiplier(
   holidayType: HolidayType,
-  otHourNumber: number // 1-8 for first 8 hours, 9+ for excess
+  otHourNumber: number
 ): number {
   switch (holidayType) {
     case 'REGULAR':
-      // Regular Holiday OT: 30% premium over 200% rate
       if (otHourNumber <= 8) {
-        return 2.0 * 1.30 // 260% (200% + 30% of 200%)
+        return 2.0 * 1.30
       }
-      return 2.0 * 1.625 // 325% for excess over 8 hours
-    
+      return 2.0 * 1.625
+
     case 'SPECIAL':
-      // Special Day OT: 30% premium over 150% rate
       if (otHourNumber <= 8) {
-        return 1.5 * 1.30 // 195% (150% + 30% of 150%)
+        return 1.5 * 1.30
       }
-      return 1.5 * 1.625 // 243.75% for excess over 8 hours
-    
+      return 1.5 * 1.625
+
     case 'SPECIAL_NON_WORKING':
-      // Special Non-Working: normal OT rate (25% premium)
       return 1.25
-    
+
     default:
-      return 1.25 // Normal OT rate
+      return 1.25
   }
 }
 
-/**
- * Calculate holiday pay for a given number of hours worked on a holiday
- */
 export function calculateHolidayPay(
   hourlyRate: number,
   hoursWorked: number,
   holidayType: HolidayType
 ): number {
   if (hoursWorked <= 0) return 0
-
   const multiplier = getHolidayPayMultiplier(holidayType, true)
   const pay = hourlyRate * multiplier * Math.min(hoursWorked, 8)
-  
-  // Add OT pay for hours beyond 8
   let otPay = 0
   if (hoursWorked > 8) {
     const otHours = hoursWorked - 8
@@ -402,38 +477,32 @@ export function calculateHolidayPay(
       otPay += hourlyRate * otMultiplier
     }
   }
-
   return Math.round((pay + otPay) * 100) / 100
 }
 
-/**
- * Check if a date falls on a holiday
- */
 export function isHoliday(date: Date, holidays: Holiday[]): Holiday | null {
   const dateStr = date.toLocaleDateString()
-  
   return holidays.find(h => {
     const holidayDateStr = new Date(h.date).toLocaleDateString()
     return h.isActive && holidayDateStr === dateStr
   }) || null
 }
 
-/**
- * Count total holiday pay for a period
- */
 export function calculateTotalHolidayPay(
   hourlyRate: number,
   holidayWorkRecords: Array<{ date: Date; hoursWorked: number }>,
   holidays: Holiday[]
 ): number {
   let totalPay = 0
-
   for (const record of holidayWorkRecords) {
     const holiday = isHoliday(record.date, holidays)
     if (holiday && record.hoursWorked > 0) {
       totalPay += calculateHolidayPay(hourlyRate, record.hoursWorked, holiday.type)
     }
   }
-
   return Math.round(totalPay * 100) / 100
+}
+
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount)
 }

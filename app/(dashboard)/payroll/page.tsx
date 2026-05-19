@@ -46,6 +46,8 @@ interface PayrollRecord {
   adjustmentReason?: string;
   lateMinutes?: number;
   undertimeMinutes?: number;
+  lateDeduction?: number;
+  undertimeDeduction?: number;
 }
 
 interface PayrollResult {
@@ -488,7 +490,9 @@ export default function PayrollPage() {
             <div class="row"><span>PhilHealth</span><span>-${formatCurrency(record.philhealthEmployee)}</span></div>
             <div class="row"><span>Pag-IBIG</span><span>-${formatCurrency(record.pagibigEmployee)}</span></div>
             <div class="row"><span>Withholding Tax</span><span>-${formatCurrency(record.withholdingTax)}</span></div>
-            <div class="row"><span>Other Deductions</span><span>-${formatCurrency(record.otherDeductions)}</span></div>
+            ${record.lateDeduction && record.lateDeduction > 0 ? `<div class="row"><span>Lates (${record.lateMinutes || 0} min)</span><span>-${formatCurrency(record.lateDeduction)}</span></div>` : ''}
+            ${record.undertimeDeduction && record.undertimeDeduction > 0 ? `<div class="row"><span>Undertime (${record.undertimeMinutes || 0} min)</span><span>-${formatCurrency(record.undertimeDeduction)}</span></div>` : ''}
+            ${(record.otherDeductions - (record.lateDeduction || 0) - (record.undertimeDeduction || 0)) > 0 ? `<div class="row"><span>Other Deductions</span><span>-${formatCurrency(record.otherDeductions - (record.lateDeduction || 0) - (record.undertimeDeduction || 0))}</span></div>` : ''}
             <div class="row total deductions"><span>Total Deductions</span><span>-${formatCurrency(record.totalDeductions)}</span></div>
           </div>
           <div class="section" style="background: #ecfdf5; border-color: #059669;">
@@ -1061,10 +1065,10 @@ export default function PayrollPage() {
                               <h4 className="font-medium text-gray-900 mb-2">Deductions</h4>
                               <div className="space-y-1 text-sm">
                                 {(record.lateMinutes ?? 0) > 0 && (
-                                  <div className="flex justify-between"><span className="text-gray-600">Lates ({(record.lateMinutes ?? 0)} min)</span><span className="text-red-600">{formatCurrency(((record.lateMinutes ?? 0) / 60) * (record.basicSalary / 22 / 8))}</span></div>
+                                  <div className="flex justify-between"><span className="text-gray-600">Lates ({(record.lateMinutes ?? 0)} min)</span><span className="text-red-600">{formatCurrency(record.lateDeduction ?? 0)}</span></div>
                                 )}
                                 {(record.undertimeMinutes ?? 0) > 0 && (
-                                  <div className="flex justify-between"><span className="text-gray-600">Undertime ({(record.undertimeMinutes ?? 0)} min)</span><span className="text-red-600">{formatCurrency(((record.undertimeMinutes ?? 0) / 60) * (record.basicSalary / 22 / 8))}</span></div>
+                                  <div className="flex justify-between"><span className="text-gray-600">Undertime ({(record.undertimeMinutes ?? 0)} min)</span><span className="text-red-600">{formatCurrency(record.undertimeDeduction ?? 0)}</span></div>
                                 )}
                                 <div className="flex justify-between"><span className="text-gray-600">SSS</span><span>{formatCurrency(record.sssEmployee)}</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">PhilHealth</span><span>{formatCurrency(record.philhealthEmployee)}</span></div>

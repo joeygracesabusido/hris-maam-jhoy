@@ -53,6 +53,7 @@ interface Shift {
   endTime: string;
   color: string;
   isOff: boolean;
+  gracePeriodMinutes: number;
 }
 
 interface Employee {
@@ -86,6 +87,7 @@ export default function ShiftSchedulePage() {
     startTime: '',
     endTime: '',
     isOff: false,
+    gracePeriodMinutes: 0,
     color: 'bg-blue-100 border-blue-500 text-blue-700'
   });
 
@@ -154,7 +156,7 @@ export default function ShiftSchedulePage() {
 
       if (response.ok) {
         setShifts(prev => [...prev, data]);
-        setNewShift({ name: '', startTime: '', endTime: '', isOff: false, color: 'bg-blue-100 border-blue-500 text-blue-700' });
+        setNewShift({ name: '', startTime: '', endTime: '', isOff: false, gracePeriodMinutes: 0, color: 'bg-blue-100 border-blue-500 text-blue-700' });
         toast({ title: "Success", description: "Shift created successfully" });
       } else {
         toast({ variant: "destructive", title: "Error", description: data.error || "Failed to create shift" });
@@ -372,6 +374,11 @@ export default function ShiftSchedulePage() {
                       <input type="checkbox" id="isOffS" className="w-5 h-5 rounded border-gray-300 text-blue-600" checked={newShift.isOff} onChange={e => setNewShift({...newShift, isOff: e.target.checked})} />
                       <Label htmlFor="isOffS" className="cursor-pointer">Mark as Rest Day / Off</Label>
                     </div>
+                    <div className="space-y-2">
+                      <Label>Grace Period (minutes before counted as late)</Label>
+                      <Input type="number" min="0" max="60" className="bg-white" value={newShift.gracePeriodMinutes} onChange={e => setNewShift({...newShift, gracePeriodMinutes: parseInt(e.target.value) || 0})} />
+                      <p className="text-xs text-gray-500">0 = no grace period. Common: 5–15 min.</p>
+                    </div>
                     <Button type="submit" className="w-full bg-blue-600" disabled={creating}>{creating ? "Creating..." : "Create Shift"}</Button>
                   </form>
                 </section>
@@ -385,6 +392,7 @@ export default function ShiftSchedulePage() {
                           <div className="flex items-center gap-2 mt-1">
                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{shift.startTime} - {shift.endTime}</span>
                              {shift.isOff && <span className="text-[10px] font-bold text-pink-600 uppercase">Off Day</span>}
+                             {!shift.isOff && <span className="text-[10px] text-gray-500">Grace: {shift.gracePeriodMinutes ?? 0} min</span>}
                           </div>
                         </div>
                         <div className={`px-3 py-1.5 rounded-lg text-xs font-bold border-b-2 ${shift.color}`}>{shift.name.split('_')[0]}</div>

@@ -620,16 +620,30 @@ if (holiday.type === 'REGULAR') {
 **Changes Made:**
 ```typescript
 useEffect(() => {
-  if (showFaceModal) {
+  if (isCaptureOpen) {
     document.body.style.overflow = 'hidden';
   } else {
-    document.body.style.overflow = 'unset';
+    document.body.style.overflow = 'auto';
   }
   return () => {
-    document.body.style.overflow = 'unset';
+    document.body.style.overflow = 'auto';
   };
-}, [showFaceModal]);
+}, [isCaptureOpen]);
 ```
+
+### Holiday Attendance Requirement Removal (2026-05-19)
+
+**Issue Fixed:** Employees were disqualified from holiday pay if they were absent on the working day before or after a holiday.
+
+**Files Updated:**
+- `lib/payroll.ts` - Removed attendance-based eligibility checks in `computePayroll`.
+
+**Changes Made:**
+- Removed `hasAttendanceBeforeAndAfter` and `hasAttendanceBefore` checks.
+- Regular holidays now always count towards `regularHolidayDays` regardless of surrounding attendance.
+- Special holidays count if worked, without checking surrounding attendance.
+- Cleaned up unused variables: `sortedDates`, `datesBefore`, `datesAfter`.
+
 
 This prevents body scroll lock when the face verification modal appears and restores it when closed.
 

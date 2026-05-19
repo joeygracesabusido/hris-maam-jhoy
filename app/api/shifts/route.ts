@@ -27,7 +27,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, startTime, endTime, color, isOff } = body;
+    const { name, startTime, endTime, color, isOff, gracePeriodMinutes } = body;
 
     if (!name || !startTime || !endTime) {
       return NextResponse.json({ error: 'Name, startTime, and endTime are required' }, { status: 400 });
@@ -40,6 +40,7 @@ export async function POST(request: Request) {
         endTime,
         color: color || 'bg-blue-100 border-blue-500 text-blue-700',
         isOff: isOff || false,
+        gracePeriodMinutes: gracePeriodMinutes ?? 0,
       },
     });
 

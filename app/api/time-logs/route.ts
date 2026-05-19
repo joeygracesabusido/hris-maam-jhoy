@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay } from 'date-fns';
 import { cookies } from 'next/headers';
 import { buildRoleBasedWhereClause } from '@/lib/auth-helpers';
+import { computeLateMinutes, computeUndertimeMinutes, parseTimeString } from '@/lib/late-computation';
 
 export const dynamic = 'force-dynamic';
 
@@ -234,21 +235,20 @@ export async function POST(request: Request) {
       });
 
       if (schedule?.shift && !schedule.shift.isOff && schedule.shift.startTime !== '-') {
-        const [sHour, sMin] = schedule.shift.startTime.split(':').map(Number);
-        const scheduledTime = new Date(now.getTime());
-        scheduledTime.setHours(sHour, sMin, 0, 0);
-        
-        const diffMs = now.getTime() - scheduledTime.getTime();
-        if (diffMs > 60000) { // More than 1 minute late
-          lateMinutes = Math.floor(diffMs / 60000);
+        const timeParts = parseTimeString(schedule.shift.startTime);
+        if (timeParts) {
+          const [sHour, sMin] = timeParts;
+          const gracePeriod = schedule.shift.gracePeriodMinutes ?? 0;
+          // now is Manila-adjusted; use setUTCHours to set the time components consistently
+          lateMinutes = computeLateMinutes(now, sHour, sMin, gracePeriod);
         }
       }
 
       if (existingLog) {
         await prisma.timeLog.update({
           where: { id: existingLog.id },
-          data: { 
-            clockIn: now, 
+          data: {
+            clockIn: now,
             lateMinutes,
             clockInLatitude: latitude,
             clockInLongitude: longitude,
@@ -280,11 +280,30 @@ export async function POST(request: Request) {
       const clockInTime = new Date(existingLog.clockIn!);
       const hoursWorked = (now.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
 
+      // Calculate undertime if a shift is assigned
+      let undertimeMinutes = 0;
+      const schedule = await prisma.shiftSchedule.findFirst({
+        where: {
+          employeeId,
+          date: { gte: todayStart, lte: todayEnd },
+        },
+        include: { shift: true }
+      });
+
+      if (schedule?.shift && !schedule.shift.isOff && schedule.shift.endTime !== '-') {
+        const timeParts = parseTimeString(schedule.shift.endTime);
+        if (timeParts) {
+          const [eHour, eMin] = timeParts;
+          undertimeMinutes = computeUndertimeMinutes(now, eHour, eMin);
+        }
+      }
+
       await prisma.timeLog.update({
         where: { id: existingLog.id },
         data: {
           clockOut: now,
           workHours: Math.round(hoursWorked * 100) / 100,
+          undertimeMinutes,
           clockOutLatitude: latitude,
           clockOutLongitude: longitude,
         },

@@ -70,6 +70,7 @@ model Employee {
 
   basicSalary   Float
   dailyRate     Float     @default(0)
+  payrollDivisor Int       @default(26)
   payType       String    @default("MONTHLY") // MONTHLY or DAILY
   payrollFrequency String @default("MONTHLY")
 
@@ -120,6 +121,7 @@ model Employee {
     endTime     String   // e.g., "17:00"
     color       String?  // hex or tailwind class
     isOff       Boolean  @default(false)
+    gracePeriodMinutes Int @default(0) // Grace period before counting as late (DOLE compliant)
     
     schedules   ShiftSchedule[]
     
@@ -420,6 +422,8 @@ model Payroll {
 
   lateMinutes       Float    @default(0)
   undertimeMinutes  Float    @default(0)
+  lateDeduction     Float    @default(0)
+  undertimeDeduction Float   @default(0)
 
   otherDeductions Float    @default(0)
 
