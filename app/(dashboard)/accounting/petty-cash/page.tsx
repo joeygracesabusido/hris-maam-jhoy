@@ -78,6 +78,8 @@ export default function PettyCashPage() {
   const [selectedDisbursement, setSelectedDisbursement] = useState<Disbursement | null>(null);
   const [selectedFund, setSelectedFund] = useState<PettyCashFund | null>(null);
   const [activeTab, setActiveTab] = useState<'funds' | 'disbursements' | 'liquidations'>('funds');
+  const [isReplenishDialogOpen, setReplenishDialogOpen] = useState(false);
+  const [replenishTarget, setReplenishTarget] = useState<PettyCashFund | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -247,19 +249,32 @@ export default function PettyCashPage() {
     }
   }
 
-  async function handleReplenish(fund: PettyCashFund) {
+  function handleReplenish(fund: PettyCashFund) {
+    setReplenishTarget(fund);
+    setReplenishDialogOpen(true);
+  }
+
+  async function handleReplenishConfirm() {
+    if (!replenishTarget) return;
+
     try {
       const res = await fetch('/api/accounting/petty-cash', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: fund.id,
-          fundAmount: fund.fundAmount,
+          id: replenishTarget.id,
+          fundAmount: replenishTarget.fundAmount,
+          replenish: true,
         }),
       });
 
       if (res.ok) {
+        setReplenishDialogOpen(false);
+        setReplenishTarget(null);
         fetchFunds();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to replenish fund');
       }
     } catch (err) {
       console.error('Error replenishing fund:', err);
@@ -805,6 +820,119 @@ export default function PettyCashPage() {
               <Button type="submit">Submit Liquidation</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Petty Cash Fund</DialogTitle>
+            <DialogDescription>
+              Update fund details. Changing the fund amount will not trigger a replenish.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateFund} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Fund Name *</Label>
+              <Input
+                placeholder="e.g., Office Petty Cash"
+                value={editFormData.name}
+                onChange={e => setEditFormData({...editFormData, name: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Fund Amount *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={editFormData.fundAmount}
+                onChange={e => setEditFormData({...editFormData, fundAmount: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                value={editFormData.status}
+                onChange={e => setEditFormData({...editFormData, status: e.target.value})}
+              >
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Custodian ID</Label>
+              <Input
+                placeholder="Employee ID of custodian"
+                value={editFormData.custodianId}
+                onChange={e => setEditFormData({...editFormData, custodianId: e.target.value})}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+              <Button type="submit">Save Changes</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isReplenishDialogOpen} onOpenChange={setReplenishDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Replenishment</DialogTitle>
+            <DialogDescription>
+              Reset the petty cash fund balance to its full amount.
+            </DialogDescription>
+          </DialogHeader>
+          {replenishTarget && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Fund Name</span>
+                  <span className="font-medium">{replenishTarget.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Current Balance</span>
+                  <span className="font-medium">
+                    ₱{replenishTarget.currentBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Fund Amount</span>
+                  <span className="font-medium">
+                    ₱{replenishTarget.fundAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Amount to Replenish</span>
+                  <span className="font-medium text-green-600">
+                    ₱{(replenishTarget.fundAmount - replenishTarget.currentBalance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="h-px bg-border my-2" />
+                <div className="flex justify-between">
+                  <span className="text-sm font-semibold">New Balance</span>
+                  <span className="font-semibold">
+                    ₱{replenishTarget.fundAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                This will reset the current balance to the full fund amount and create a journal entry for the replenished amount.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setReplenishDialogOpen(false); setReplenishTarget(null); }}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleReplenishConfirm}>
+              Confirm Replenish
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
