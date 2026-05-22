@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MapPin, Settings, Save, Trash2, Globe, Edit2, Check, X, AlertCircle } from 'lucide-react';
+import { MapPin, Settings, Save, Trash2, Globe, Edit2, Check, X, AlertCircle, Building } from 'lucide-react';
+import { useBranch, Branch } from '@/lib/branch-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,6 +32,18 @@ export default function SettingsPage() {
     longitude: '',
     radius: '5',
   });
+
+  const [branchForm, setBranchForm] = useState({
+    name: '',
+    code: '',
+    address: '',
+    contactPerson: '',
+    contactPhone: '',
+    contactEmail: '',
+  });
+  const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
+  const [branchError, setBranchError] = useState('');
+  const { branches, refreshBranches } = useBranch();
 
   useEffect(() => {
     setMounted(true);
@@ -232,6 +245,78 @@ export default function SettingsPage() {
       alert('Failed to update location');
     }
   };
+
+  async function handleCreateBranch() {
+    if (!branchForm.name || !branchForm.code) {
+      setBranchError('Name and code are required');
+      return;
+    }
+    setBranchError('');
+    try {
+      const res = await fetch('/api/branches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(branchForm),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setBranchError(err.error || 'Failed to create branch');
+        return;
+      }
+      setBranchForm({ name: '', code: '', address: '', contactPerson: '', contactPhone: '', contactEmail: '' });
+      await refreshBranches();
+    } catch {
+      setBranchError('Failed to create branch');
+    }
+  }
+
+  async function handleUpdateBranch(id: string) {
+    setBranchError('');
+    try {
+      const res = await fetch(`/api/branches/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(branchForm),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setBranchError(err.error || 'Failed to update branch');
+        return;
+      }
+      setEditingBranchId(null);
+      setBranchForm({ name: '', code: '', address: '', contactPerson: '', contactPhone: '', contactEmail: '' });
+      await refreshBranches();
+    } catch {
+      setBranchError('Failed to update branch');
+    }
+  }
+
+  async function handleDeleteBranch(id: string) {
+    if (!confirm('Delete this branch? This cannot be undone if it has transactions.')) return;
+    try {
+      const res = await fetch(`/api/branches/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete branch');
+        return;
+      }
+      await refreshBranches();
+    } catch {
+      alert('Failed to delete branch');
+    }
+  }
+
+  function handleEditBranch(branch: Branch) {
+    setEditingBranchId(branch.id);
+    setBranchForm({
+      name: branch.name,
+      code: branch.code,
+      address: branch.address || '',
+      contactPerson: branch.contactPerson || '',
+      contactPhone: branch.contactPhone || '',
+      contactEmail: branch.contactEmail || '',
+    });
+  }
 
   if (!mounted) return null;
 
@@ -457,6 +542,118 @@ export default function SettingsPage() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Branch Management */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building className="h-5 w-5" />
+                Branches
+              </CardTitle>
+              <CardDescription>
+                Manage company branches for accounting and asset inventory filtering
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {branchError && (
+                <div className="flex items-center gap-2 text-red-600 mb-4 p-2 bg-red-50 rounded">
+                  <AlertCircle className="h-4 w-4" />
+                  {branchError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                <div className="space-y-2">
+                  <Label>Branch Name *</Label>
+                  <Input
+                    value={branchForm.name}
+                    onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                    placeholder="e.g., Main Office"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Branch Code *</Label>
+                  <Input
+                    value={branchForm.code}
+                    onChange={(e) => setBranchForm({ ...branchForm, code: e.target.value })}
+                    placeholder="e.g., MAIN"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Address</Label>
+                  <Input
+                    value={branchForm.address}
+                    onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
+                    placeholder="e.g., 123 Rizal St."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Contact Person</Label>
+                  <Input
+                    value={branchForm.contactPerson}
+                    onChange={(e) => setBranchForm({ ...branchForm, contactPerson: e.target.value })}
+                    placeholder="e.g., Juan Dela Cruz"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Contact Phone</Label>
+                  <Input
+                    value={branchForm.contactPhone}
+                    onChange={(e) => setBranchForm({ ...branchForm, contactPhone: e.target.value })}
+                    placeholder="e.g., +63 912 345 6789"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Contact Email</Label>
+                  <Input
+                    value={branchForm.contactEmail}
+                    onChange={(e) => setBranchForm({ ...branchForm, contactEmail: e.target.value })}
+                    placeholder="e.g., branch@company.com"
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={editingBranchId ? () => handleUpdateBranch(editingBranchId) : handleCreateBranch}
+                className="mb-6"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {editingBranchId ? 'Update Branch' : 'Add Branch'}
+              </Button>
+
+              {branches.length === 0 ? (
+                <div className="border-2 border-blue-200 bg-blue-50 dark:bg-blue-950/20 rounded-lg p-6 text-center">
+                  <Building className="w-8 h-8 mx-auto mb-2 text-blue-400" />
+                  <p className="text-lg font-medium text-blue-700 dark:text-blue-300">First-Time Setup</p>
+                  <p className="text-sm text-blue-600 dark:text-blue-400 mb-4">
+                    Create your first branch to get started with multi-branch accounting.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {branches.map((branch) => (
+                    <div key={branch.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <p className="font-medium">{branch.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {branch.code}
+                          {branch.address ? ` - ${branch.address}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleEditBranch(branch)}>
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteBranch(branch.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </>
