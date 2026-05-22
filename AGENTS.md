@@ -969,3 +969,55 @@ Employees can now enroll their own face from the Time Logs page without needing 
 **Files Updated:**
 - `app/(dashboard)/time-logs/page.tsx` - Added enrollment button, modal, and handler
 - `app/api/employees/[id]/face/route.ts` - Updated to allow EMPLOYEE role to enroll own face
+
+---
+
+### Multi-Branch Support for Accounting & Asset Modules (2026-05-22)
+
+**Feature:** Added branch isolation for accounting, asset inventory, and holidays — users can filter by branch or see consolidated "All Branches" data.
+
+**Architecture:**
+- **Branch model** (Prisma): name, code, address, contactPerson, contactPhone, contactEmail, isActive
+- **React Context + Cookie hybrid**: `BranchProvider` persists selection across sessions; API routes read `branchId` from query params
+- **"All Branches" mode**: API routes skip branch filter when `branchId=all`, showing consolidated data
+- **First-setup prompt**: Settings page asks admin for initial branch name if none exist
+- **BranchSelector dropdown**: Placed in dashboard layout header, only affects accounting/asset/holiday pages
+
+**Database Changes:**
+- Added `Branch` model with `@@index([isActive])`
+- Added `branchId String? @db.ObjectId` + `Branch? @relation` to: JournalEntry, Expense, SalesInvoice, PurchaseBill, Payment, PettyCash, PettyCashDisbursement, PettyCashLiquidation, Asset, AssetCategory, AssetTransaction, SubsidiaryLedger, Holiday
+- Existing Holiday model upgraded from bare `String?` to proper relation
+
+**Files Created:**
+- `app/api/branches/route.ts` — GET (list) + POST (create with duplicate check)
+- `app/api/branches/[id]/route.ts` — PATCH (update with conflict check) + DELETE (safety check blocking deletion with transactions)
+- `app/api/branches/seed/route.ts` — POST (create branch + migrate all null-branch records)
+- `lib/branch-context.tsx` — BranchProvider, useBranch hook, cookie persistence
+- `components/branch-selector.tsx` — shadcn Select dropdown
+
+**Files Updated:**
+- `prisma/schema.prisma` — Branch model + branchId on 13 models + Holiday relation fix
+- `app/(dashboard)/layout.tsx` — Wrapped children with BranchProvider
+- `app/(dashboard)/settings/page.tsx` — Branch CRUD form (name, code, address, contact), first-setup prompt, list with edit/delete
+- App API routes — GET handlers filter by `branchId`, POST/PATCH handlers save `branchId`: expenses, sales, purchases, payments (batch + individual), journal, petty-cash (including disbursements/liquidations), subsidiary-ledgers, customers, vendors, stats, reports (trial-balance, income-statement, balance-sheet), payroll-sync, assets-sync, accounts/transactions, holidays, assets (list/categories/transactions)
+- Frontend pages — consume BranchContext for fetch params + form data: COA, journal, expenses, sales, purchases, vendors, customers, subsidiary-ledgers, reconciliation, petty-cash, reports, asset-inventory (list/new/detail/edit/categories/transactions/reports), holidays
+- `app/api/accounting/accounts/route.ts` — Fixed COA balances: `calculateAccountBalance` now passes `branchId` to filter JournalLine through `entry.branchId`
+
+**Bugs Fixed:**
+1. **COA balances not filtering by branch** — `calculateAccountBalance` queried all JournalLine records without branch filter
+2. **Journal POST missing branchId** — Frontend wasn't sending `branchId` in request body
+3. **9 missing branchId in POST/PATCH bodies** — Petty-cash (5: liquidation, disbursement, replenish, submit, update), purchases (2: pay bill, edit payment), vendors (1: batch payment), asset categories (1: create)
+
+**MongoDB Quirks Discovered:**
+- Prisma `updateMany({ where: { branchId: null } })` does NOT match null values in MongoDB — must use `$runCommandRaw`
+- `@db.ObjectId` fields must store ObjectId type, not string — raw `$set` stores as string, requiring `$toObjectId` aggregation pipeline to convert
+
+**Key Files:**
+- `app/api/branches/route.ts` — Branch CRUD
+- `lib/branch-context.tsx` — Branch state management
+- `components/branch-selector.tsx` — UI selector
+- `app/(dashboard)/settings/page.tsx` — Branch management UI
+- `scripts/migrate-to-branch-2.ts` — Raw MongoDB migration script
+- `scripts/fix-branch-objectid.ts` — String-to-ObjectId conversion
+- `docs/plans/2026-05-22-branch-support-design.md` — Architecture design doc
+- `docs/plans/2026-05-22-branch-support-implementation.md` — Implementation plan

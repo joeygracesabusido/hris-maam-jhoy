@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, DollarSign, Receipt, RefreshCw, ArrowRight } from 'lucide-react';
+import { useBranch, Branch } from '@/lib/branch-context';
+import { BranchSelector } from '@/components/branch-selector';
 
 interface Account {
   id: string;
@@ -81,12 +83,15 @@ export default function PettyCashPage() {
   const [isReplenishDialogOpen, setReplenishDialogOpen] = useState(false);
   const [replenishTarget, setReplenishTarget] = useState<PettyCashFund | null>(null);
 
+  const { selectedBranch, branches } = useBranch();
+
   const [formData, setFormData] = useState({
     name: '',
     fundAmount: 0 as string | number,
     cashAccountId: '',
     expenseAccountId: '',
     description: '',
+    branchId: '',
   });
 
   const [disburseData, setDisburseData] = useState({
@@ -108,12 +113,13 @@ export default function PettyCashPage() {
     fetchAccounts();
     fetchDisbursements();
     fetchLiquidations();
-  }, []);
+  }, [selectedBranch]);
 
   async function fetchFunds() {
     setLoading(true);
     try {
-      const res = await fetch('/api/accounting/petty-cash');
+      const url = `/api/accounting/petty-cash${selectedBranch ? `?branchId=${selectedBranch.id}` : ''}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (Array.isArray(data)) {
         setFunds(data);
@@ -145,7 +151,8 @@ export default function PettyCashPage() {
 
   async function fetchDisbursements() {
     try {
-      const res = await fetch('/api/accounting/petty-cash/disbursements');
+      const url = `/api/accounting/petty-cash/disbursements${selectedBranch ? `?branchId=${selectedBranch.id}` : ''}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (Array.isArray(data)) {
         setDisbursements(data);
@@ -160,7 +167,8 @@ export default function PettyCashPage() {
 
   async function fetchLiquidations() {
     try {
-      const res = await fetch('/api/accounting/petty-cash/liquidations');
+      const url = `/api/accounting/petty-cash/liquidations${selectedBranch ? `?branchId=${selectedBranch.id}` : ''}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (Array.isArray(data)) {
         setLiquidations(data);
@@ -178,7 +186,7 @@ export default function PettyCashPage() {
       const res = await fetch('/api/accounting/petty-cash/liquidations', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status }),
+        body: JSON.stringify({ id, status, branchId: selectedBranch?.id }),
       });
 
       if (res.ok) {
@@ -200,6 +208,7 @@ export default function PettyCashPage() {
       const payload = {
         ...formData,
         fundAmount: parseFloat(String(formData.fundAmount)) || 0,
+        branchId: formData.branchId || selectedBranch?.id || null,
       };
       const res = await fetch('/api/accounting/petty-cash', {
         method: 'POST',
@@ -231,6 +240,7 @@ export default function PettyCashPage() {
         body: JSON.stringify({
           pettyCashId: selectedFund.id,
           ...disburseData,
+          branchId: selectedBranch?.id,
         }),
       });
 
@@ -265,6 +275,7 @@ export default function PettyCashPage() {
           id: replenishTarget.id,
           fundAmount: replenishTarget.fundAmount,
           replenish: true,
+          branchId: selectedBranch?.id,
         }),
       });
 
@@ -305,6 +316,7 @@ export default function PettyCashPage() {
           amount: parseFloat(String(liquidateData.amount)) || 0,
           date: liquidateData.date,
           notes: liquidateData.notes,
+          branchId: selectedBranch?.id,
         }),
       });
 
@@ -329,6 +341,7 @@ export default function PettyCashPage() {
       cashAccountId: '',
       expenseAccountId: '',
       description: '',
+      branchId: '',
     });
   }
 
@@ -351,6 +364,7 @@ export default function PettyCashPage() {
         id: selectedFund.id,
         ...editFormData,
         fundAmount: parseFloat(String(editFormData.fundAmount)) || 0,
+        branchId: selectedBranch?.id,
       };
       const res = await fetch('/api/accounting/petty-cash', {
         method: 'PATCH',
@@ -392,7 +406,9 @@ export default function PettyCashPage() {
           <h1 className="text-3xl font-bold">Petty Cash</h1>
           <p className="text-muted-foreground">Manage petty cash funds and liquidations</p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <div className="flex items-center gap-4">
+          <BranchSelector />
+          <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button className="flex items-center gap-2">
               <Plus className="w-4 h-4" />
@@ -460,6 +476,19 @@ export default function PettyCashPage() {
                   onChange={e => setFormData({...formData, description: e.target.value})}
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  value={formData.branchId || selectedBranch?.id || ''}
+                  onChange={e => setFormData({...formData, branchId: e.target.value})}
+                >
+                  <option value="">Select branch...</option>
+                  {branches.map((b: Branch) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
                 <Button type="submit">Create Fund</Button>
@@ -467,6 +496,7 @@ export default function PettyCashPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex gap-4 border-b">

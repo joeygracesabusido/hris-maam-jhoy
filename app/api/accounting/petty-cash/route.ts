@@ -19,10 +19,12 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const status = searchParams.get('status');
+    const branchId = searchParams.get('branchId');
 
     const where: Record<string, unknown> = {};
     if (id) where.id = id;
     if (status) where.status = status;
+    if (branchId) where.branchId = branchId;
 
     const pettyCash = await prisma.pettyCash.findMany({
       where,
@@ -44,7 +46,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, fundAmount, custodianId, cashAccountId, expenseAccountId, description } = body;
+    const { name, fundAmount, custodianId, cashAccountId, expenseAccountId, description, branchId } = body;
 
     if (!name || !fundAmount || !cashAccountId) {
       return NextResponse.json(
@@ -81,6 +83,7 @@ export async function POST(request: Request) {
         description,
         createdById: user?.id,
         status: 'ACTIVE',
+        branchId: branchId || undefined,
       },
     });
 
@@ -135,7 +138,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, name, fundAmount, custodianId, status, replenish } = body;
+    const { id, name, fundAmount, custodianId, status, replenish, branchId } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -154,6 +157,7 @@ export async function PATCH(request: Request) {
     if (custodianId !== undefined) updateData.custodianId = custodianId;
     if (status !== undefined) updateData.status = status;
     if (fundAmount !== undefined) updateData.fundAmount = fundAmount;
+    if (branchId !== undefined) updateData.branchId = branchId;
 
     let replenishAmount = 0;
     if (replenish === true && fundAmount) {

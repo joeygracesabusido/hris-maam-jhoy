@@ -16,6 +16,7 @@ const updateHolidaySchema = z.object({
   id: z.string(),
   name: z.string().min(1).optional(),
   type: z.enum(['REGULAR', 'SPECIAL', 'SPECIAL_NON_WORK']).optional(),
+  branchId: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
 })
 
@@ -55,6 +56,7 @@ export async function GET(request: Request) {
     const holidays = await prisma.holiday.findMany({
       where,
       orderBy: { date: 'asc' },
+      include: { branch: true },
     })
 
     return NextResponse.json(holidays)
@@ -143,15 +145,17 @@ export async function PATCH(request: Request) {
       )
     }
 
-    const { id, name, type, isActive } = result.data
+    const { id, name, type, branchId, isActive } = result.data
     const updateData: {
       name?: string
       type?: HolidayType
+      branchId?: string | null
       isActive?: boolean
     } = {}
 
     if (name !== undefined) updateData.name = name
     if (type !== undefined) updateData.type = type as HolidayType
+    if (branchId !== undefined) updateData.branchId = branchId
     if (isActive !== undefined) updateData.isActive = isActive
 
     const holiday = await prisma.holiday.update({

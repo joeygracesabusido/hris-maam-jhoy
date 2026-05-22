@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useBranch } from '@/lib/branch-context'
+import { BranchSelector } from '@/components/branch-selector'
 
 interface Holiday {
   id: string
@@ -27,6 +29,7 @@ export default function HolidaysPage() {
   const [mounted, setMounted] = useState(false)
   const [filterYear, setFilterYear] = useState<string>('all')
   const [filterType, setFilterType] = useState<string>('all')
+  const { selectedBranch, branches } = useBranch()
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [newHoliday, setNewHoliday] = useState({
@@ -34,6 +37,7 @@ export default function HolidaysPage() {
     date: '',
     type: 'REGULAR' as 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORK',
     isActive: true,
+    branchId: '',
   })
 
   useEffect(() => {
@@ -52,6 +56,7 @@ export default function HolidaysPage() {
       const params = new URLSearchParams()
       if (filterYear !== 'all') params.append('year', filterYear)
       if (filterType !== 'all') params.append('type', filterType)
+      if (selectedBranch) params.append('branchId', selectedBranch.id)
 
       const res = await fetch(`/api/holidays?${params}`)
       if (res.ok) {
@@ -63,7 +68,7 @@ export default function HolidaysPage() {
     } finally {
       setLoading(false)
     }
-  }, [filterYear, filterType]);
+  }, [filterYear, filterType, selectedBranch]);
 
   useEffect(() => {
     if (mounted) {
@@ -81,12 +86,15 @@ export default function HolidaysPage() {
       const res = await fetch('/api/holidays', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newHoliday),
+        body: JSON.stringify({
+          ...newHoliday,
+          branchId: selectedBranch?.id || null,
+        }),
       })
 
       if (res.ok) {
         alert('Holiday created successfully')
-        setNewHoliday({ name: '', date: '', type: 'REGULAR', isActive: true })
+        setNewHoliday({ name: '', date: '', type: 'REGULAR', isActive: true, branchId: '' })
         fetchHolidays()
       } else {
         const error = await res.json()
@@ -103,13 +111,17 @@ export default function HolidaysPage() {
       const res = await fetch('/api/holidays', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...newHoliday }),
+        body: JSON.stringify({
+          id,
+          ...newHoliday,
+          branchId: selectedBranch?.id || null,
+        }),
       })
 
       if (res.ok) {
         alert('Holiday updated successfully')
         setEditingId(null)
-        setNewHoliday({ name: '', date: '', type: 'REGULAR', isActive: true })
+        setNewHoliday({ name: '', date: '', type: 'REGULAR', isActive: true, branchId: '' })
         fetchHolidays()
       } else {
         const error = await res.json()
@@ -189,6 +201,7 @@ export default function HolidaysPage() {
       date: holiday.date.split('T')[0],
       type: holiday.type,
       isActive: holiday.isActive,
+      branchId: holiday.branchId || '',
     })
   }
 
@@ -207,9 +220,12 @@ export default function HolidaysPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Holidays</h1>
-        <p className="text-gray-500">Manage company holidays</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Holidays</h1>
+          <p className="text-gray-500">Manage company holidays</p>
+        </div>
+        <BranchSelector />
       </div>
 
       {!canEdit ? (
@@ -365,7 +381,7 @@ export default function HolidaysPage() {
                             <Button
                               onClick={() => {
                                 setEditingId(null)
-                                setNewHoliday({ name: '', date: '', type: 'REGULAR', isActive: true })
+                                setNewHoliday({ name: '', date: '', type: 'REGULAR', isActive: true, branchId: '' })
                               }}
                               variant="outline"
                               size="sm"
