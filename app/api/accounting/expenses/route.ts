@@ -40,6 +40,44 @@ export async function POST(request: Request) {
         }
       });
 
+      // Collect all journal lines upfront
+      const journalLinesData = items.map((item: any) => ({
+        accountId: item.accountId,
+        debit: item.amount,
+        credit: 0,
+        memo: `Expense ${expenseNumber}: ${item.description}`,
+      }));
+
+      if (computedVat > 0 && !noInputVat) {
+        const inputVATAccount = await tx.account.findFirst({
+          where: { code: '2320' },
+        });
+        if (inputVATAccount) {
+          journalLinesData.push({
+            accountId: inputVATAccount.id,
+            debit: computedVat,
+            credit: 0,
+            memo: `Expense ${expenseNumber} Input VAT`,
+          });
+        }
+      }
+
+      if (ewtPercent > 0 && ewtAccountId) {
+        journalLinesData.push({
+          accountId: ewtAccountId,
+          debit: 0,
+          credit: computedEwt,
+          memo: `Expense ${expenseNumber} EWT`,
+        });
+      }
+
+      journalLinesData.push({
+        accountId: cashAccountId,
+        debit: 0,
+        credit: finalTotal - computedEwt,
+        memo: `Payment for ${expenseNumber}`,
+      });
+
       const journalEntry = await tx.journalEntry.create({
         data: {
           date: new Date(date),
@@ -47,54 +85,8 @@ export async function POST(request: Request) {
           reference: expenseNumber,
           branchId: branchId || undefined,
           lines: {
-            create: [
-              ...items.map((item: any) => ({
-                accountId: item.accountId,
-                debit: item.amount,
-                credit: 0,
-                memo: `Expense ${expenseNumber}: ${item.description}`,
-              })),
-            ]
-          }
-        }
-      });
-
-      if (computedVat > 0 && !noInputVat) {
-        const inputVATAccount = await tx.account.findFirst({
-          where: { code: '2320' },
-        });
-        if (inputVATAccount) {
-          await tx.journalLine.create({
-            data: {
-              entryId: journalEntry.id,
-              accountId: inputVATAccount.id,
-              debit: computedVat,
-              credit: 0,
-              memo: `Expense ${expenseNumber} Input VAT`,
-            },
-          });
-        }
-      }
-
-      if (ewtPercent > 0 && ewtAccountId) {
-        await tx.journalLine.create({
-          data: {
-            entryId: journalEntry.id,
-            accountId: ewtAccountId,
-            debit: 0,
-            credit: computedEwt,
-            memo: `Expense ${expenseNumber} EWT`,
+            create: journalLinesData,
           },
-        });
-      }
-
-      await tx.journalLine.create({
-        data: {
-          entryId: journalEntry.id,
-          accountId: cashAccountId,
-          debit: 0,
-          credit: finalTotal - computedEwt,
-          memo: `Payment for ${expenseNumber}`,
         },
       });
 
@@ -226,13 +218,52 @@ export async function PATCH(request: Request) {
         throw new Error('Total amount does not match sum of items');
       }
 
-      // Delete old journal entry and create new one
+      // Delete old journal entry (cascades to lines via onDelete: Cascade)
       if (existingExpense.journalEntryId) {
         await tx.journalEntry.delete({
           where: { id: existingExpense.journalEntryId },
         });
       }
 
+      // Collect all journal lines upfront to create in a single nested operation
+      const journalLinesData = items.map((item: any) => ({
+        accountId: item.accountId,
+        debit: item.amount,
+        credit: 0,
+        memo: `Expense ${existingExpense.expenseNumber}: ${item.description}`,
+      }));
+
+      if (computedVat > 0 && !noInputVat) {
+        const inputVATAccount = await tx.account.findFirst({
+          where: { code: '2320' },
+        });
+        if (inputVATAccount) {
+          journalLinesData.push({
+            accountId: inputVATAccount.id,
+            debit: computedVat,
+            credit: 0,
+            memo: `Expense ${existingExpense.expenseNumber} Input VAT`,
+          });
+        }
+      }
+
+      if (ewtPercent > 0 && ewtAccountId) {
+        journalLinesData.push({
+          accountId: ewtAccountId,
+          debit: 0,
+          credit: computedEwt,
+          memo: `Expense ${existingExpense.expenseNumber} EWT`,
+        });
+      }
+
+      journalLinesData.push({
+        accountId: cashAccountId,
+        debit: 0,
+        credit: finalTotal - computedEwt,
+        memo: `Payment for ${existingExpense.expenseNumber}`,
+      });
+
+      // Create journal entry with all lines in one query
       const journalEntry = await tx.journalEntry.create({
         data: {
           date: new Date(date || existingExpense.date),
@@ -240,58 +271,12 @@ export async function PATCH(request: Request) {
           reference: existingExpense.expenseNumber,
           branchId: branchId || undefined,
           lines: {
-            create: [
-              ...items.map((item: any) => ({
-                accountId: item.accountId,
-                debit: item.amount,
-                credit: 0,
-                memo: `Expense ${existingExpense.expenseNumber}: ${item.description}`,
-              })),
-            ]
-          }
-        }
-      });
-
-      if (computedVat > 0 && !noInputVat) {
-        const inputVATAccount = await tx.account.findFirst({
-          where: { code: '2320' },
-        });
-        if (inputVATAccount) {
-          await tx.journalLine.create({
-            data: {
-              entryId: journalEntry.id,
-              accountId: inputVATAccount.id,
-              debit: computedVat,
-              credit: 0,
-              memo: `Expense ${existingExpense.expenseNumber} Input VAT`,
-            },
-          });
-        }
-      }
-
-      if (ewtPercent > 0 && ewtAccountId) {
-        await tx.journalLine.create({
-          data: {
-            entryId: journalEntry.id,
-            accountId: ewtAccountId,
-            debit: 0,
-            credit: computedEwt,
-            memo: `Expense ${existingExpense.expenseNumber} EWT`,
+            create: journalLinesData,
           },
-        });
-      }
-
-      await tx.journalLine.create({
-        data: {
-          entryId: journalEntry.id,
-          accountId: cashAccountId,
-          debit: 0,
-          credit: finalTotal - computedEwt,
-          memo: `Payment for ${existingExpense.expenseNumber}`,
         },
       });
 
-      // Update the expense record with new data AND link the journal entry
+      // Update expense with journal entry link and items in one query
       const updatedExpense = await tx.expense.update({
         where: { id },
         data: {
