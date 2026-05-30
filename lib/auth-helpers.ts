@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma'
 import type { Role } from '@prisma/client'
+import { cookies } from 'next/headers'
 import { getEmployeeIdForUser } from '@/lib/user-employee-link'
 
 /**
@@ -75,8 +76,8 @@ export async function getRequestSession(request: Request) {
 
   // Fallback to X-Auth headers (used by Flutter app)
   if (!userEmail) {
-    userEmail = request.headers.get('X-Auth-Email');
-    userRole = request.headers.get('X-Auth-Role');
+    userEmail = request.headers.get('X-Auth-Email') ?? undefined;
+    userRole = request.headers.get('X-Auth-Role') ?? undefined;
   }
 
   if (!userEmail) {

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay } from 'date-fns';
-import { cookies } from 'next/headers';
 import { buildRoleBasedWhereClause, getRequestSession } from '@/lib/auth-helpers';
 import { computeLateMinutes, computeUndertimeMinutes, parseTimeString } from '@/lib/late-computation';
 
