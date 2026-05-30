@@ -2,18 +2,19 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { cache } from '@/lib/redis';
 import { calculateDailyRate } from '@/lib/payroll';
-import { cookies } from 'next/headers';
 import { getEmployeeIdForUser } from '@/lib/user-employee-link';
+import { getRequestSession } from '@/lib/auth-helpers';
 
 const EMPLOYEES_CACHE_KEY = 'employees:all';
 
 export async function GET(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
-    const userEmail = cookieStore.get('userEmail')?.value;
-
-    if (!userEmail) {
+    let userEmail: string, userRole: string;
+    try {
+      const session = await getRequestSession(request);
+      userEmail = session.userEmail;
+      userRole = session.userRole;
+    } catch {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -55,10 +56,15 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     // Only ADMIN and HR can create employees
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
+    let _userRole: string;
+    try {
+      const session = await getRequestSession(request);
+      _userRole = session.userRole;
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (userRole !== 'ADMIN' && userRole !== 'HR') {
+    if (_userRole !== 'ADMIN' && _userRole !== 'HR') {
       return NextResponse.json({ error: 'Unauthorized. Only admins and HR can create employees.' }, { status: 403 });
     }
 
@@ -108,10 +114,15 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     // Only ADMIN and HR can update employees
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
+    let _userRole: string;
+    try {
+      const session = await getRequestSession(request);
+      _userRole = session.userRole;
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (userRole !== 'ADMIN' && userRole !== 'HR') {
+    if (_userRole !== 'ADMIN' && _userRole !== 'HR') {
       return NextResponse.json({ error: 'Unauthorized. Only admins and HR can update employees.' }, { status: 403 });
     }
 
@@ -161,10 +172,15 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   try {
     // Only ADMIN can delete employees
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
+    let _userRole: string;
+    try {
+      const session = await getRequestSession(request);
+      _userRole = session.userRole;
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (userRole !== 'ADMIN') {
+    if (_userRole !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized. Only admins can delete employees.' }, { status: 403 });
     }
 

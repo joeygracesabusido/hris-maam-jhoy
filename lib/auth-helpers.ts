@@ -65,6 +65,28 @@ export async function getEmployeeIdForFiltering(
 }
 
 /**
+ * Extract session info from either cookies (web) or X-Auth headers (Flutter mobile/web).
+ * Returns { userEmail, userRole } or throws 401 if neither source has data.
+ */
+export async function getRequestSession(request: Request) {
+  const cookieStore = await cookies();
+  let userEmail = cookieStore.get('userEmail')?.value;
+  let userRole = cookieStore.get('userRole')?.value;
+
+  // Fallback to X-Auth headers (used by Flutter app)
+  if (!userEmail) {
+    userEmail = request.headers.get('X-Auth-Email');
+    userRole = request.headers.get('X-Auth-Role');
+  }
+
+  if (!userEmail) {
+    throw new Error('Unauthorized');
+  }
+
+  return { userEmail, userRole: userRole || 'EMPLOYEE' };
+}
+
+/**
  * Build a Prisma where clause for filtering data by user role
  * @param userEmail - The email of the logged-in user
  * @param userRole - The role of the logged-in user

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay } from 'date-fns';
 import { cookies } from 'next/headers';
-import { buildRoleBasedWhereClause } from '@/lib/auth-helpers';
+import { buildRoleBasedWhereClause, getRequestSession } from '@/lib/auth-helpers';
 import { computeLateMinutes, computeUndertimeMinutes, parseTimeString } from '@/lib/late-computation';
 
 export const dynamic = 'force-dynamic';
@@ -96,11 +96,12 @@ async function validateGPS(latitude: number, longitude: number) {
 
 export async function GET(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
-    const userEmail = cookieStore.get('userEmail')?.value;
-
-    if (!userEmail) {
+    let userEmail: string, userRole: string;
+    try {
+      const session = await getRequestSession(request);
+      userEmail = session.userEmail;
+      userRole = session.userRole;
+    } catch {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -108,7 +109,7 @@ export async function GET(request: Request) {
     const employeeIdParam = searchParams.get('employeeId');
 
     // Build role-based where clause
-    const where = await buildRoleBasedWhereClause(userEmail, userRole || '', employeeIdParam ?? undefined);
+    const where = await buildRoleBasedWhereClause(userEmail, userRole, employeeIdParam ?? undefined);
 
     const timeLogs = await prisma.timeLog.findMany({
       where,
@@ -321,10 +322,15 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
+    let _userRole: string;
+    try {
+      const session = await getRequestSession(request);
+      _userRole = session.userRole;
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+    if (_userRole !== 'ADMIN' && _userRole !== 'MANAGER') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
