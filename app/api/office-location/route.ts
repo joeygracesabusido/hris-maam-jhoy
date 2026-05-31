@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { getRequestSession } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,17 +22,14 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; // Distance in meters
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
-    const isLoggedIn = cookieStore.get('isLoggedIn')?.value;
-
-    if (!isLoggedIn) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    let _userEmail: string;
+    try {
+      const session = await getRequestSession(request);
+      _userEmail = session.userEmail;
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const locations = await prisma.officeLocation.findMany({
@@ -50,8 +48,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
+    let userRole: string;
+    try {
+      const session = await getRequestSession(request);
+      userRole = session.userRole;
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     if (!userRole || !['ADMIN', 'HR'].includes(userRole)) {
       return NextResponse.json(
@@ -113,8 +116,13 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
+    let userRole: string;
+    try {
+      const session = await getRequestSession(request);
+      userRole = session.userRole;
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     if (!userRole || !['ADMIN', 'HR'].includes(userRole)) {
       return NextResponse.json(
@@ -174,8 +182,13 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
+    let userRole: string;
+    try {
+      const session = await getRequestSession(request);
+      userRole = session.userRole;
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     if (!userRole || !['ADMIN', 'HR'].includes(userRole)) {
       return NextResponse.json(
