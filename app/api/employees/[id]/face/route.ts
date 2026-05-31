@@ -19,30 +19,31 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check authorization
-    // ADMIN/HR can enroll any employee's face
-    // EMPLOYEE can only enroll their own face
-    if (userRole === 'EMPLOYEE') {
-      const employee = await prisma.employee.findUnique({
-        where: { id },
-        select: { email: true },
-      });
-      
-      // Employees can only enroll their own face
-      if (!employee || employee.email !== userEmail) {
-        return NextResponse.json({ error: 'Forbidden – you can only enroll your own face' }, { status: 403 });
-      }
-    } else if (userRole !== 'ADMIN' && userRole !== 'HR') {
-      return NextResponse.json({ error: 'Forbidden – only ADMIN or HR can enroll faces' }, { status: 403 });
-    }
-
-    const employee = await prisma.employee.findUnique({
-      where: { id },
-      select: { email: true },
+    // Resolve the employee by id (Employee.id) OR userId (User.id)
+    const employee = await prisma.employee.findFirst({
+      where: {
+        OR: [
+          { id },
+          { userId: id },
+        ],
+      },
+      select: { id: true, email: true },
     });
 
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
+
+    // Check authorization
+    // ADMIN/HR can enroll any employee's face
+    // EMPLOYEE can only enroll their own face
+    if (userRole === 'EMPLOYEE') {
+      // Employees can only enroll their own face
+      if (employee.email !== userEmail) {
+        return NextResponse.json({ error: 'Forbidden – you can only enroll your own face' }, { status: 403 });
+      }
+    } else if (userRole !== 'ADMIN' && userRole !== 'HR') {
+      return NextResponse.json({ error: 'Forbidden – only ADMIN or HR can enroll faces' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -53,7 +54,7 @@ export async function PUT(
     }
 
     const updatedEmployee = await prisma.employee.update({
-      where: { id },
+      where: { id: employee.id },
       data: {
         faceDescriptor: faceDescriptor,
       },

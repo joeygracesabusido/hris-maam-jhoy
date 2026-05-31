@@ -101,6 +101,11 @@ export async function POST(request: Request) {
       },
     });
 
+    const linkedEmployee = await prisma.employee.findFirst({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+
     return NextResponse.json({
       message: 'Login successful',
       user: {
@@ -110,6 +115,7 @@ export async function POST(request: Request) {
         name: user.name,
         role: user.role,
         status: user.status,
+        employeeId: linkedEmployee?.id || null,
       },
     }, {
       headers: {

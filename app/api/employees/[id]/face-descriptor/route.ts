@@ -17,8 +17,13 @@ export async function GET(
 
     console.log('[Face Descriptor API] Fetching for employeeId:', params.id);
     
-    const employee = await prisma.employee.findUnique({
-      where: { id: params.id },
+    const employee = await prisma.employee.findFirst({
+      where: {
+        OR: [
+          { id: params.id },
+          { userId: params.id },
+        ],
+      },
       select: { faceDescriptor: true, fullName: true, employeeId: true },
     });
 
