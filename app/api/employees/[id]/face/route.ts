@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { cookies } from 'next/headers';
+import { getRequestSession } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,11 +10,12 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
-    const isLoggedIn = cookieStore.get('isLoggedIn')?.value;
-
-    if (isLoggedIn !== 'true') {
+    let userEmail: string, userRole: string;
+    try {
+      const session = await getRequestSession(request);
+      userEmail = session.userEmail;
+      userRole = session.userRole;
+    } catch {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -22,7 +23,6 @@ export async function PUT(
     // ADMIN/HR can enroll any employee's face
     // EMPLOYEE can only enroll their own face
     if (userRole === 'EMPLOYEE') {
-      const userEmail = cookieStore.get('userEmail')?.value;
       const employee = await prisma.employee.findUnique({
         where: { id },
         select: { email: true },

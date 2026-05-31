@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { cookies } from 'next/headers';
+import { getRequestSession } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,10 +9,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const cookieStore = await cookies();
-    const isLoggedIn = cookieStore.get('isLoggedIn')?.value;
-
-    if (isLoggedIn !== 'true') {
+    try {
+      await getRequestSession(request);
+    } catch {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
