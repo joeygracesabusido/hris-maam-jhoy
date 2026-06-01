@@ -73,6 +73,7 @@ const navItems = [
     subItems: [
       { href: '/payroll', label: 'Payroll', icon: DollarSign },
       { href: '/payroll/advances', label: 'Advances', icon: Wallet },
+      { href: '/payroll/advances-summary', label: 'Advances Summary', icon: DollarSign },
     ],
   },
   {

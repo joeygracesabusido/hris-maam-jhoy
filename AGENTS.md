@@ -226,6 +226,37 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### Advances Summary Page (2026-06-01)
+
+**Issue:** No dedicated view existed to display a running ledger of cash advances per employee.
+
+**Files Created:**
+- `app/api/advances/summary/route.ts` — New API endpoint that fetches CASH_ADVANCE records with their payroll deductions and transforms them into a unified ledger (DEBIT for advance given, CREDIT for payroll deduction, with running balance)
+- `app/(dashboard)/payroll/advances-summary/page.tsx` — New page with autocomplete employee search, employee header card, summary cards (Total Advances, Total Paid, Current Balance), and a flat ledger table
+
+**Files Updated:**
+- `app/(dashboard)/layout.tsx` — Added "Advances Summary" navigation entry under Payroll sidebar
+
+**How It Works:**
+```typescript
+// API: GET /api/advances/summary?employeeId={id}
+// Returns:
+{
+  employee: { id, fullName, employeeId },
+  entries: [
+    { date, description, type: 'DEBIT'|'CREDIT', amount, runningBalance, advanceId },
+  ],
+  summary: { totalDebits, totalCredits, currentBalance }
+}
+```
+
+**Key Behaviors:**
+- Only shows CASH_ADVANCE type (not SSS/Pag-IBIG loans)
+- Debits = advance given to employee (increases balance)
+- Credits = payroll deductions (decreases balance)
+- Running balance computed server-side, sorted by date ascending
+- Color-coded: red (outstanding), green (paid off), orange (overpaid)
+
 ### Petty Cash TypeScript Interface Fixes (2026-04-30)
 
 **Issue:** TypeScript errors in petty-cash page showing "Property does not exist" for `Account.type` and `PettyCashFund.custodianId`.
