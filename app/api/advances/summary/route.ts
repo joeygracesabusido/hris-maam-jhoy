@@ -37,9 +37,13 @@ export async function GET(request: Request) {
 
     if (!hasAdminAccess(userRole || '')) {
       // EMPLOYEE role: only their own advances
-      targetEmployeeId = await getEmployeeIdForUser(userEmail, userRole || '');
+      targetEmployeeId = (await getEmployeeIdForUser(userEmail, userRole || '')) || null;
     } else if (!targetEmployeeId) {
       return NextResponse.json({ error: 'employeeId query parameter is required' }, { status: 400 });
+    }
+
+    if (!targetEmployeeId) {
+      return NextResponse.json({ error: 'Employee not found for user' }, { status: 404 });
     }
 
     // Fetch employee info
@@ -53,7 +57,7 @@ export async function GET(request: Request) {
     }
 
     // Fetch only CASH_ADVANCE records for this employee with payments
-    const advances = await localPrisma.advance.findMany({
+    const advances = (await localPrisma.advance.findMany({
       where: {
         employeeId: targetEmployeeId,
         type: 'CASH_ADVANCE',
@@ -72,7 +76,16 @@ export async function GET(request: Request) {
         },
       },
       orderBy: { date: 'asc' },
-    });
+    })) as (Awaited<ReturnType<typeof localPrisma.advance.findMany>>[number] & {
+      payments: Array<{
+        id: string
+        amount: number
+        balanceAfter: number
+        paymentDate: Date
+        notes: string | null
+        payroll: { periodStart: Date; periodEnd: Date } | null
+      }>
+    })[];
 
     // Transform into ledger entries
     const entries: LedgerEntry[] = [];

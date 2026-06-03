@@ -43,6 +43,17 @@ interface Disbursement {
   approvedAt?: string;
 }
 
+interface FundTransaction {
+  id: string;
+  date: string;
+  type: 'DISBURSEMENT' | 'LIQUIDATION' | 'REPLENISHMENT';
+  description: string;
+  payee: string | null;
+  amount: number;
+  status: string;
+  runningBalance: number;
+}
+
 interface Liquidation {
   id: string;
   pettyCashId: string;
@@ -82,6 +93,11 @@ export default function PettyCashPage() {
   const [activeTab, setActiveTab] = useState<'funds' | 'disbursements' | 'liquidations'>('funds');
   const [isReplenishDialogOpen, setReplenishDialogOpen] = useState(false);
   const [replenishTarget, setReplenishTarget] = useState<PettyCashFund | null>(null);
+
+  const [isDetailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [detailFund, setDetailFund] = useState<PettyCashFund | null>(null);
+  const [detailEntries, setDetailEntries] = useState<FundTransaction[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const { selectedBranch, branches } = useBranch();
 
@@ -395,6 +411,24 @@ export default function PettyCashPage() {
     setEditDialogOpen(true);
   }
 
+  async function openFundDetail(fund: PettyCashFund) {
+    setDetailFund(fund);
+    setDetailDialogOpen(true);
+    setDetailLoading(true);
+    setDetailEntries([]);
+    try {
+      const res = await fetch(`/api/accounting/petty-cash/transactions?pettyCashId=${fund.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDetailEntries(data.entries || []);
+      }
+    } catch (err) {
+      console.error('Error fetching fund transactions:', err);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
   const activeFunds = Array.isArray(funds) ? funds.filter(f => f.status === 'ACTIVE') : [];
   const pendingDisbursements = Array.isArray(disbursements) ? disbursements.filter(d => d.status === 'PENDING') : [];
   const pendingLiquidations = Array.isArray(liquidations) ? liquidations.filter(l => l.status === 'PENDING') : [];
@@ -573,6 +607,15 @@ export default function PettyCashPage() {
                     >
                       <RefreshCw className="w-4 h-4 mr-1" />
                       Replenish
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => openFundDetail(fund)}
+                    >
+                      <ArrowRight className="w-4 h-4 mr-1" />
+                      Details
                     </Button>
                   </div>
                 </div>
@@ -963,6 +1006,102 @@ export default function PettyCashPage() {
               Confirm Replenish
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDetailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{detailFund?.name}</DialogTitle>
+            <DialogDescription>
+              Transaction ledger for this petty cash fund
+            </DialogDescription>
+          </DialogHeader>
+
+          {detailFund && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-blue-50 rounded-lg p-3">
+                  <p className="text-xs text-blue-600 font-medium">Fund Amount</p>
+                  <p className="text-lg font-bold text-blue-800">
+                    ₱{detailFund.fundAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className={`rounded-lg p-3 ${detailFund.currentBalance > 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                  <p className={`text-xs font-medium ${detailFund.currentBalance > 0 ? 'text-green-600' : 'text-red-600'}`}>Current Balance</p>
+                  <p className={`text-lg font-bold ${detailFund.currentBalance > 0 ? 'text-green-800' : 'text-red-800'}`}>
+                    ₱{detailFund.currentBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-3">
+                  <p className="text-xs text-purple-600 font-medium">Net Spent</p>
+                  <p className="text-lg font-bold text-purple-800">
+                    ₱{(detailFund.fundAmount - detailFund.currentBalance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+
+              {detailLoading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading transactions...</div>
+              ) : detailEntries.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No transactions found.</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Payee</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right">Running Balance</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailEntries.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell className="text-sm">
+                          {new Date(entry.date).toLocaleDateString('en-PH')}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                            entry.type === 'DISBURSEMENT' ? 'bg-red-50 text-red-700' :
+                            entry.type === 'LIQUIDATION' ? 'bg-green-50 text-green-700' :
+                            'bg-blue-50 text-blue-700'
+                          }`}>
+                            {entry.type === 'DISBURSEMENT' ? 'Disburse' :
+                             entry.type === 'LIQUIDATION' ? 'Liquidate' : 'Replenish'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate">{entry.description}</TableCell>
+                        <TableCell>{entry.payee || '-'}</TableCell>
+                        <TableCell className={`text-right font-mono ${
+                          entry.type === 'DISBURSEMENT' ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {entry.type === 'DISBURSEMENT' ? '-' : '+'}₱
+                          {entry.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          ₱{entry.runningBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            entry.status === 'APPROVED' || entry.status === 'POSTED' ? 'bg-green-100 text-green-800' :
+                            entry.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                            entry.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100'
+                          }`}>
+                            {entry.status}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

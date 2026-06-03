@@ -68,10 +68,12 @@ async function processEmployeePayroll(
   if (deductions.includes('sss_loan')) selectedAdvanceTypes.push('SSS_LOAN');
   if (deductions.includes('pagibig_loan')) selectedAdvanceTypes.push('PAGIBIG_LOAN');
 
+  const nextDay = new Date(endDate.getTime() + 86400000);
+
   const timeLogs = await prisma.timeLog.findMany({
     where: {
       employeeId: employee.id,
-      date: { gte: startDate, lte: endDate },
+      date: { gte: startDate, lt: nextDay },
     },
   });
 
@@ -87,7 +89,7 @@ async function processEmployeePayroll(
   const shiftSchedules = await prisma.shiftSchedule.findMany({
     where: {
       employeeId: employee.id,
-      date: { gte: startDate, lte: endDate },
+      date: { gte: startDate, lt: nextDay },
     },
     include: { shift: true },
   });
@@ -236,10 +238,11 @@ export async function POST(request: Request) {
     const [startYear, startMonth, startDay] = periodStart.split('-').map(Number);
     const [endYear, endMonth, endDay] = periodEnd.split('-').map(Number);
     const startDate = new Date(startYear, startMonth - 1, startDay, 0, 0, 0);
-    const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59);
+    const endDate = new Date(endYear, endMonth - 1, endDay, 0, 0, 0);
+    const nextDay = new Date(endDate.getTime() + 86400000);
 
     const holidays = await prisma.holiday.findMany({
-      where: { isActive: true, branchId: null, date: { gte: startDate, lte: endDate } },
+      where: { isActive: true, branchId: null, date: { gte: startDate, lt: nextDay } },
     });
 
     if (employeeId === 'all') {
