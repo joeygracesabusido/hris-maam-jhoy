@@ -108,3 +108,68 @@ export function computeUndertimeDeduction(undertimeMinutes: number, monthlySalar
   const hourlyRate = monthlySalary / divisor / 8;
   return Math.round((undertimeMinutes / 60) * hourlyRate * 100) / 100;
 }
+
+export interface ShiftLike {
+  startTime: string;
+  endTime: string;
+  gracePeriodMinutes?: number | null;
+  isOff: boolean;
+}
+
+export interface TimeLogLike {
+  clockIn: Date | string | null;
+  clockOut: Date | string | null;
+}
+
+export interface CorrectedAttendance {
+  lateMinutes: number;
+  undertimeMinutes: number;
+  hasSchedule: boolean;
+}
+
+/**
+ * Recompute late/undertime minutes for a single time log against its shift schedule.
+ *
+ * Returns 0/0 when there is no schedule, when the shift is OFF, or when the shift
+ * has no defined start/end times. This mirrors the behavior of the clock-in and
+ * XCLS import paths so values stay consistent across the system.
+ *
+ * Use this in payroll compute to heal time logs where the schedule was added
+ * retroactively (i.e. clock-in happened before any ShiftSchedule existed).
+ */
+export function recomputeTimeLogFromSchedule(
+  timeLog: TimeLogLike,
+  shift: ShiftLike | null | undefined
+): CorrectedAttendance {
+  if (!shift || shift.isOff) {
+    return { lateMinutes: 0, undertimeMinutes: 0, hasSchedule: false };
+  }
+
+  if (!shift.startTime || shift.startTime === '-' || !shift.endTime || shift.endTime === '-') {
+    return { lateMinutes: 0, undertimeMinutes: 0, hasSchedule: true };
+  }
+
+  const startParts = parseTimeString(shift.startTime);
+  const endParts = parseTimeString(shift.endTime);
+  if (!startParts || !endParts) {
+    return { lateMinutes: 0, undertimeMinutes: 0, hasSchedule: true };
+  }
+
+  const [startHour, startMinute] = startParts;
+  const [endHour, endMinute] = endParts;
+  const gracePeriod = shift.gracePeriodMinutes ?? 0;
+
+  let lateMinutes = 0;
+  if (timeLog.clockIn) {
+    const clockIn = timeLog.clockIn instanceof Date ? timeLog.clockIn : new Date(timeLog.clockIn);
+    lateMinutes = computeLateMinutes(clockIn, startHour, startMinute, gracePeriod);
+  }
+
+  let undertimeMinutes = 0;
+  if (timeLog.clockOut) {
+    const clockOut = timeLog.clockOut instanceof Date ? timeLog.clockOut : new Date(timeLog.clockOut);
+    undertimeMinutes = computeUndertimeMinutes(clockOut, endHour, endMinute);
+  }
+
+  return { lateMinutes, undertimeMinutes, hasSchedule: true };
+}

@@ -9,6 +9,13 @@ import { cache } from '@/lib/redis';
 import { cookies } from 'next/headers';
 import { hasAdminAccess } from '@/lib/auth-helpers';
 import { getEmployeeIdForUser } from '@/lib/user-employee-link';
+import { recomputeTimeLogFromSchedule } from '@/lib/late-computation';
+
+const MANILA_TIMEZONE = 'Asia/Manila';
+
+function toManilaDateKey(date: Date): string {
+  return date.toLocaleDateString('en-CA', { timeZone: MANILA_TIMEZONE });
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -93,6 +100,42 @@ async function processEmployeePayroll(
     },
     include: { shift: true },
   });
+
+  // Heal time logs: if a shift schedule exists for a date but the time log's
+  // lateMinutes/undertimeMinutes are stale (e.g. the schedule was added
+  // retroactively after the clock-in), recompute from the schedule and persist.
+  const shiftScheduleByDate = new Map<string, typeof shiftSchedules[number]>();
+  for (const s of shiftSchedules) {
+    shiftScheduleByDate.set(toManilaDateKey(s.date), s);
+  }
+
+  for (const log of timeLogs) {
+    if (!log.clockIn && !log.clockOut) continue;
+    const schedule = shiftScheduleByDate.get(toManilaDateKey(log.date));
+    if (!schedule?.shift) continue;
+
+    const corrected = recomputeTimeLogFromSchedule(log, schedule.shift);
+    if (!corrected.hasSchedule) continue;
+
+    const oldLate = log.lateMinutes ?? 0;
+    const oldUndertime = log.undertimeMinutes ?? 0;
+    if (corrected.lateMinutes === oldLate && corrected.undertimeMinutes === oldUndertime) continue;
+
+    try {
+      await prisma.timeLog.update({
+        where: { id: log.id },
+        data: {
+          lateMinutes: corrected.lateMinutes,
+          undertimeMinutes: corrected.undertimeMinutes,
+        },
+      });
+    } catch (err) {
+      console.error(`[Payroll] Failed to heal time log ${log.id}:`, err);
+    }
+
+    log.lateMinutes = corrected.lateMinutes;
+    log.undertimeMinutes = corrected.undertimeMinutes;
+  }
 
   const result = computePayroll({
     employee: {

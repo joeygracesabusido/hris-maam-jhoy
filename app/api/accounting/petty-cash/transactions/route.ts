@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 
@@ -11,6 +12,10 @@ interface FundTransaction {
   amount: number;
   status: string;
 }
+
+type ReplenishmentWithLines = Prisma.JournalEntryGetPayload<{
+  include: { lines: true };
+}>;
 
 export async function GET(request: Request) {
   try {
@@ -73,18 +78,19 @@ export async function GET(request: Request) {
         description: { contains: `Petty Cash Replenishment - ${fund.name}` },
         reference: { startsWith: 'REP-' },
       },
+      include: { lines: true },
       orderBy: { date: 'asc' },
     });
 
-    for (const rep of replenishments) {
-      const creditLine = (rep as any).lines?.find((l: any) => l.credit > 0);
+    for (const rep of replenishments satisfies ReplenishmentWithLines[]) {
+      const creditLine = rep.lines.find((line) => line.credit > 0);
       transactions.push({
         id: `rep-${rep.id}`,
         date: rep.date.toISOString(),
         type: 'REPLENISHMENT',
         description: `Replenishment${rep.reference ? ` (${rep.reference})` : ''}`,
         payee: null,
-        amount: creditLine?.credit || 0,
+        amount: creditLine?.credit ?? 0,
         status: rep.status,
       });
     }
