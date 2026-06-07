@@ -77,7 +77,8 @@ model Employee {
   hireDate      DateTime
   endDate       DateTime?
   isActive      Boolean   @default(true)
-  faceDescriptor Float[]   // Biometric face descriptor for recognition
+  faceDescriptor Float[]     // Biometric face descriptor for recognition
+  faceEnrolledAt   DateTime?   // Timestamp when face was enrolled
   employeeStatus    EmployeeStatus @default(PROBATIONARY)
   regularizationDate DateTime?     // Date when probationary became regular
 

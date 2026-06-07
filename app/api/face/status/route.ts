@@ -9,8 +9,8 @@ export const dynamic = 'force-dynamic';
  *
  * Returns the face enrollment status for the authenticated employee.
  * Response:
- *   Enrolled:  { enrolled: true,  employeeName: string }
- *   Not:       { enrolled: false, employeeName: string }
+*   Enrolled:  { enrolled: true,  employeeName: string, enrolledAt: string | null }
+  *   Not:       { enrolled: false, employeeName: string }
  */
 export async function GET(request: NextRequest) {
   try {
@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
       select: {
         fullName: true,
         faceDescriptor: true,
+        faceEnrolledAt: true,
       },
     });
 
@@ -40,8 +41,18 @@ export async function GET(request: NextRequest) {
     const hasDescriptor =
       employee.faceDescriptor && (employee.faceDescriptor as number[]).length > 0;
 
+    if (hasDescriptor) {
+      return NextResponse.json({
+        enrolled: true,
+        employeeName: employee.fullName ?? '',
+        enrolledAt: employee.faceEnrolledAt
+          ? new Date(employee.faceEnrolledAt).toISOString()
+          : null,
+      });
+    }
+
     return NextResponse.json({
-      enrolled: hasDescriptor,
+      enrolled: false,
       employeeName: employee.fullName ?? '',
     });
   } catch (error) {

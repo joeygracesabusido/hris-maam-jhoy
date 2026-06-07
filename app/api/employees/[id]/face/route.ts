@@ -57,6 +57,7 @@ export async function PUT(
       where: { id: employee.id },
       data: {
         faceDescriptor: faceDescriptor,
+        faceEnrolledAt: new Date(),
       },
     });
 
