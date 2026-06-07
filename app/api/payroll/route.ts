@@ -6,8 +6,7 @@ import {
   calculateDailyRate,
 } from '@/lib/payroll';
 import { cache } from '@/lib/redis';
-import { cookies } from 'next/headers';
-import { hasAdminAccess } from '@/lib/auth-helpers';
+import { hasAdminAccess, getRequestSession } from '@/lib/auth-helpers';
 import { getEmployeeIdForUser } from '@/lib/user-employee-link';
 import { recomputeTimeLogFromSchedule } from '@/lib/late-computation';
 
@@ -255,8 +254,7 @@ async function processEmployeePayroll(
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
+    const { userRole } = await getRequestSession(request);
 
     if (userRole !== 'ADMIN' && userRole !== 'HR') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
@@ -352,10 +350,7 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
-    const userEmail = cookieStore.get('userEmail')?.value;
-    if (!userEmail) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { userEmail, userRole } = await getRequestSession(request);
 
     const linkedEmployeeId = await getEmployeeIdForUser(userEmail, userRole || '');
     const { searchParams } = new URL(request.url);
@@ -408,8 +403,7 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
+    const { userRole } = await getRequestSession(request);
     if (userRole !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
