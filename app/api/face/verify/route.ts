@@ -44,12 +44,11 @@ export async function POST(request: NextRequest) {
     // Fetch all employees that have a registered face descriptor
     const employees = await prisma.employee.findMany({
       where: {
-        faceDescriptor: { not: [] },
+        faceDescriptor: { isEmpty: false },
       },
       select: {
         id: true,
-        firstName: true,
-        lastName: true,
+        fullName: true,
         email: true,
         faceDescriptor: true,
       },
@@ -57,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     // Compare against each stored descriptor using Euclidean distance
     let bestMatch: {
-      employee: { id: string; firstName: string; lastName: string; email: string };
+      employee: { id: string; fullName: string; email: string };
       distance: number;
     } | null = null;
 
@@ -79,8 +78,7 @@ export async function POST(request: NextRequest) {
         bestMatch = {
           employee: {
             id: employee.id,
-            firstName: employee.firstName ?? '',
-            lastName: employee.lastName ?? '',
+            fullName: employee.fullName ?? '',
             email: employee.email ?? '',
           },
           distance,
