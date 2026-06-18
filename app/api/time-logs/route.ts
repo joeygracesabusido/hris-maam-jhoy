@@ -22,6 +22,21 @@ function getManilaToday(): { start: Date; end: Date } {
   };
 }
 
+// Convert any UTC date to Manila date range for Prisma queries
+// Avoids timezone-dependent startOfDay/endOfDay (which use server local time)
+function getManilaDayRange(utcDate: Date): { start: Date; end: Date } {
+  const manilaOffset = 8 * 60 * 60 * 1000;
+  const manilaTime = utcDate.getTime() + manilaOffset;
+  const manilaDate = new Date(manilaTime);
+  const y = manilaDate.getUTCFullYear();
+  const m = manilaDate.getUTCMonth();
+  const d = manilaDate.getUTCDate();
+  return {
+    start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0)),
+    end: new Date(Date.UTC(y, m, d, 23, 59, 59, 999)),
+  };
+}
+
 // Haversine formula to calculate distance between two GPS coordinates
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3; // Earth's radius in meters
@@ -135,12 +150,13 @@ export async function GET(request: Request) {
       const logDateStr = new Date(log.date).toLocaleDateString();
       const holiday = holidayMap.get(logDateStr) || null;
       
+      const { start: dayStart, end: dayEnd } = getManilaDayRange(new Date(log.date));
       const schedule = await prisma.shiftSchedule.findFirst({
         where: {
           employeeId: log.employeeId,
           date: {
-            gte: startOfDay(new Date(log.date)),
-            lte: endOfDay(new Date(log.date)),
+            gte: dayStart,
+            lte: dayEnd,
           }
         },
         include: {
