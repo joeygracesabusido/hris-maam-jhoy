@@ -6,7 +6,7 @@ export interface Holiday {
   id: string
   name: string
   date: string
-  type: 'REGULAR' | 'SPECIAL'
+  type: 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORK'
 }
 
 export function useHolidays(year?: number) {

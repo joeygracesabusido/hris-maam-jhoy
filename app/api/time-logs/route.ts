@@ -1,39 +1,52 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { startOfDay, endOfDay } from 'date-fns';
 import { buildRoleBasedWhereClause, getRequestSession } from '@/lib/auth-helpers';
 import { computeLateMinutes, computeUndertimeMinutes, parseTimeString } from '@/lib/late-computation';
 
 export const dynamic = 'force-dynamic';
 
-const MANILA_TIMEZONE = 'Asia/Manila';
+const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
 
+/**
+ * Return the current time in Manila timezone as a Date object.
+ * The returned Date's getTime() = actual UTC + 8h, so:
+ *   - getUTCHours() gives Manila hours
+ *   - getUTCDate()  gives Manila day-of-month
+ *
+ * This avoids timezone-dependent string parsing that breaks on Vercel (UTC runtime).
+ */
 function getManilaNow(): Date {
-  const now = new Date();
-  const manilaTime = new Date(now.toLocaleString('en-US', { timeZone: MANILA_TIMEZONE }));
-  return manilaTime;
+  return new Date(Date.now() + MANILA_OFFSET_MS);
 }
 
+/**
+ * Return the start/end of today's Manila day in UTC terms.
+ * Example: Jun 18 in Manila → [Jun 17 16:00 UTC, Jun 18 15:59 UTC]
+ */
 function getManilaToday(): { start: Date; end: Date } {
   const now = getManilaNow();
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const d = now.getUTCDate();
   return {
-    start: startOfDay(now),
-    end: endOfDay(now),
+    start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - MANILA_OFFSET_MS),
+    end: new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - MANILA_OFFSET_MS),
   };
 }
 
-// Convert any UTC date to Manila date range for Prisma queries
-// Avoids timezone-dependent startOfDay/endOfDay (which use server local time)
+/**
+ * Convert a UTC-timestamp Date to a Manila-day date range for Prisma queries.
+ * Accepts any Date (the stored TimeLog.date) and returns the Manila day range.
+ */
 function getManilaDayRange(utcDate: Date): { start: Date; end: Date } {
-  const manilaOffset = 8 * 60 * 60 * 1000;
-  const manilaTime = utcDate.getTime() + manilaOffset;
+  const manilaTime = utcDate.getTime() + MANILA_OFFSET_MS;
   const manilaDate = new Date(manilaTime);
   const y = manilaDate.getUTCFullYear();
   const m = manilaDate.getUTCMonth();
   const d = manilaDate.getUTCDate();
   return {
-    start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - manilaOffset),
-    end: new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - manilaOffset),
+    start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - MANILA_OFFSET_MS),
+    end: new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - MANILA_OFFSET_MS),
   };
 }
 

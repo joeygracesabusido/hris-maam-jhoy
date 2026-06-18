@@ -12,14 +12,6 @@ const createHolidaySchema = z.object({
   isActive: z.boolean().optional(),
 })
 
-const updateHolidaySchema = z.object({
-  id: z.string(),
-  name: z.string().min(1).optional(),
-  type: z.enum(['REGULAR', 'SPECIAL', 'SPECIAL_NON_WORK']).optional(),
-  branchId: z.string().optional().nullable(),
-  isActive: z.boolean().optional(),
-})
-
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -123,88 +115,4 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PATCH(request: Request) {
-  try {
-    const cookieStore = await cookies()
-    const userRole = cookieStore.get('userRole')?.value
 
-    if (!userRole || !['ADMIN', 'HR'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Unauthorized: Admin or HR access required' },
-        { status: 403 }
-      )
-    }
-
-    const body = await request.json()
-    const result = updateHolidaySchema.safeParse(body)
-
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error.flatten().fieldErrors },
-        { status: 400 }
-      )
-    }
-
-    const { id, name, type, branchId, isActive } = result.data
-    const updateData: {
-      name?: string
-      type?: HolidayType
-      branchId?: string | null
-      isActive?: boolean
-    } = {}
-
-    if (name !== undefined) updateData.name = name
-    if (type !== undefined) updateData.type = type as HolidayType
-    if (branchId !== undefined) updateData.branchId = branchId
-    if (isActive !== undefined) updateData.isActive = isActive
-
-    const holiday = await prisma.holiday.update({
-      where: { id },
-      data: updateData,
-    })
-
-    return NextResponse.json(holiday)
-  } catch (error) {
-    console.error('Error updating holiday:', error)
-    return NextResponse.json(
-      { error: 'Failed to update holiday' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function DELETE(request: Request) {
-  try {
-    const cookieStore = await cookies()
-    const userRole = cookieStore.get('userRole')?.value
-
-    if (!userRole || !['ADMIN', 'HR'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Unauthorized: Admin or HR access required' },
-        { status: 403 }
-      )
-    }
-
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Holiday ID is required' },
-        { status: 400 }
-      )
-    }
-
-    await prisma.holiday.delete({
-      where: { id },
-    })
-
-    return NextResponse.json({ message: 'Holiday deleted successfully' })
-  } catch (error) {
-    console.error('Error deleting holiday:', error)
-    return NextResponse.json(
-      { error: 'Failed to delete holiday' },
-      { status: 500 }
-    )
-  }
-}

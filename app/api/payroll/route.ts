@@ -385,9 +385,23 @@ export async function GET(request: Request) {
     const employees = await prisma.employee.findMany({ where: { id: { in: employeeIds } } });
     const employeeMap = new Map(employees.map(e => [e.id, e]));
 
+    const payrollIds = payrolls.map(p => p.id);
+    const advancePayments = await prisma.advancePayment.findMany({
+      where: { payrollId: { in: payrollIds as string[] } },
+      select: { payrollId: true, amount: true },
+    });
+    const advanceByPayroll = new Map<string, number>();
+    for (const ap of advancePayments) {
+      const pid = ap.payrollId;
+      if (pid) {
+        advanceByPayroll.set(pid, (advanceByPayroll.get(pid) || 0) + ap.amount);
+      }
+    }
+
     const validPayrolls = payrolls.map(p => ({
       ...p,
       dailyRate: p.dailyRate ?? 0,
+      cashAdvanceDeduction: advanceByPayroll.get(p.id) || 0,
       employee: employeeMap.get(p.employeeId),
     }));
 

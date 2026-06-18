@@ -18,6 +18,8 @@ interface PayrollRecord {
   netPay: number;
   otPay: number;
   holidayPay: number;
+  lateDeduction: number;
+  cashAdvanceDeduction: number;
   status: string;
   daysWorked: number;
   employee: {
@@ -232,8 +234,8 @@ export default function PrintPayrollPage() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
 
-    const headers = ['No.', 'Employee Name', 'Department', 'Position', 'Rate/Day', 'No. of Days', 'Basic Salary', 'OT Pay', 'Holiday Pay', 'Gross Pay', 'Deductions', 'Net Pay'];
-    const colWidths = [8, 35, 25, 28, 22, 16, 28, 22, 22, 26, 22, 30];
+    const headers = ['No.', 'Employee Name', 'Department', 'Position', 'Rate/Day', 'Days', 'Basic Salary', 'OT Pay', 'Holiday Pay', 'Gross Pay', 'Late Ded.', 'Cash Adv.', 'Other Ded.', 'Net Pay'];
+    const colWidths = [8, 38, 24, 24, 16, 10, 22, 16, 22, 28, 20, 20, 24, 40];
     let xPos = 10;
 
     headers.forEach((header, i) => {
@@ -280,20 +282,20 @@ export default function PrintPayrollPage() {
       doc.text(String(index + 1), xPos, yPos + 4.2);
       xPos += colWidths[0];
 
-      const empName = record.employee.fullName.length > 22 
-        ? record.employee.fullName.substring(0, 22) + '...' 
+      const empName = record.employee.fullName.length > 25 
+        ? record.employee.fullName.substring(0, 25) + '...' 
         : record.employee.fullName;
       doc.text(empName, xPos, yPos + 4.2);
       xPos += colWidths[1];
 
-      const dept = record.employee.department.length > 16 
-        ? record.employee.department.substring(0, 16) + '...' 
+      const dept = record.employee.department.length > 15 
+        ? record.employee.department.substring(0, 15) + '...' 
         : record.employee.department;
       doc.text(dept, xPos, yPos + 4.2);
       xPos += colWidths[2];
 
-      const pos = record.employee.position.length > 17 
-        ? record.employee.position.substring(0, 17) + '...' 
+      const pos = record.employee.position.length > 15 
+        ? record.employee.position.substring(0, 15) + '...' 
         : record.employee.position;
       doc.text(pos, xPos, yPos + 4.2);
       xPos += colWidths[3];
@@ -311,18 +313,32 @@ export default function PrintPayrollPage() {
       xPos += colWidths[6];
 
       doc.text(formatCurrency(record.otPay || 0), xPos, yPos + 4.2);
-      xPos += colWidths[6];
-
-      doc.text(formatCurrency(record.holidayPay || 0), xPos, yPos + 4.2);
       xPos += colWidths[7];
 
-      doc.text(formatCurrency(record.grossPay), xPos, yPos + 4.2);
+      doc.text(formatCurrency(record.holidayPay || 0), xPos, yPos + 4.2);
       xPos += colWidths[8];
 
-      doc.setTextColor(180, 0, 0);
-      doc.text(`(${formatCurrency(record.totalDeductions)})`, xPos, yPos + 4.2);
-      doc.setTextColor(0, 0, 0);
+      doc.text(formatCurrency(record.grossPay), xPos, yPos + 4.2);
       xPos += colWidths[9];
+
+      const lateDed = record.lateDeduction || 0;
+      const cashAdv = record.cashAdvanceDeduction || 0;
+      const otherDed = record.totalDeductions - lateDed - cashAdv;
+
+      doc.setTextColor(180, 0, 0);
+      doc.text(formatCurrency(lateDed), xPos, yPos + 4.2);
+      doc.setTextColor(0, 0, 0);
+      xPos += colWidths[10];
+
+      doc.setTextColor(180, 0, 0);
+      doc.text(formatCurrency(cashAdv), xPos, yPos + 4.2);
+      doc.setTextColor(0, 0, 0);
+      xPos += colWidths[11];
+
+      doc.setTextColor(140, 0, 0);
+      doc.text(formatCurrency(Math.max(otherDed, 0)), xPos, yPos + 4.2);
+      doc.setTextColor(0, 0, 0);
+      xPos += colWidths[12];
 
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 100, 0);
@@ -343,7 +359,10 @@ export default function PrintPayrollPage() {
     const totalOtPay = recordsToPrint.reduce((sum, r) => sum + (r.otPay || 0), 0);
     const totalHolidayPay = recordsToPrint.reduce((sum, r) => sum + (r.holidayPay || 0), 0);
     const totalGross = recordsToPrint.reduce((sum, r) => sum + r.grossPay, 0);
-    const totalDeductions = recordsToPrint.reduce((sum, r) => sum + r.totalDeductions, 0);
+    const totalLateDed = recordsToPrint.reduce((sum, r) => sum + (r.lateDeduction || 0), 0);
+    const totalCashAdv = recordsToPrint.reduce((sum, r) => sum + (r.cashAdvanceDeduction || 0), 0);
+    const totalOtherDed = totalLateDed + totalCashAdv;
+    const totalOtherDeductions = recordsToPrint.reduce((sum, r) => sum + r.totalDeductions, 0) - totalOtherDed;
     const totalNet = recordsToPrint.reduce((sum, r) => sum + r.netPay, 0);
 
 xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
@@ -358,8 +377,12 @@ xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
     xPos += colWidths[8];
     doc.text(formatCurrency(totalGross), xPos, yPos + 4.5);
     xPos += colWidths[9];
-    doc.text(`(${formatCurrency(totalDeductions)})`, xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalLateDed), xPos, yPos + 4.5);
     xPos += colWidths[10];
+    doc.text(formatCurrency(totalCashAdv), xPos, yPos + 4.5);
+    xPos += colWidths[11];
+    doc.text(formatCurrency(Math.max(totalOtherDeductions, 0)), xPos, yPos + 4.5);
+    xPos += colWidths[12];
     doc.text(formatCurrency(totalNet), xPos, yPos + 4.5);
 
     yPos = pageHeight - 80;
