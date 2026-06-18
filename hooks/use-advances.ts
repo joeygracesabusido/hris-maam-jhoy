@@ -57,7 +57,7 @@ export function useUpdateAdvance() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Advance> }) =>
-      api.patch<Advance>(`/api/advances/${id}`, data),
+      api.patch<Advance>('/api/advances', { ...data, id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.advances.lists() })
       queryClient.invalidateQueries({ queryKey: queryKeys.advances.details() })
