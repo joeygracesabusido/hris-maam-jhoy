@@ -234,8 +234,8 @@ useEffect(() => {
         const dist = calculateDistance(
           userLocation.lat,
           userLocation.lon,
-          loc.lat,
-          loc.lon
+          loc.latitude,
+          loc.longitude
         );
         newDistances.set(loc.id, dist);
         if (dist < minDistance) {
@@ -247,7 +247,7 @@ useEffect(() => {
       setDistances(newDistances);
       const anyInRange = officeLocations.some(loc => {
         const dist = newDistances.get(loc.id) || Infinity;
-        return dist <= loc.rangeMeters;
+        return dist <= loc.radius;
       });
       setWithinRange(anyInRange);
       setClosestLocation(minDistance !== Infinity ? { name: closestName, distance: minDistance } : null);
@@ -1171,13 +1171,13 @@ useEffect(() => {
                     <div className="space-y-1">
                       {officeLocations.map((loc) => {
                         const dist = distances.get(loc.id);
-                        const inRange = dist !== undefined && dist <= loc.rangeMeters;
+                        const inRange = dist !== undefined && dist <= loc.radius;
                         return (
                           <div key={loc.id} className="flex items-center gap-1">
                             <span className={inRange ? 'text-green-600' : 'text-red-600'}>
                               {inRange ? '✓' : '✗'}
                             </span>
-                            <span>{loc.name}: {Math.round(dist || 0)}m / {loc.rangeMeters}m</span>
+                            <span>{loc.name}: {Math.round(dist || 0)}m / {loc.radius}m</span>
                           </div>
                         );
                       })}

@@ -16,9 +16,9 @@ export interface TimeLog {
 export interface OfficeLocation {
   id: string
   name: string
-  lat: number
-  lon: number
-  rangeMeters: number
+  latitude: number
+  longitude: number
+  radius: number
   isActive: boolean
 }
 
