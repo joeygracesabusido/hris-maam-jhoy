@@ -12,56 +12,31 @@ import { calculateDepreciation } from '@/lib/depreciation';
 import * as XLSX from 'xlsx';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { useAssets, useDeleteAsset } from '@/hooks/use-assets';
 
 export default function AssetListPage() {
   const router = useRouter();
-  const [assets, setAssets] = useState<{
-    id: string;
-    assetCode: string;
-    name: string;
-    purchaseCost: number;
-    residualValue: number;
-    usefulLife: number;
-    purchaseDate: string;
-    depreciationMethod: string;
-    category?: { name: string };
-    location: string;
-    quantity?: number;
-    status: string;
-    supplier?: string;
-  }[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [deleting, setDeleting] = useState<string | null>(null);
   const { selectedBranch } = useBranch();
   const itemsPerPage = 10;
 
+  const params = selectedBranch ? { branchId: selectedBranch.id } : undefined;
+  const { data: rawAssets, isLoading: loading } = useAssets(params);
+  const assets = (rawAssets || []) as any[];
+  const deleteAsset = useDeleteAsset();
+
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this asset?')) return;
-    
     setDeleting(id);
     try {
-      const res = await fetch(`/api/assets?id=${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setAssets(assets.filter(a => a.id !== id));
-      } else {
-        alert('Failed to delete asset');
-      }
+      await deleteAsset.mutateAsync(id);
     } catch {
       alert('Error deleting asset');
     }
     setDeleting(null);
   };
-
-  useEffect(() => {
-    fetch(`/api/assets${selectedBranch ? `?branchId=${selectedBranch.id}` : ''}`)
-      .then(res => res.json())
-      .then(data => {
-        setAssets(data || []);
-        setLoading(false);
-      });
-  }, [selectedBranch]);
 
   useEffect(() => {
     setCurrentPage(1);

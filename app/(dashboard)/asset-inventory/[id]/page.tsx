@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,49 +8,18 @@ import { Badge } from '@/components/ui/badge';
 import { calculateDepreciation } from '@/lib/depreciation';
 import { ArrowLeft, Pencil } from 'lucide-react';
 import { useBranch } from '@/lib/branch-context';
+import { useAsset } from '@/hooks/use-assets';
 
-export default function AssetDetailsPage({ params }: { params: { id: string } }) {
+export default function AssetDetailsPage() {
   const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
   const { selectedBranch } = useBranch();
-  const [asset, setAsset] = useState<{
-    id: string;
-    assetCode: string;
-    name: string;
-    purchaseCost: number;
-    residualValue: number;
-    usefulLife: number;
-    purchaseDate: string;
-    depreciationMethod: string;
-    category?: { name: string };
-    location: string;
-    brand?: string;
-    quantity?: number;
-    status: string;
-    assignedTo?: { fullName: string };
-    supplier?: string;
-    description?: string;
-    transactions: Array<{
-      id: string;
-      date: string;
-      type: string;
-      notes?: string;
-      cost?: number;
-    }>;
-    error?: string;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch(`/api/assets/${params.id}${selectedBranch ? `?branchId=${selectedBranch.id}` : ''}`)
-      .then(res => res.json())
-      .then(data => {
-        setAsset(data);
-        setLoading(false);
-      });
-  }, [params.id, selectedBranch]);
+  const { data: rawAsset, isLoading: loading } = useAsset(id);
+  const asset = rawAsset as any;
 
   if (loading) return <div className="p-8 text-center text-lg">Loading...</div>;
-  if (!asset || asset.error) return <div className="p-8 text-center text-lg text-red-500">Asset not found</div>;
+  if (!asset) return <div className="p-8 text-center text-lg text-red-500">Asset not found</div>;
 
   const { accumulatedDepreciation, netBookValue } = calculateDepreciation({
     purchaseCost: asset.purchaseCost,
@@ -70,7 +38,7 @@ export default function AssetDetailsPage({ params }: { params: { id: string } })
           </Button>
           <h1 className="text-3xl font-bold">{asset.name}</h1>
           <Badge className="text-sm bg-blue-100 text-blue-800">{asset.assetCode}</Badge>
-          <Button variant="outline" size="sm" className="ml-4" onClick={() => router.push(`/asset-inventory/${params.id}/edit`)}>
+          <Button variant="outline" size="sm" className="ml-4" onClick={() => router.push(`/asset-inventory/${id}/edit`)}>
             <Pencil className="w-4 h-4 mr-2" />
             Edit Asset
           </Button>
@@ -166,7 +134,7 @@ export default function AssetDetailsPage({ params }: { params: { id: string } })
                   <TableCell colSpan={4} className="text-center py-4 text-slate-500">No transactions found.</TableCell>
                 </TableRow>
               ) : (
-                asset.transactions.map((txn) => (
+                asset.transactions.map((txn: any) => (
                   <TableRow key={txn.id}>
                     <TableCell className="whitespace-nowrap">{new Date(txn.date).toLocaleString()}</TableCell>
                     <TableCell><Badge variant="outline">{txn.type}</Badge></TableCell>

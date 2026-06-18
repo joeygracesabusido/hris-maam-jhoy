@@ -3,6 +3,9 @@
 
 import { useState, useEffect } from 'react';
 import { Calculator, DollarSign, Clock, CalendarDays, CheckCircle, FileText, Download, Printer, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { usePayrollRecords, useComputePayroll } from '@/hooks/use-payroll';
+import { useEmployees } from '@/hooks/use-employees';
+import { api } from '@/lib/api-client';
 
 interface Employee {
   id: string;
@@ -102,9 +105,12 @@ interface PayrollResult {
 }
 
 export default function PayrollPage() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const employeesQuery = useEmployees();
+  const employees = (employeesQuery.data ?? []) as unknown as Employee[];
+  const loading = employeesQuery.isLoading;
+  const payrollRecordsQuery = usePayrollRecords();
+  const payrollRecords = (payrollRecordsQuery.data ?? []) as unknown as PayrollRecord[];
+  const computePayroll = useComputePayroll();
   const [computing, setComputing] = useState(false);
   const [result, setResult] = useState<PayrollResult | null>(null);
   const [error, setError] = useState('');
@@ -152,54 +158,6 @@ export default function PayrollPage() {
     );
   });
 
-  const fetchEmployees = async (userEmail: string) => {
-    try {
-      const res = await fetch('/api/employees', { credentials: 'include' });
-      
-      if (!res.ok) {
-        console.error('Failed to fetch employees, status:', res.status);
-        setLoading(false);
-        return;
-      }
-      
-      const text = await res.text();
-      if (!text) {
-        console.error('Empty response from employees API');
-        setLoading(false);
-        return;
-      }
-      
-      const data = JSON.parse(text);
-      console.log('Employees response:', data);
-      if (Array.isArray(data)) {
-        setEmployees(data);
-        const currentUserEmployee = data.find((emp: Employee) => emp.email === userEmail);
-        if (currentUserEmployee) {
-          setUserEmployeeId(currentUserEmployee.id);
-        }
-      } else if (data.error) {
-        console.error('Error fetching employees:', data.error);
-      }
-    } catch (err) {
-      console.error('Failed to fetch employees:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchPayrollRecords = async () => {
-    try {
-      const res = await fetch('/api/payroll', { credentials: 'include' });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setPayrollRecords(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch payroll records:', err);
-    }
-  };
-
   useEffect(() => {
     setMounted(true);
     if (typeof document === 'undefined') return;
@@ -215,9 +173,23 @@ export default function PayrollPage() {
     const role = cookies.userRole || '';
     const email = cookies.userEmail || '';
     setUserRole(role);
-    fetchEmployees(email);
-    fetchPayrollRecords();
   }, []);
+
+  // Set userEmployeeId once employees load for EMPLOYEE role
+  useEffect(() => {
+    if (userRole === 'EMPLOYEE' && employees.length > 0) {
+      const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+        const [key, value] = cookie.trim().split('=');
+        acc[key] = value;
+        return acc;
+      }, {} as Record<string, string>);
+      const email = cookies.userEmail || '';
+      const currentUserEmployee = employees.find((emp: Employee) => emp.email === email);
+      if (currentUserEmployee) {
+        setUserEmployeeId(currentUserEmployee.id);
+      }
+    }
+  }, [userRole, employees]);
 
   if (!mounted) return null;
 
@@ -239,26 +211,7 @@ export default function PayrollPage() {
     };
 
     try {
-      const res = await fetch('/api/payroll', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      });
-
-      const text = await res.text();
-      if (!text) {
-        setError('Empty response from server');
-        setComputing(false);
-        return;
-      }
-
-      const data = JSON.parse(text);
-
-      if (!res.ok) {
-        setError(data.error || 'Failed to compute payroll');
-        return;
-      }
+      const data: any = await api.post('/api/payroll', payload);
 
       if (isAllEmployees) {
         setResult({
@@ -287,7 +240,6 @@ export default function PayrollPage() {
             netPay: 0,
           },
         } as unknown as PayrollResult);
-        fetchPayrollRecords();
       } else {
         setResult(data);
       }
@@ -518,18 +470,7 @@ export default function PayrollPage() {
     }
 
     try {
-      const res = await fetch(`/api/payroll?id=${payrollId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        alert(data.error || 'Failed to delete payroll');
-        return;
-      }
-
-      fetchPayrollRecords();
+      await api.delete(`/api/payroll?id=${payrollId}`);
     } catch (err) {
       console.error('Delete payroll error:', err);
       alert('Failed to delete payroll');

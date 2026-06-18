@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api-client';
+import { useLeaveBalance } from '@/hooks/use-leaves';
+import type { LeaveBalance as HookLeaveBalance } from '@/hooks/use-leaves';
 import { RefreshCw, PlusCircle, MinusCircle, Settings, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns/format';
 import type { LeaveCredit, LeaveCreditTransaction } from '@/types';
@@ -24,7 +28,6 @@ interface LeaveCreditWithTransactions extends LeaveCredit {
 
 export default function LeaveCreditsPage() {
   const [credits, setCredits] = useState<LeaveCreditWithTransactions[]>([]);
-  const [balance, setBalance] = useState<LeaveCreditBalance | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
@@ -33,25 +36,16 @@ export default function LeaveCreditsPage() {
   const [accruing, setAccruing] = useState(false);
   const [accrualResult, setAccrualResult] = useState<{ successful: number; failed: number } | null>(null);
 
-  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+  const { data: _balance, isLoading: balanceLoading } = useLeaveBalance();
+  const balance = _balance as unknown as LeaveCreditBalance | null;
+  const queryClient = useQueryClient();
 
-  const fetchBalance = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/leave-credits/balance?year=${selectedYear}`, { credentials: 'include' });
-      const data = await res.json();
-      if (data && !data.error) {
-        setBalance(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch balance:', err);
-    }
-  }, [selectedYear]);
+  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   const fetchCredits = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/leave-credits?year=${selectedYear}`, { credentials: 'include' });
-      const data = await res.json();
+      const data = await api.get<LeaveCreditWithTransactions[]>(`/api/leave-credits?year=${selectedYear}`);
       if (Array.isArray(data)) {
         setCredits(data);
       }
@@ -83,26 +77,20 @@ export default function LeaveCreditsPage() {
       return;
     }
     setUserRole(role);
-    fetchBalance();
     fetchCredits();
-  }, [fetchBalance, fetchCredits]);
+  }, [fetchCredits]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchBalance(), fetchCredits()]);
+    await fetchCredits();
     setRefreshing(false);
   };
 
   const handleYearChange = async (year: number) => {
     setSelectedYear(year);
     try {
-      const [balanceRes, creditsRes] = await Promise.all([
-        fetch(`/api/leave-credits/balance?year=${year}`, { credentials: 'include' }),
-        fetch(`/api/leave-credits?year=${year}`, { credentials: 'include' })
-      ]);
-      const [balanceData, creditsData] = await Promise.all([balanceRes.json(), creditsRes.json()]);
-      if (balanceData && !balanceData.error) setBalance(balanceData);
-      if (Array.isArray(creditsData)) setCredits(creditsData);
+      const data = await api.get<LeaveCreditWithTransactions[]>(`/api/leave-credits?year=${year}`);
+      if (Array.isArray(data)) setCredits(data);
     } catch (err) {
       console.error('Failed to fetch data:', err);
     }
@@ -112,17 +100,11 @@ export default function LeaveCreditsPage() {
     setAccruing(true);
     setAccrualResult(null);
     try {
-      const res = await fetch('/api/leave-credits/accrue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ year: selectedYear }),
-      });
-      const data = await res.json();
+      const data = await api.post<{ summary?: { successful: number; failed: number } }>('/api/leave-credits/accrue', { year: selectedYear });
       if (data.summary) {
         setAccrualResult({ successful: data.summary.successful, failed: data.summary.failed });
       }
-      await fetchBalance();
+      queryClient.invalidateQueries({ queryKey: ['leaves', 'balance'] });
       await fetchCredits();
     } catch (err) {
       console.error('Failed to run accrual:', err);

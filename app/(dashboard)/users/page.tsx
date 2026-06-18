@@ -1,44 +1,34 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useUsers, useUpdateUser } from '@/hooks/use-users';
+import type { User as HookUser } from '@/hooks/use-users';
 import { Check, X, Clock, UserCheck, UserX, Shield, Briefcase, Users, UserCog } from 'lucide-react';
 
 type UserRole = 'ADMIN' | 'HR' | 'MANAGER' | 'EMPLOYEE';
 
-interface User {
-  id: string;
+interface User extends Omit<HookUser, 'role'> {
   username: string;
-  email: string;
-  name: string | null;
   role: UserRole;
   status: string;
   createdAt: string;
 }
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [mounted, setMounted] = useState(false);
   const [userRole, setUserRole] = useState('');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [newRole, setNewRole] = useState<UserRole>('EMPLOYEE');
 
-  const fetchUsers = async () => {
-    try {
-      const res = await fetch('/api/users', { credentials: 'include' });
-      const data = await res.json();
-      setUsers(data);
-    } catch (error) {
-      console.error('Failed to fetch users:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: _usersData = [], isLoading } = useUsers();
+  const users = _usersData as User[];
+  const updateUser = useUpdateUser();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setMounted(true);
-    fetchUsers();
 
     const cookies = document.cookie.split(';').reduce((acc, cookie) => {
       const [key, value] = cookie.trim().split('=');
@@ -53,17 +43,7 @@ export default function UsersPage() {
 
   const handleStatusChange = async (userId: string, status: string) => {
     try {
-      const res = await fetch('/api/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, status }),
-      });
-
-      if (res.ok) {
-        setUsers(users.map(user => 
-          user.id === userId ? { ...user, status } : user
-        ));
-      }
+      await updateUser.mutateAsync({ id: userId, data: { status } as Partial<User> });
     } catch (error) {
       console.error('Failed to update user:', error);
     }
@@ -71,18 +51,8 @@ export default function UsersPage() {
 
   const handleRoleUpdate = async (userId: string) => {
     try {
-      const res = await fetch('/api/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, role: newRole }),
-      });
-
-      if (res.ok) {
-        setUsers(users.map(user => 
-          user.id === userId ? { ...user, role: newRole } : user
-        ));
-        setEditingUserId(null);
-      }
+      await updateUser.mutateAsync({ id: userId, data: { role: newRole } as Partial<User> });
+      setEditingUserId(null);
     } catch (error) {
       console.error('Failed to update role:', error);
     }
@@ -230,7 +200,7 @@ export default function UsersPage() {
 
       {/* Users Table */}
       <div className="bg-white rounded-xl border overflow-hidden">
-        {loading ? (
+        {isLoading ? (
           <div className="p-8 text-center text-gray-500">Loading...</div>
         ) : filteredUsers.length === 0 ? (
           <div className="p-8 text-center text-gray-500">No users found</div>

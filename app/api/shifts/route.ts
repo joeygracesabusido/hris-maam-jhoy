@@ -55,3 +55,63 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to create shift', details: errorMessage }, { status: 500 });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, name, startTime, endTime, color, isOff, gracePeriodMinutes } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Shift id is required' }, { status: 400 });
+    }
+
+    const existing = await prisma.shift.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Shift not found' }, { status: 404 });
+    }
+
+    const shift = await prisma.shift.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(startTime !== undefined && { startTime }),
+        ...(endTime !== undefined && { endTime }),
+        ...(color !== undefined && { color }),
+        ...(isOff !== undefined && { isOff }),
+        ...(gracePeriodMinutes !== undefined && { gracePeriodMinutes }),
+      },
+    });
+
+    return NextResponse.json(shift);
+  } catch (error: unknown) {
+    console.error('[Shifts API] PATCH Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = error instanceof Error ? (error as { code?: string }).code : undefined;
+    if (errorCode === 'P2002') {
+      return NextResponse.json({ error: 'A shift with this name already exists' }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Failed to update shift', details: errorMessage }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Shift id is required' }, { status: 400 });
+    }
+
+    const existing = await prisma.shift.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Shift not found' }, { status: 404 });
+    }
+
+    await prisma.shift.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    console.error('[Shifts API] DELETE Error:', error);
+    return NextResponse.json({ error: 'Failed to delete shift' }, { status: 500 });
+  }
+}

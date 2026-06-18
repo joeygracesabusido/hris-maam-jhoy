@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { Plus, Search, DollarSign, Clock, ArrowLeft, Trash2, Pencil } from 'lucide-react';
 import { format } from 'date-fns/format';
 import Link from 'next/link';
+import { useAdvances, useCreateAdvance, useUpdateAdvance } from '@/hooks/use-advances';
+import { useEmployees } from '@/hooks/use-employees';
+import { api } from '@/lib/api-client';
 
 interface Employee {
   id: string;
@@ -39,9 +42,13 @@ interface Advance {
 }
 
 export default function AdvancesPage() {
-  const [advances, setAdvances] = useState<Advance[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
+  const advancesQuery = useAdvances();
+  const advances = (advancesQuery.data ?? []) as unknown as Advance[];
+  const loading = advancesQuery.isLoading;
+  const employeesQuery = useEmployees();
+  const employees = (employeesQuery.data ?? []) as unknown as Employee[];
+  const createAdvance = useCreateAdvance();
+  const updateAdvance = useUpdateAdvance();
   const [showModal, setShowModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -68,35 +75,6 @@ export default function AdvancesPage() {
     reference: '',
   });
 
-  useEffect(() => {
-    fetchAdvances();
-    fetchEmployees();
-  }, []);
-
-  const fetchAdvances = async () => {
-    try {
-      const res = await fetch('/api/advances', { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch advances');
-      const data: Advance[] = await res.json();
-      setAdvances(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchEmployees = async () => {
-    try {
-      const res = await fetch('/api/employees', { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch employees');
-      const data: Employee[] = await res.json();
-      setEmployees(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -107,16 +85,7 @@ export default function AdvancesPage() {
     }
 
     try {
-      const res = await fetch('/api/advances', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().then(d => d as { error?: string; details?: string });
-        throw new Error(data.details ? `${data.error}: ${data.details}` : (data.error || 'Failed to create advance'));
-      }
+      await createAdvance.mutateAsync(formData as never);
 
       alert('Advance record created successfully!');
       setShowModal(false);
@@ -129,7 +98,6 @@ export default function AdvancesPage() {
         reference: '' 
       });
       setEmployeeSearch('');
-      fetchAdvances();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
@@ -139,9 +107,7 @@ export default function AdvancesPage() {
     if (!confirm('Are you sure you want to delete this advance record?')) return;
 
     try {
-      const res = await fetch(`/api/advances?id=${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete advance');
-      fetchAdvances();
+      await api.delete(`/api/advances?id=${id}`);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'An unknown error occurred');
     }
@@ -176,21 +142,19 @@ export default function AdvancesPage() {
     }
 
     try {
-      const res = await fetch('/api/advances', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editFormData),
+      await updateAdvance.mutateAsync({
+        id: editFormData.id,
+        data: {
+          totalAmount: parseFloat(editFormData.totalAmount),
+          deductionAmount: parseFloat(editFormData.deductionAmount),
+          date: editFormData.date,
+          reference: editFormData.reference,
+        } as never,
       });
-
-      if (!res.ok) {
-        const data = await res.json().then(d => d as { error?: string });
-        throw new Error(data.error || 'Failed to update advance');
-      }
 
       alert('Advance updated successfully!');
       setShowEditModal(false);
       setEditFormData({ id: '', deductionAmount: '', totalAmount: '', date: '', reference: '' });
-      fetchAdvances();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
@@ -198,9 +162,7 @@ export default function AdvancesPage() {
 
   const fetchAdvanceDetails = async (id: string) => {
     try {
-      const res = await fetch(`/api/advances?id=${id}`);
-      if (!res.ok) throw new Error('Failed to fetch details');
-      const data: Advance = await res.json();
+      const data = await api.get<Advance>(`/api/advances?id=${id}`);
       setSelectedAdvance(data);
       setShowDetails(true);
     } catch (err) {

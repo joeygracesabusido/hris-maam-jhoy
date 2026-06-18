@@ -308,3 +308,46 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Expense ID is required' }, { status: 400 });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const expense = await tx.expense.findUnique({
+        where: { id },
+        include: { items: true },
+      });
+
+      if (!expense) {
+        throw new Error('Expense not found');
+      }
+
+      // Delete the linked journal entry first (cascades to journal lines via onDelete: Cascade).
+      // ExpenseItem is also deleted automatically via onDelete: Cascade.
+      if (expense.journalEntryId) {
+        await tx.journalEntry.delete({
+          where: { id: expense.journalEntryId },
+        });
+      }
+
+      // Delete the expense (cascades to ExpenseItem)
+      const deletedExpense = await tx.expense.delete({
+        where: { id },
+      });
+
+      return deletedExpense;
+    });
+
+    return NextResponse.json({ success: true, deleted: result });
+  } catch (error) {
+    console.error('Error deleting expense:', error);
+    const message = error instanceof Error ? error.message : 'Failed to delete expense';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}

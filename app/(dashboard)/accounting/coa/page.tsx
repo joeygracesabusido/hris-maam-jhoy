@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,10 +13,9 @@ import { Plus, Search, FolderTree, Pencil, Database, Download } from 'lucide-rea
 import * as XLSX from 'xlsx';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { useAccounts, useCreateAccount, useUpdateAccount } from '@/hooks/use-accounting';
 
 export default function ChartOfAccountsPage() {
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<any>(null);
@@ -35,48 +34,19 @@ export default function ChartOfAccountsPage() {
     beginningBalance: 0,
   });
   const { selectedBranch } = useBranch();
-
-  useEffect(() => {
-    fetchAccounts();
-  }, [selectedBranch]);
-
-  async function fetchAccounts() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (selectedBranch) params.set('branchId', selectedBranch.id);
-      const res = await fetch(`/api/accounting/accounts?${params}`);
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setAccounts(data);
-      } else {
-        setAccounts([]);
-      }
-    } catch (err) {
-      console.error('Error fetching accounts:', err);
-      setAccounts([]);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const params: Record<string, string> = {};
+  if (selectedBranch) params.branchId = selectedBranch.id;
+  const { data: _accounts, isLoading: loading } = useAccounts(params);
+  const accounts = (_accounts as any[]) || [];
+  const createAccount = useCreateAccount();
+  const updateAccount = useUpdateAccount();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const res = await fetch('/api/accounting/accounts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      if (res.ok) {
-        setCreateDialogOpen(false);
-        resetForm();
-        fetchAccounts();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create account');
-      }
+      await createAccount.mutateAsync(formData);
+      setCreateDialogOpen(false);
+      resetForm();
     } catch (err) {
       console.error('Error creating account:', err);
     }
@@ -87,24 +57,13 @@ export default function ChartOfAccountsPage() {
     if (!editingAccount) return;
 
     try {
-      const res = await fetch('/api/accounting/accounts', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingAccount.id,
-          ...formData,
-        }),
+      await updateAccount.mutateAsync({
+        id: editingAccount.id,
+        data: formData,
       });
-
-      if (res.ok) {
-        setEditDialogOpen(false);
-        setEditingAccount(null);
-        resetForm();
-        fetchAccounts();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update account');
-      }
+      setEditDialogOpen(false);
+      setEditingAccount(null);
+      resetForm();
     } catch (err) {
       console.error('Error updating account:', err);
     }
@@ -185,10 +144,10 @@ export default function ChartOfAccountsPage() {
     URL.revokeObjectURL(url);
   }
 
-  const filteredAccounts = Array.isArray(accounts) ? accounts.filter(acc =>
+  const filteredAccounts = accounts.filter(acc =>
     acc.name.toLowerCase().includes(search.toLowerCase()) ||
     acc.code.toLowerCase().includes(search.toLowerCase())
-  ) : [];
+  );
 
   return (
     <div className="space-y-6">

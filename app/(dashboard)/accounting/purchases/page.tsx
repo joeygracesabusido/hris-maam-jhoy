@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Plus, Search, Trash2, Edit, DollarSign, History } from 'lucide-react';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { api } from '@/lib/api-client';
+import { usePurchases, useAccounts, useVendors, useCreatePurchase, useUpdatePurchase } from '@/hooks/use-accounting';
 
 interface Vendor {
   id: string;
@@ -20,9 +22,6 @@ interface Vendor {
 
 export default function PurchasesPage() {
   const { selectedBranch, branches } = useBranch();
-  const [bills, setBills] = useState<any[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -57,7 +56,6 @@ export default function PurchasesPage() {
   const [payingBill, setPayingBill] = useState<any>(null);
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
-  const [cashAccounts, setCashAccounts] = useState<any[]>([]);
   const [editingPayment, setEditingPayment] = useState<any>(null);
   const [isPaymentEditDialogOpen, setIsPaymentEditDialogOpen] = useState(false);
   const [deleteConfirmPayment, setDeleteConfirmPayment] = useState<any>(null);
@@ -72,9 +70,24 @@ export default function PurchasesPage() {
     setEditingBill(null);
   }
 
+  const params: Record<string, string> = {};
+  if (selectedBranch) params.branchId = selectedBranch.id;
+  const { data: _bills, isLoading: loading } = usePurchases(params);
+  const bills = (_bills as any[]) || [];
+  const { data: allAccounts = [] } = useAccounts();
+  const accounts = allAccounts;
+  const cashAccounts = allAccounts
+    .filter((a: any) => a.type === 'ASSET' && a.code.startsWith('11'))
+    .sort((a: any, b: any) => a.code.localeCompare(b.code));
+  const createPurchase = useCreatePurchase();
+  const updatePurchase = useUpdatePurchase();
+  const { data: _vendors } = useVendors();
+
   useEffect(() => {
-    fetchData();
-  }, [selectedBranch]);
+    if (_vendors && Array.isArray(_vendors)) {
+      setVendors(_vendors as Vendor[]);
+    }
+  }, [_vendors]);
 
   useEffect(() => {
     if (isDialogOpen && selectedBranch) {
@@ -82,43 +95,12 @@ export default function PurchasesPage() {
     }
   }, [isDialogOpen, selectedBranch]);
 
-  async function fetchData() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (selectedBranch) params.append('branchId', selectedBranch.id);
-      const [billsRes, accRes] = await Promise.all([
-        fetch(`/api/accounting/purchases?${params.toString()}`),
-        fetch('/api/accounting/accounts'),
-      ]);
-      const billsData = billsRes.ok ? await billsRes.json() : [];
-      const accountsData = accRes.ok ? await accRes.json() : [];
-      
-      setBills(Array.isArray(billsData) ? billsData : []);
-      setAccounts(Array.isArray(accountsData) ? accountsData : []);
-      
-      if (Array.isArray(accountsData)) {
-        const cashAccts = accountsData
-          .filter((a: any) => a.type === 'ASSET' && a.code.startsWith('11'))
-          .sort((a: any, b: any) => a.code.localeCompare(b.code));
-        setCashAccounts(cashAccts);
-      }
-    } catch (err) {
-      console.error('Error fetching bills:', err);
-      setBills([]);
-      setAccounts([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function fetchVendors() {
     setIsVendorsLoading(true);
     try {
-      const res = await fetch('/api/accounting/vendors');
-      const data = await res.json() as Vendor[];
-      if (Array.isArray(data)) {
-        setVendors(data);
+      const res = await api.get<Vendor[]>('/api/accounting/vendors');
+      if (Array.isArray(res)) {
+        setVendors(res);
       } else {
         setVendors([]);
       }
@@ -262,16 +244,8 @@ export default function PurchasesPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/accounting/purchases?id=${bill.id}&action=reset`, {
-        method: 'PUT',
-      });
-      if (res.ok) {
-        alert('Bill has been reset to UNPAID');
-        fetchData();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to reset bill');
-      }
+      await api.patch(`/api/accounting/purchases?id=${bill.id}`, { action: 'reset' });
+      alert('Bill has been reset to UNPAID');
     } catch (err) {
       console.error('Error resetting bill:', err);
       alert('Failed to reset bill');
@@ -297,9 +271,8 @@ export default function PurchasesPage() {
 
   async function fetchPayments(billId: string) {
     try {
-      const res = await fetch(`/api/accounting/payments?billId=${billId}`);
-      if (!res.ok) throw new Error(`Failed to fetch payments: ${res.status}`);
-      setPayments(await res.json());
+      const data = await api.get<any[]>(`/api/accounting/payments?billId=${billId}`);
+      setPayments(data);
     } catch (err) {
       console.error('Error fetching payments:', err);
     }
@@ -309,35 +282,25 @@ export default function PurchasesPage() {
     e.preventDefault();
     if (!payingBill) return;
     try {
-      const res = await fetch('/api/accounting/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          billId: payingBill.id,
-          amount: parseFloat(payFormData.amount),
-          paymentDate: payFormData.paymentDate,
-          referenceNumber: payFormData.referenceNumber,
-          notes: payFormData.notes,
-          cashAccountId: payFormData.cashAccountId,
-          branchId: selectedBranch?.id,
-        }),
+      await api.post('/api/accounting/payments', {
+        billId: payingBill.id,
+        amount: parseFloat(payFormData.amount),
+        paymentDate: payFormData.paymentDate,
+        referenceNumber: payFormData.referenceNumber,
+        notes: payFormData.notes,
+        cashAccountId: payFormData.cashAccountId,
+        branchId: selectedBranch?.id,
       });
-      if (res.ok) {
-        setIsPayDialogOpen(false);
-        setPayingBill(null);
-        setPayments([]);
-        setPayFormData({
-          amount: '',
-          paymentDate: new Date().toISOString().split('T')[0],
-          referenceNumber: '',
-          notes: '',
-          cashAccountId: cashAccounts[0]?.id || '',
-        });
-        fetchData();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to record payment');
-      }
+      setIsPayDialogOpen(false);
+      setPayingBill(null);
+      setPayments([]);
+      setPayFormData({
+        amount: '',
+        paymentDate: new Date().toISOString().split('T')[0],
+        referenceNumber: '',
+        notes: '',
+        cashAccountId: cashAccounts[0]?.id || '',
+      });
     } catch (err) {
       console.error('Error paying bill:', err);
     }
@@ -373,19 +336,11 @@ export default function PurchasesPage() {
   async function handleConfirmDeletePayment() {
     if (!deleteConfirmPayment) return;
     try {
-      const res = await fetch(`/api/accounting/payments?id=${deleteConfirmPayment.id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        setIsDeleteConfirmOpen(false);
-        setDeleteConfirmPayment(null);
-        if (showPaymentHistory && payingBill) {
-          await fetchPayments(payingBill.id);
-          fetchData();
-        }
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to delete payment');
+      await api.delete(`/api/accounting/payments?id=${deleteConfirmPayment.id}`);
+      setIsDeleteConfirmOpen(false);
+      setDeleteConfirmPayment(null);
+      if (showPaymentHistory && payingBill) {
+        await fetchPayments(payingBill.id);
       }
     } catch (err) {
       console.error('Error deleting payment:', err);
@@ -396,35 +351,25 @@ export default function PurchasesPage() {
     e.preventDefault();
     if (!editingPayment) return;
     try {
-      const res = await fetch(`/api/accounting/payments?id=${editingPayment.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: parseFloat(payFormData.amount),
-          paymentDate: payFormData.paymentDate,
-          referenceNumber: payFormData.referenceNumber,
-          notes: payFormData.notes,
-          cashAccountId: payFormData.cashAccountId,
-          branchId: selectedBranch?.id,
-        }),
+      await api.patch(`/api/accounting/payments?id=${editingPayment.id}`, {
+        amount: parseFloat(payFormData.amount),
+        paymentDate: payFormData.paymentDate,
+        referenceNumber: payFormData.referenceNumber,
+        notes: payFormData.notes,
+        cashAccountId: payFormData.cashAccountId,
+        branchId: selectedBranch?.id,
       });
-      if (res.ok) {
-        setIsPaymentEditDialogOpen(false);
-        setEditingPayment(null);
-        setPayFormData({
-          amount: '',
-          paymentDate: new Date().toISOString().split('T')[0],
-          referenceNumber: '',
-          notes: '',
-          cashAccountId: cashAccounts[0]?.id || '',
-        });
-        if (showPaymentHistory && payingBill) {
-          await fetchPayments(payingBill.id);
-          fetchData();
-        }
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update payment');
+      setIsPaymentEditDialogOpen(false);
+      setEditingPayment(null);
+      setPayFormData({
+        amount: '',
+        paymentDate: new Date().toISOString().split('T')[0],
+        referenceNumber: '',
+        notes: '',
+        cashAccountId: cashAccounts[0]?.id || '',
+      });
+      if (showPaymentHistory && payingBill) {
+        await fetchPayments(payingBill.id);
       }
     } catch (err) {
       console.error('Error updating payment:', err);
@@ -434,25 +379,16 @@ export default function PurchasesPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const url = editingBill
-        ? `/api/accounting/purchases?id=${editingBill.id}`
-        : '/api/accounting/purchases';
-      const method = editingBill ? 'PATCH' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, branchId: formData.branchId || selectedBranch?.id || '' }),
-      });
-
-      if (res.ok) {
-        setIsDialogOpen(false);
-        resetForm();
-        fetchData();
+      if (editingBill) {
+        await updatePurchase.mutateAsync({
+          id: editingBill.id,
+          data: { ...formData, branchId: formData.branchId || selectedBranch?.id || '' },
+        });
       } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to save bill');
+        await createPurchase.mutateAsync({ ...formData, branchId: formData.branchId || selectedBranch?.id || '' });
       }
+      setIsDialogOpen(false);
+      resetForm();
     } catch (err) {
       console.error('Error saving bill:', err);
     }

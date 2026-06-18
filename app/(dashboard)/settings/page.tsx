@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { MapPin, Settings, Save, Trash2, Globe, Edit2, Check, X, AlertCircle, Building } from 'lucide-react';
-import { useBranch, Branch } from '@/lib/branch-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { api } from '@/lib/api-client';
+import { useOfficeLocations } from '@/hooks/use-time-logs';
+import { useBranches, useCreateBranch, useUpdateBranch, useDeleteBranch } from '@/hooks/use-branches';
+import type { Branch } from '@/hooks/use-branches';
 
 interface OfficeLocation {
   id: string;
@@ -20,8 +23,6 @@ interface OfficeLocation {
 }
 
 export default function SettingsPage() {
-  const [locations, setLocations] = useState<OfficeLocation[]>([]);
-  const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState('');
   const [mounted, setMounted] = useState(false);
   
@@ -43,7 +44,14 @@ export default function SettingsPage() {
   });
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [branchError, setBranchError] = useState('');
-  const { branches, refreshBranches } = useBranch();
+
+  const { data: rawLocations, isLoading: loading, refetch: refetchLocations } = useOfficeLocations();
+  const locations = (rawLocations || []) as any[];
+  const { data: branchesData } = useBranches();
+  const branches = branchesData || [];
+  const createBranch = useCreateBranch();
+  const updateBranch = useUpdateBranch();
+  const deleteBranch = useDeleteBranch();
 
   useEffect(() => {
     setMounted(true);
@@ -56,25 +64,7 @@ export default function SettingsPage() {
     setUserRole(cookies.userRole || '');
   }, []);
 
-  useEffect(() => {
-    if (mounted && (userRole === 'ADMIN' || userRole === 'HR')) {
-      fetchLocations();
-    }
-  }, [mounted, userRole]);
 
-  const fetchLocations = async () => {
-    try {
-      const res = await fetch('/api/office-location', { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setLocations(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch locations:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleGetCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -105,28 +95,20 @@ export default function SettingsPage() {
     }
 
     try {
-      const res = await fetch('/api/office-location', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newLocation.name,
-          latitude: parseFloat(newLocation.latitude),
-          longitude: parseFloat(newLocation.longitude),
-          radius: parseInt(newLocation.radius),
-        }),
+      await api.post('/api/office-location', {
+        name: newLocation.name,
+        latitude: parseFloat(newLocation.latitude),
+        longitude: parseFloat(newLocation.longitude),
+        radius: parseInt(newLocation.radius),
       });
 
-      if (res.ok) {
-        alert('Office location created successfully');
-        setNewLocation({ name: '', latitude: '', longitude: '', radius: '5' });
-        fetchLocations();
-      } else {
-        const error = await res.json();
-        alert(error.error || 'Failed to create location');
-      }
+      alert('Office location created successfully');
+      setNewLocation({ name: '', latitude: '', longitude: '', radius: '5' });
+      refetchLocations();
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to create location';
       console.error('Error creating location:', error);
-      alert('Failed to create location');
+      alert(msg);
     }
   };
 
@@ -135,47 +117,32 @@ export default function SettingsPage() {
     if (!location) return;
 
     try {
-      const res = await fetch('/api/office-location', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          name: location.name,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          radius: location.radius,
-          isActive: location.isActive,
-        }),
+      await api.patch('/api/office-location', {
+        id,
+        name: location.name,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        radius: location.radius,
+        isActive: location.isActive,
       });
 
-      if (res.ok) {
-        alert('Location updated successfully');
-        setEditingId(null);
-        fetchLocations();
-      } else {
-        const error = await res.json();
-        alert(error.error || 'Failed to update location');
-      }
+      alert('Location updated successfully');
+      setEditingId(null);
+      refetchLocations();
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to update location';
       console.error('Error updating location:', error);
-      alert('Failed to update location');
+      alert(msg);
     }
   };
 
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
     try {
-      const res = await fetch('/api/office-location', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          isActive: !currentStatus,
-        }),
+      await api.patch('/api/office-location', {
+        id,
+        isActive: !currentStatus,
       });
-
-      if (res.ok) {
-        fetchLocations();
-      }
+      refetchLocations();
     } catch (error) {
       console.error('Error toggling location:', error);
     }
@@ -185,20 +152,13 @@ export default function SettingsPage() {
     if (!confirm('Are you sure you want to delete this location?')) return;
 
     try {
-      const res = await fetch(`/api/office-location?id=${id}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        alert('Location deleted successfully');
-        fetchLocations();
-      } else {
-        const error = await res.json();
-        alert(error.error || 'Failed to delete location');
-      }
+      await api.delete(`/api/office-location?id=${id}`);
+      alert('Location deleted successfully');
+      refetchLocations();
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to delete location';
       console.error('Error deleting location:', error);
-      alert('Failed to delete location');
+      alert(msg);
     }
   };
 
@@ -219,30 +179,22 @@ export default function SettingsPage() {
     }
 
     try {
-      const res = await fetch('/api/office-location', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          name: newLocation.name,
-          latitude: parseFloat(newLocation.latitude),
-          longitude: parseFloat(newLocation.longitude),
-          radius: parseInt(newLocation.radius),
-        }),
+      await api.patch('/api/office-location', {
+        id,
+        name: newLocation.name,
+        latitude: parseFloat(newLocation.latitude),
+        longitude: parseFloat(newLocation.longitude),
+        radius: parseInt(newLocation.radius),
       });
 
-      if (res.ok) {
-        alert('Location updated successfully');
-        setEditingId(null);
-        setNewLocation({ name: '', latitude: '', longitude: '', radius: '5' });
-        fetchLocations();
-      } else {
-        const error = await res.json();
-        alert(error.error || 'Failed to update location');
-      }
+      alert('Location updated successfully');
+      setEditingId(null);
+      setNewLocation({ name: '', latitude: '', longitude: '', radius: '5' });
+      refetchLocations();
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to update location';
       console.error('Error updating location:', error);
-      alert('Failed to update location');
+      alert(msg);
     }
   };
 
@@ -253,56 +205,30 @@ export default function SettingsPage() {
     }
     setBranchError('');
     try {
-      const res = await fetch('/api/branches', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(branchForm),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        setBranchError(err.error || 'Failed to create branch');
-        return;
-      }
+      await createBranch.mutateAsync(branchForm);
       setBranchForm({ name: '', code: '', address: '', contactPerson: '', contactPhone: '', contactEmail: '' });
-      await refreshBranches();
-    } catch {
-      setBranchError('Failed to create branch');
+    } catch (err: any) {
+      setBranchError(err?.message || 'Failed to create branch');
     }
   }
 
   async function handleUpdateBranch(id: string) {
     setBranchError('');
     try {
-      const res = await fetch(`/api/branches/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(branchForm),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        setBranchError(err.error || 'Failed to update branch');
-        return;
-      }
+      await updateBranch.mutateAsync({ id, data: branchForm });
       setEditingBranchId(null);
       setBranchForm({ name: '', code: '', address: '', contactPerson: '', contactPhone: '', contactEmail: '' });
-      await refreshBranches();
-    } catch {
-      setBranchError('Failed to update branch');
+    } catch (err: any) {
+      setBranchError(err?.message || 'Failed to update branch');
     }
   }
 
   async function handleDeleteBranch(id: string) {
     if (!confirm('Delete this branch? This cannot be undone if it has transactions.')) return;
     try {
-      const res = await fetch(`/api/branches/${id}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(err.error || 'Failed to delete branch');
-        return;
-      }
-      await refreshBranches();
-    } catch {
-      alert('Failed to delete branch');
+      await deleteBranch.mutateAsync(id);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to delete branch');
     }
   }
 
@@ -310,7 +236,7 @@ export default function SettingsPage() {
     setEditingBranchId(branch.id);
     setBranchForm({
       name: branch.name,
-      code: branch.code,
+      code: branch.code || '',
       address: branch.address || '',
       contactPerson: branch.contactPerson || '',
       contactPhone: branch.contactPhone || '',

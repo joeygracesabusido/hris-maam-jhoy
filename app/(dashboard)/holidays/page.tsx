@@ -1,7 +1,10 @@
 'use client'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useHolidays, useCreateHoliday, useUpdateHoliday, useDeleteHoliday } from '@/hooks/use-holidays'
+import type { Holiday as HookHoliday } from '@/hooks/use-holidays'
 import { Calendar, Plus, Trash2, Edit2, Check, X, AlertCircle, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,10 +15,7 @@ import { Switch } from '@/components/ui/switch'
 import { useBranch } from '@/lib/branch-context'
 import { BranchSelector } from '@/components/branch-selector'
 
-interface Holiday {
-  id: string
-  name: string
-  date: string
+interface Holiday extends Omit<HookHoliday, 'type'> {
   year: number
   type: 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORK'
   branchId: string | null
@@ -23,8 +23,6 @@ interface Holiday {
 }
 
 export default function HolidaysPage() {
-  const [holidays, setHolidays] = useState<Holiday[]>([])
-  const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState('')
   const [mounted, setMounted] = useState(false)
   const [filterYear, setFilterYear] = useState<string>('all')
@@ -40,6 +38,14 @@ export default function HolidaysPage() {
     branchId: '',
   })
 
+  const yearFilter = filterYear !== 'all' ? parseInt(filterYear) : undefined
+  const { data: _holidaysData = [], isLoading } = useHolidays(yearFilter)
+  const holidays = _holidaysData as Holiday[]
+  const createHoliday = useCreateHoliday()
+  const updateHoliday = useUpdateHoliday()
+  const deleteHoliday = useDeleteHoliday()
+  const queryClient = useQueryClient()
+
   useEffect(() => {
     setMounted(true)
     const cookies = document.cookie.split(';').reduce((acc, cookie) => {
@@ -51,31 +57,6 @@ export default function HolidaysPage() {
     setUserRole(cookies.userRole || '')
   }, [])
 
-  const fetchHolidays = useCallback(async () => {
-    try {
-      const params = new URLSearchParams()
-      if (filterYear !== 'all') params.append('year', filterYear)
-      if (filterType !== 'all') params.append('type', filterType)
-      if (selectedBranch) params.append('branchId', selectedBranch.id)
-
-      const res = await fetch(`/api/holidays?${params}`)
-      if (res.ok) {
-        const data = await res.json()
-        setHolidays(data)
-      }
-    } catch (error) {
-      console.error('Failed to fetch holidays:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [filterYear, filterType, selectedBranch]);
-
-  useEffect(() => {
-    if (mounted) {
-      fetchHolidays()
-    }
-  }, [mounted, fetchHolidays]);
-
   const handleCreateHoliday = async () => {
     if (!newHoliday.name || !newHoliday.date) {
       alert('Please fill in all fields')
@@ -83,67 +64,39 @@ export default function HolidaysPage() {
     }
 
     try {
-      const res = await fetch('/api/holidays', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...newHoliday,
-          branchId: selectedBranch?.id || null,
-        }),
-      })
-
-      if (res.ok) {
-        alert('Holiday created successfully')
-        setNewHoliday({ name: '', date: '', type: 'REGULAR', isActive: true, branchId: '' })
-        fetchHolidays()
-      } else {
-        const error = await res.json()
-        alert(error.error || 'Failed to create holiday')
-      }
-    } catch (error) {
+      await createHoliday.mutateAsync({
+        ...newHoliday,
+        branchId: selectedBranch?.id || null,
+      } as any)
+      alert('Holiday created successfully')
+      setNewHoliday({ name: '', date: '', type: 'REGULAR', isActive: true, branchId: '' })
+    } catch (error: any) {
       console.error('Error creating holiday:', error)
-      alert('Failed to create holiday')
+      alert(error?.message || 'Failed to create holiday')
     }
   }
 
   const handleUpdateHoliday = async (id: string) => {
     try {
-      const res = await fetch('/api/holidays', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
+      await updateHoliday.mutateAsync({
+        id,
+        data: {
           ...newHoliday,
           branchId: selectedBranch?.id || null,
-        }),
+        } as any,
       })
-
-      if (res.ok) {
-        alert('Holiday updated successfully')
-        setEditingId(null)
-        setNewHoliday({ name: '', date: '', type: 'REGULAR', isActive: true, branchId: '' })
-        fetchHolidays()
-      } else {
-        const error = await res.json()
-        alert(error.error || 'Failed to update holiday')
-      }
-    } catch (error) {
+      alert('Holiday updated successfully')
+      setEditingId(null)
+      setNewHoliday({ name: '', date: '', type: 'REGULAR', isActive: true, branchId: '' })
+    } catch (error: any) {
       console.error('Error updating holiday:', error)
-      alert('Failed to update holiday')
+      alert(error?.message || 'Failed to update holiday')
     }
   }
 
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
     try {
-      const res = await fetch('/api/holidays', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, isActive: !currentStatus }),
-      })
-
-      if (res.ok) {
-        fetchHolidays()
-      }
+      await updateHoliday.mutateAsync({ id, data: { isActive: !currentStatus } as any })
     } catch (error) {
       console.error('Error toggling holiday:', error)
     }
@@ -153,20 +106,11 @@ export default function HolidaysPage() {
     if (!confirm('Are you sure you want to delete this holiday?')) return
 
     try {
-      const res = await fetch(`/api/holidays?id=${id}`, {
-        method: 'DELETE',
-      })
-
-      if (res.ok) {
-        alert('Holiday deleted successfully')
-        fetchHolidays()
-      } else {
-        const error = await res.json()
-        alert(error.error || 'Failed to delete holiday')
-      }
-    } catch (error) {
+      await deleteHoliday.mutateAsync(id)
+      alert('Holiday deleted successfully')
+    } catch (error: any) {
       console.error('Error deleting holiday:', error)
-      alert('Failed to delete holiday')
+      alert(error?.message || 'Failed to delete holiday')
     }
   }
 
@@ -183,7 +127,7 @@ export default function HolidaysPage() {
       if (res.ok) {
         const data = await res.json()
         alert(data.message)
-        fetchHolidays()
+        queryClient.invalidateQueries({ queryKey: ['holidays'] })
       } else {
         const error = await res.json()
         alert(error.error || 'Failed to import holidays')
@@ -335,7 +279,7 @@ export default function HolidaysPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {isLoading ? (
                 <div className="text-center py-8 text-gray-500">Loading...</div>
               ) : holidays.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">

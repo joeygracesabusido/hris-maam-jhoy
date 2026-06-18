@@ -1,35 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { useAssetTransactions } from '@/hooks/use-assets';
 
 export default function AssetTransactionsPage() {
-  const [transactions, setTransactions] = useState<{
-    id: string;
-    date: string;
-    type: string;
-    notes?: string;
-    cost?: number;
-    asset?: {
-      assetCode: string;
-      name: string;
-    };
-  }[]>([]);
-  const [loading, setLoading] = useState(true);
   const { selectedBranch } = useBranch();
-
-  useEffect(() => {
-    fetch(`/api/assets/transactions${selectedBranch ? `?branchId=${selectedBranch.id}` : ''}`)
-      .then(res => res.json())
-      .then(data => {
-        setTransactions(data || []);
-        setLoading(false);
-      });
-  }, [selectedBranch]);
+  const params = selectedBranch ? { branchId: selectedBranch.id } : undefined;
+  const { data: rawTransactions, isLoading: loading } = useAssetTransactions(params);
+  const transactions = (rawTransactions || []) as any[];
 
   const getTypeBadge = (type: string) => {
     switch(type) {

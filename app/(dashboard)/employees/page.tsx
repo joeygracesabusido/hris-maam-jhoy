@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, User, Mail, Briefcase, Building, DollarSign, Calendar, CreditCard, Pencil, Trash2, X, Wallet } from 'lucide-react';
+import { Plus, Search, User, Pencil, Trash2, X, Wallet } from 'lucide-react';
+import { useEmployees, useCreateEmployee, useUpdateEmployee, useDeleteEmployee } from '@/hooks/use-employees';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,8 +41,10 @@ const frequencies = [
 ];
 
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: employees = [], isLoading } = useEmployees();
+  const createEmployee = useCreateEmployee();
+  const updateEmployee = useUpdateEmployee();
+  const deleteEmployee = useDeleteEmployee();
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -94,27 +97,7 @@ export default function EmployeesPage() {
     setUserRole(role);
     setCurrentUserId(userId);
     setCurrentUserEmail(userEmail);
-    fetchEmployees();
   }, []);
-
-  const fetchEmployees = async () => {
-    try {
-      const res = await fetch('/api/employees', { credentials: 'include' });
-      const data = await res.json();
-      console.log('API Response status:', res.status);
-      console.log('API Response data type:', typeof data, Array.isArray(data));
-      console.log('API Response data:', data);
-      if (Array.isArray(data)) {
-        setEmployees(data);
-      } else {
-        console.error('API returned error:', data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch employees:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -126,30 +109,21 @@ export default function EmployeesPage() {
 
     try {
       const payload = {
-        ...(selectedEmployee ? { id: selectedEmployee.id } : {}),
         ...formData,
         basicSalary: parseFloat(formData.basicSalary || '0'),
         dailyRate: parseFloat(formData.dailyRate || '0'),
-        managerId: formData.managerId || null
-      };
+        managerId: formData.managerId || undefined,
+      } as Record<string, unknown>;
 
-      const res = await fetch('/api/employees', {
-        method: selectedEmployee ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'Failed to save employee');
-        return;
+      if (selectedEmployee) {
+        await updateEmployee.mutateAsync({ id: selectedEmployee.id, data: payload as never });
+      } else {
+        await createEmployee.mutateAsync(payload as never);
       }
 
       setShowModal(false);
       setSelectedEmployee(null);
       resetForm();
-      fetchEmployees();
     } catch (err) {
       setError('Something went wrong');
     }
@@ -201,12 +175,9 @@ export default function EmployeesPage() {
   const handleDelete = async () => {
     if (!selectedEmployee) return;
     try {
-      const res = await fetch(`/api/employees?id=${selectedEmployee.id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setShowDeleteModal(false);
-        setSelectedEmployee(null);
-        fetchEmployees();
-      }
+      await deleteEmployee.mutateAsync(selectedEmployee.id as never);
+      setShowDeleteModal(false);
+      setSelectedEmployee(null);
     } catch (err) {
       alert('Something went wrong');
     }
@@ -268,7 +239,7 @@ export default function EmployeesPage() {
           className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="bg-white rounded-xl border shadow-sm p-12 text-center text-gray-500 flex flex-col items-center gap-2">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           Loading employees...

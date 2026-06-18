@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Wallet, ArrowUpRight, ArrowDownRight, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { useAccountingStats, useJournalEntries } from '@/hooks/use-accounting';
 
 interface JournalEntry {
   id: string;
@@ -16,41 +16,13 @@ interface JournalEntry {
 }
 
 export default function AccountingDashboard() {
-  const [stats, setStats] = useState({
-    cashBalance: 0,
-    totalReceivables: 0,
-    totalPayables: 0,
-    netIncome: 0,
-  });
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const { selectedBranch } = useBranch();
+  const params: Record<string, string> = { limit: '5' };
+  if (selectedBranch) params.branchId = selectedBranch.id;
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const params = new URLSearchParams();
-        if (selectedBranch) params.set('branchId', selectedBranch.id);
-        params.set('limit', '5');
-
-        const [statsRes, entriesRes] = await Promise.all([
-          fetch(`/api/accounting/stats?${params}`),
-          fetch(`/api/accounting/journal?${params}`)
-        ]);
-        
-        const statsData = await statsRes.json();
-        const entriesData = await entriesRes.json();
-        
-        if (!statsData.error) setStats(statsData);
-        if (!entriesData.error) setEntries(Array.isArray(entriesData) ? entriesData : []);
-      } catch (err) {
-        console.error('Error fetching accounting dashboard data:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, [selectedBranch]);
+  const { data: stats, isLoading: statsLoading } = useAccountingStats(params);
+  const { data: entries, isLoading: entriesLoading } = useJournalEntries(params);
+  const loading = statsLoading || entriesLoading;
 
   if (loading) return <div className="p-8 text-center flex flex-col items-center gap-2">
     <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -65,10 +37,10 @@ export default function AccountingDashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Cash on Hand" value={stats.cashBalance} icon={Wallet} color="text-green-600" />
-        <StatCard title="Accounts Receivable" value={stats.totalReceivables} icon={ArrowUpRight} color="text-blue-600" />
-        <StatCard title="Accounts Payable" value={stats.totalPayables} icon={ArrowDownRight} color="text-red-600" />
-        <StatCard title="Net Income (Period)" value={stats.netIncome} icon={FileText} color="text-purple-600" />
+        <StatCard title="Cash on Hand" value={stats?.cashBalance ?? 0} icon={Wallet} color="text-green-600" />
+        <StatCard title="Accounts Receivable" value={stats?.totalReceivables ?? 0} icon={ArrowUpRight} color="text-blue-600" />
+        <StatCard title="Accounts Payable" value={stats?.totalPayables ?? 0} icon={ArrowDownRight} color="text-red-600" />
+        <StatCard title="Net Income (Period)" value={stats?.netIncome ?? 0} icon={FileText} color="text-purple-600" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -86,12 +58,12 @@ export default function AccountingDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {entries.length === 0 ? (
+                {!entries || entries.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">No recent entries</TableCell>
                   </TableRow>
                 ) : (
-                  entries.slice(0, 5).map((entry: JournalEntry) => (
+                  (entries || []).map((entry: JournalEntry) => (
                     <TableRow key={entry.id}>
                       <TableCell>{new Date(entry.date).toLocaleDateString('en-PH')}</TableCell>
                       <TableCell className="font-medium">{entry.description}</TableCell>

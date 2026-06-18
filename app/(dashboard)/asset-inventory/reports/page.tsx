@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { FileDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { calculateDepreciation } from '@/lib/depreciation';
 import * as XLSX from 'xlsx';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { useAssets } from '@/hooks/use-assets';
 
 interface Asset {
   id: string;
@@ -58,25 +59,16 @@ function getQuarterDate(year: number, quarter: number): Date {
 }
 
 export default function PPEReportsPage() {
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [loading, setLoading] = useState(true);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
   const { selectedBranch } = useBranch();
-
-  useEffect(() => {
-    fetch(`/api/assets?status=ACTIVE${selectedBranch ? `&branchId=${selectedBranch.id}` : ''}`)
-      .then(res => res.json())
-      .then(data => {
-        setAssets(data || []);
-        setLoading(false);
-      })
-      .catch(() => {
-        setAssets([]);
-        setLoading(false);
-      });
-  }, [selectedBranch]);
+  const params: Record<string, string> = { status: 'ACTIVE' };
+  if (selectedBranch) {
+    params.branchId = selectedBranch.id;
+  }
+  const { data: rawAssets, isLoading: loading } = useAssets(params);
+  const assets = (rawAssets || []) as any[];
 
   const groupedAssets = useMemo((): CategoryGroup[] => {
     const groups: Record<string, Record<string, CombinedAsset>> = {};

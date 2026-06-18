@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,60 +11,32 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Textarea } from '@/components/ui/textarea';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { useAssetCategories, useCreateAssetCategory } from '@/hooks/use-assets';
 
 export default function AssetCategoriesPage() {
-  const [categories, setCategories] = useState<{
-    id: string;
-    name: string;
-    description?: string;
-    createdAt: string;
-  }[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { selectedBranch } = useBranch();
+  const { data: rawCategories, isLoading: loading } = useAssetCategories();
+  const categories = (rawCategories || []) as any[];
+  const createCategory = useCreateAssetCategory();
   
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
 
-  const fetchCategories = async () => {
-    try {
-      const url = `/api/assets/categories${selectedBranch ? `?branchId=${selectedBranch.id}` : ''}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setCategories(data);
-      }
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCategories();
-  }, [selectedBranch]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/assets/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, branchId: selectedBranch?.id }),
-      });
-      
-      if (res.ok) {
-        setName('');
-        setDescription('');
-        setIsDialogOpen(false);
-        fetchCategories();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to create category');
-      }
+      await createCategory.mutateAsync({
+        name,
+        description,
+        ...(selectedBranch ? { branchId: selectedBranch.id } : {}),
+      } as any);
+      setName('');
+      setDescription('');
+      setIsDialogOpen(false);
     } catch (error) {
       console.error('Error:', error);
+      alert('Failed to create category');
     }
   };
 

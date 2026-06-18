@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api-client';
+import { useSchedules } from '@/hooks/use-schedules';
 import { 
   format, 
   startOfWeek, 
@@ -9,10 +12,10 @@ import {
   isSameDay, 
   parseISO 
 } from 'date-fns';
-import { 
-  Filter, 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  Filter,
+  ChevronLeft,
+  ChevronRight,
   MoreVertical,
   ChevronDown,
   Settings2,
@@ -20,7 +23,9 @@ import {
   RefreshCcw,
   AlertCircle,
   Users,
-  Loader2
+  Loader2,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { 
@@ -80,16 +85,42 @@ export default function ShiftSchedulePage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   const [isShiftSheetOpen, setIsShiftSheetOpen] = useState(false);
-  const [newShift, setNewShift] = useState({
+  const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
+  const [newShift, setNewShift] = useState<{
+    name: string;
+    startTime: string;
+    endTime: string;
+    isOff: boolean;
+    gracePeriodMinutes: number | null;
+    color: string;
+  }>({
     name: '',
     startTime: '',
     endTime: '',
     isOff: false,
-    gracePeriodMinutes: 0,
+    gracePeriodMinutes: null,
     color: 'bg-blue-100 border-blue-500 text-blue-700'
   });
+
+  const resetShiftForm = () => {
+    setEditingShiftId(null);
+    setNewShift({ name: '', startTime: '', endTime: '', isOff: false, gracePeriodMinutes: null, color: 'bg-blue-100 border-blue-500 text-blue-700' });
+  };
+
+  const startEditShift = (shift: Shift) => {
+    setEditingShiftId(shift.id);
+    setNewShift({
+      name: shift.name,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      isOff: shift.isOff,
+      gracePeriodMinutes: shift.gracePeriodMinutes,
+      color: shift.color,
+    });
+  };
 
   // Calculate the 7 days to display
   const startDate = startOfWeek(currentDate, { weekStartsOn: 1 }); // Start on Monday
@@ -99,101 +130,85 @@ export default function ShiftSchedulePage() {
     end: addDays(startDate, 6),
   });
 
-  const fetchData = useCallback(async () => {
+  const { data: scheduleData, isLoading: schedulesLoading } = useSchedules({
+    startDate: startDateStr,
+    endDate: format(addDays(new Date(startDateStr), 6), 'yyyy-MM-dd'),
+  });
+
+  const fetchShifts = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      const startStr = startDateStr;
-      const endStr = format(addDays(new Date(startDateStr), 6), 'yyyy-MM-dd');
-
-      console.log(`[Fetch] Range: ${startStr} to ${endStr}`);
-
-      const [shiftsRes, schedulesRes] = await Promise.all([
-        fetch('/api/shifts', { credentials: 'include' }),
-        fetch(`/api/schedules?startDate=${startStr}&endDate=${endStr}`, { credentials: 'include' })
-      ]);
-
-      const checkResponse = async (res: Response, name: string) => {
-        if (!res.ok) {
-          const text = await res.text().catch(() => 'No detail');
-          throw new Error(`${name} failed (${res.status}): ${text.substring(0, 100)}`);
-        }
-        return res.json();
-      };
-
-      const shiftsData = await checkResponse(shiftsRes, 'Shifts');
-      const scheduleDataJson = await checkResponse(schedulesRes, 'Schedules');
-
-      setShifts(Array.isArray(shiftsData) ? shiftsData : []);
-      setEmployees(Array.isArray(scheduleDataJson.employees) ? scheduleDataJson.employees : []);
-      setSchedules(Array.isArray(scheduleDataJson.schedules) ? scheduleDataJson.schedules : []);
-
-      console.log(`[Fetch] Loaded ${scheduleDataJson.employees?.length || 0} employees`);
-    } catch (err: unknown) {
-      console.error('[Fetch] Error:', err);
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-    } finally {
-      setLoading(false);
+      const data = await api.get<Shift[]>('/api/shifts');
+      if (Array.isArray(data)) {
+        setShifts(data);
+      }
+    } catch (err) {
+      console.error('[Fetch] Shifts error:', err);
     }
-  }, [startDateStr]);
+  }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchShifts();
+  }, [fetchShifts]);
+
+  useEffect(() => {
+    if (scheduleData) {
+      const d = scheduleData as any;
+      if (Array.isArray(d.employees)) setEmployees(d.employees);
+      if (Array.isArray(d.schedules)) setSchedules(d.schedules);
+    }
+    setLoading(false);
+  }, [scheduleData]);
 
   const handleCreateShift = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setCreating(true);
-      const response = await fetch('/api/shifts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newShift),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setShifts(prev => [...prev, data]);
-        setNewShift({ name: '', startTime: '', endTime: '', isOff: false, gracePeriodMinutes: 0, color: 'bg-blue-100 border-blue-500 text-blue-700' });
-        toast({ title: "Success", description: "Shift created successfully" });
+      const payload = { ...newShift, gracePeriodMinutes: newShift.gracePeriodMinutes ?? 0 };
+      if (editingShiftId) {
+        const data = await api.patch<Shift>('/api/shifts', { id: editingShiftId, ...payload });
+        setShifts(prev => prev.map(s => s.id === editingShiftId ? data : s));
+        toast({ title: "Updated", description: "Shift updated successfully" });
       } else {
-        toast({ variant: "destructive", title: "Error", description: data.error || "Failed to create shift" });
+        const data = await api.post<Shift>('/api/shifts', payload);
+        setShifts(prev => [...prev, data]);
+        toast({ title: "Success", description: "Shift created successfully" });
       }
+      resetShiftForm();
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred" });
+      const msg = error instanceof Error ? error.message : "Failed to save shift";
+      toast({ variant: "destructive", title: "Error", description: msg });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeleteShift = async (id: string) => {
+    try {
+      await api.delete(`/api/shifts?id=${id}`);
+      setShifts(prev => prev.filter(s => s.id !== id));
+      toast({ title: "Deleted", description: "Shift deleted successfully" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to delete shift";
+      toast({ variant: "destructive", title: "Error", description: msg });
     }
   };
 
   const handleUpdateShift = async (employeeId: string, shiftId: string, date: Date) => {
     try {
       console.log(`[Update] Employee: ${employeeId}, Shift: ${shiftId}, Date: ${format(date, 'yyyy-MM-dd')}`);
-      const response = await fetch('/api/schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId, shiftId, date: format(date, 'yyyy-MM-dd') }),
+      const updated = await api.post<ShiftSchedule>('/api/schedules', { employeeId, shiftId, date: format(date, 'yyyy-MM-dd') });
+      setSchedules(prev => {
+        const next = [...prev];
+        const idx = next.findIndex(s => s.employeeId === employeeId && isSameDay(parseISO(s.date), date));
+        if (idx >= 0) next[idx] = updated;
+        else next.push(updated);
+        return next;
       });
-
-      if (response.ok) {
-        const updated = await response.json();
-        setSchedules(prev => {
-          const next = [...prev];
-          const idx = next.findIndex(s => s.employeeId === employeeId && isSameDay(parseISO(s.date), date));
-          if (idx >= 0) next[idx] = updated;
-          else next.push(updated);
-          return next;
-        });
-        toast({ title: "Updated", description: "Shift assigned successfully." });
-      } else {
-        const err = await response.json().catch(() => ({ error: 'Unknown error' }));
-        toast({ variant: "destructive", title: "Update Failed", description: err.error });
-      }
+      toast({ title: "Updated", description: "Shift assigned successfully." });
     } catch (error) {
+      const msg = error instanceof Error ? error.message : "An unexpected error occurred.";
       console.error('[Update] Error:', error);
-      toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred." });
+      toast({ variant: "destructive", title: "Update Failed", description: msg });
     }
   };
 
@@ -203,28 +218,17 @@ export default function ShiftSchedulePage() {
       const items = weekDays.map(day => ({ employeeId, shiftId, date: format(day, 'yyyy-MM-dd') }));
       console.log(`[Bulk] Filling week for employee ${employeeId} with shift ${shiftId}`);
       
-      const response = await fetch('/api/schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(items),
-      });
-
-      if (response.ok) {
-        const results = await response.json();
-        setSchedules(prev => {
-          const next = [...prev];
-          results.forEach((updated: ShiftSchedule) => {
-            const idx = next.findIndex(s => s.employeeId === employeeId && isSameDay(parseISO(s.date), parseISO(updated.date)));
-            if (idx >= 0) next[idx] = updated;
-            else next.push(updated);
-          });
-          return next;
+      const results = await api.post<ShiftSchedule[]>('/api/schedules', items);
+      setSchedules(prev => {
+        const next = [...prev];
+        results.forEach((updated: ShiftSchedule) => {
+          const idx = next.findIndex(s => s.employeeId === employeeId && isSameDay(parseISO(s.date), parseISO(updated.date)));
+          if (idx >= 0) next[idx] = updated;
+          else next.push(updated);
         });
-        toast({ title: "Success", description: "Employee&apos;s week filled successfully" });
-      } else {
-        const err = await response.json().catch(() => ({ error: 'Unknown error' }));
-        toast({ variant: "destructive", title: "Action Failed", description: err.error });
-      }
+        return next;
+      });
+      toast({ title: "Success", description: "Employee&apos;s week filled successfully" });
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to fill week" });
     } finally {
@@ -250,29 +254,17 @@ export default function ShiftSchedulePage() {
 
       console.log(`[Bulk] Assigning shift ${shiftId} to ${employees.length} employees (Total items: ${allItems.length})`);
 
-      const response = await fetch('/api/schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(allItems),
-      });
-
-      if (response.ok) {
-        const results = await response.json();
-        // Update local state with the new results
-        setSchedules(prev => {
-          const next = [...prev];
-          results.forEach((updated: ShiftSchedule) => {
-            const idx = next.findIndex(s => s.employeeId === updated.employeeId && isSameDay(parseISO(s.date), parseISO(updated.date)));
-            if (idx >= 0) next[idx] = updated;
-            else next.push(updated);
-          });
-          return next;
+      const results = await api.post<ShiftSchedule[]>('/api/schedules', allItems);
+      setSchedules(prev => {
+        const next = [...prev];
+        results.forEach((updated: ShiftSchedule) => {
+          const idx = next.findIndex(s => s.employeeId === updated.employeeId && isSameDay(parseISO(s.date), parseISO(updated.date)));
+          if (idx >= 0) next[idx] = updated;
+          else next.push(updated);
         });
-        toast({ title: "Bulk Action Success", description: `Assigned shift to all ${employees.length} employees for the week.` });
-      } else {
-        const err = await response.json().catch(() => ({ error: 'Unknown error' }));
-        toast({ variant: "destructive", title: "Bulk Action Failed", description: err.error });
-      }
+        return next;
+      });
+      toast({ title: "Bulk Action Success", description: `Assigned shift to all ${employees.length} employees for the week.` });
     } catch (error) {
       console.error('[Bulk] Error:', error);
       toast({ variant: "destructive", title: "Error", description: "Bulk assignment failed" });
@@ -305,7 +297,7 @@ export default function ShiftSchedulePage() {
               <p className="text-xs font-medium bg-red-100/50 px-2 py-1 rounded mt-1 border border-red-200 inline-block font-mono">{error}</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchData} className="bg-white hover:bg-red-50 text-red-700 border-red-200 gap-2 font-bold whitespace-nowrap">
+          <Button variant="outline" size="sm" onClick={() => { queryClient.invalidateQueries({ queryKey: ['schedules'] }); fetchShifts(); }} className="bg-white hover:bg-red-50 text-red-700 border-red-200 gap-2 font-bold whitespace-nowrap">
             <RefreshCcw className="w-4 h-4" /> Retry Connection
           </Button>
         </div>
@@ -341,7 +333,7 @@ export default function ShiftSchedulePage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Sheet open={isShiftSheetOpen} onOpenChange={setIsShiftSheetOpen}>
+          <Sheet open={isShiftSheetOpen} onOpenChange={(open) => { setIsShiftSheetOpen(open); if (!open) resetShiftForm(); }}>
             <SheetTrigger asChild>
               <Button variant="default" className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-sm transition-all active:scale-95">
                 <Settings2 className="w-4 h-4" /> Manage Shifts
@@ -354,7 +346,9 @@ export default function ShiftSchedulePage() {
               </SheetHeader>
               <div className="space-y-8">
                 <section>
-                  <h3 className="text-sm font-bold uppercase text-gray-400 tracking-wider mb-4">Create New Shift</h3>
+                  <h3 className="text-sm font-bold uppercase text-gray-400 tracking-wider mb-4">
+                    {editingShiftId ? 'Edit Shift' : 'Create New Shift'}
+                  </h3>
                   <form onSubmit={handleCreateShift} className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <div className="space-y-2">
                       <Label>Shift Name</Label>
@@ -375,11 +369,20 @@ export default function ShiftSchedulePage() {
                       <Label htmlFor="isOffS" className="cursor-pointer">Mark as Rest Day / Off</Label>
                     </div>
                     <div className="space-y-2">
-                      <Label>Grace Period (minutes before counted as late)</Label>
-                      <Input type="number" min="0" max="60" className="bg-white" value={newShift.gracePeriodMinutes} onChange={e => setNewShift({...newShift, gracePeriodMinutes: parseInt(e.target.value) || 0})} />
-                      <p className="text-xs text-gray-500">0 = no grace period. Common: 5–15 min.</p>
-                    </div>
-                    <Button type="submit" className="w-full bg-blue-600" disabled={creating}>{creating ? "Creating..." : "Create Shift"}</Button>
+                       <Label>Grace Period (minutes before counted as late)</Label>
+                       <Input type="number" min="0" max="60" className="bg-white" value={newShift.gracePeriodMinutes ?? ''} onChange={e => setNewShift({...newShift, gracePeriodMinutes: e.target.value ? parseInt(e.target.value) || 0 : null})} />
+                       <p className="text-xs text-gray-500">0 = no grace period. Common: 5–15 min.</p>
+                     </div>
+                     <div className="flex gap-2">
+                       <Button type="submit" className="flex-1 bg-blue-600" disabled={creating}>
+                         {creating ? "Saving..." : editingShiftId ? "Update Shift" : "Create Shift"}
+                       </Button>
+                       {editingShiftId && (
+                         <Button type="button" variant="outline" onClick={resetShiftForm} className="px-6">
+                           Cancel
+                         </Button>
+                       )}
+                     </div>
                   </form>
                 </section>
                 <section>
@@ -395,7 +398,15 @@ export default function ShiftSchedulePage() {
                              {!shift.isOff && <span className="text-[10px] text-gray-500">Grace: {shift.gracePeriodMinutes ?? 0} min</span>}
                           </div>
                         </div>
-                        <div className={`px-3 py-1.5 rounded-lg text-xs font-bold border-b-2 ${shift.color}`}>{shift.name.split('_')[0]}</div>
+                        <div className="flex items-center gap-2">
+                          <div className={`px-3 py-1.5 rounded-lg text-xs font-bold border-b-2 ${shift.color}`}>{shift.name.split('_')[0]}</div>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50" onClick={() => startEditShift(shift)} title="Edit shift">
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => { if (confirm(`Delete shift "${shift.name}"?`)) handleDeleteShift(shift.id); }} title="Delete shift">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -421,10 +432,10 @@ export default function ShiftSchedulePage() {
               </tr>
             </thead>
             <tbody>
-              {loading && schedules.length === 0 ? (
+              {(schedulesLoading || loading) && schedules.length === 0 ? (
                 <tr><td colSpan={8} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><RefreshCcw className="w-8 h-8 animate-spin text-blue-600" /><p className="text-gray-500 font-medium">Loading employee schedules...</p></div></td></tr>
               ) : employees.length === 0 ? (
-                <tr><td colSpan={8} className="p-20 text-center text-gray-500"><div className="max-w-xs mx-auto space-y-2"><p className="font-bold text-gray-900">No Employees Found</p><p className="text-sm">We couldn&apos;t find any active employees. Please check the Employees page.</p><Button variant="outline" size="sm" onClick={fetchData} className="mt-4">Refresh List</Button></div></td></tr>
+                <tr><td colSpan={8} className="p-20 text-center text-gray-500"><div className="max-w-xs mx-auto space-y-2"><p className="font-bold text-gray-900">No Employees Found</p><p className="text-sm">We couldn&apos;t find any active employees. Please check the Employees page.</p><Button variant="outline" size="sm" onClick={() => { queryClient.invalidateQueries({ queryKey: ['schedules'] }); fetchShifts(); }} className="mt-4">Refresh List</Button></div></td></tr>
               ) : (
                 employees.map(employee => (
                   <tr key={employee.id} className="border-b last:border-0 hover:bg-gray-50/50 transition-colors">

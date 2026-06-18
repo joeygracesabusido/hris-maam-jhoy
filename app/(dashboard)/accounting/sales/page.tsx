@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,12 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Plus, Search, FileText, Trash2 } from 'lucide-react';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { useSales, useAccounts, useCreateSale } from '@/hooks/use-accounting';
 
 export default function SalesPage() {
   const { selectedBranch, branches } = useBranch();
-  const [invoices, setInvoices] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [accounts, setAccounts] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -33,33 +30,18 @@ export default function SalesPage() {
     totalAmount: 0,
   });
 
-  useEffect(() => {
-    fetchData();
-  }, [selectedBranch]);
+  const params: Record<string, string> = {};
+  if (selectedBranch) params.branchId = selectedBranch.id;
+  const { data: _invoices, isLoading: loading } = useSales(params);
+  const invoices = (_invoices as any[]) || [];
+  const { data: accounts = [] } = useAccounts();
+  const createSale = useCreateSale();
 
   useEffect(() => {
     if (isDialogOpen && selectedBranch) {
       setFormData(prev => ({ ...prev, branchId: selectedBranch.id }));
     }
   }, [isDialogOpen, selectedBranch]);
-
-  async function fetchData() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (selectedBranch) params.append('branchId', selectedBranch.id);
-      const [invRes, accRes] = await Promise.all([
-        fetch(`/api/accounting/sales?${params.toString()}`),
-        fetch('/api/accounting/accounts'),
-      ]);
-      setInvoices(await invRes.json());
-      setAccounts(await accRes.json());
-    } catch (err) {
-      console.error('Error fetching sales data:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const addItem = () => {
     setFormData({
@@ -89,25 +71,14 @@ export default function SalesPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const res = await fetch('/api/accounting/sales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, branchId: formData.branchId || selectedBranch?.id || '' }),
+      await createSale.mutateAsync({ ...formData, branchId: formData.branchId || selectedBranch?.id || '' });
+      setIsDialogOpen(false);
+      setFormData({
+        customerId: '', customerName: '', date: new Date().toISOString().split('T')[0],
+        dueDate: new Date().toISOString().split('T')[0], arAccountId: '', revenueAccountId: '',
+        branchId: selectedBranch?.id || '',
+        items: [{ description: '', quantity: 1, unitPrice: 0, total: 0 }], totalAmount: 0,
       });
-
-      if (res.ok) {
-        setIsDialogOpen(false);
-        setFormData({
-          customerId: '', customerName: '', date: new Date().toISOString().split('T')[0],
-          dueDate: new Date().toISOString().split('T')[0], arAccountId: '', revenueAccountId: '',
-          branchId: selectedBranch?.id || '',
-          items: [{ description: '', quantity: 1, unitPrice: 0, total: 0 }], totalAmount: 0,
-        });
-        fetchData();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create invoice');
-      }
     } catch (err) {
       console.error('Error creating invoice:', err);
     }

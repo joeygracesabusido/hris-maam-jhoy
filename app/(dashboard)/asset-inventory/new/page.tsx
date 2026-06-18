@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,21 +9,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useBranch } from '@/lib/branch-context';
+import { useAssetCategories, useCreateAsset } from '@/hooks/use-assets';
 
 export default function AddAssetPage() {
   const router = useRouter();
-  const [categories, setCategories] = useState<{
-    id: string;
-    name: string;
-  }[]>([]);
   const [loading, setLoading] = useState(false);
   const { selectedBranch } = useBranch();
-
-  useEffect(() => {
-    fetch('/api/assets/categories')
-      .then(res => res.json())
-      .then(data => setCategories(data || []));
-  }, []);
+  const { data: rawCategories } = useAssetCategories();
+  const categories = (rawCategories || []) as any[];
+  const createAsset = useCreateAsset();
 
   const [formData, setFormData] = useState({
     assetCode: '',
@@ -45,23 +39,12 @@ export default function AddAssetPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const res = await fetch('/api/assets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          branchId: formData.branchId || selectedBranch?.id || null,
-        }),
-      });
-
-      if (res.ok) {
-        router.push('/asset-inventory');
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create asset');
-      }
+      await createAsset.mutateAsync({
+        ...formData,
+        branchId: formData.branchId || selectedBranch?.id || null,
+      } as any);
+      router.push('/asset-inventory');
     } catch (error) {
       console.error('Error adding asset:', error);
       alert('An error occurred while creating the asset.');

@@ -1,6 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useTimeLogs, useOfficeLocations, useClockIn, useClockOut, useEmployeeFaceDescriptor } from '@/hooks/use-time-logs';
+import { useEmployees, Employee as EmployeeBase } from '@/hooks/use-employees';
+import { queryKeys } from '@/lib/query-keys';
+import { ApiError, api } from '@/lib/api-client';
 import {
   Clock, MapPin, NavigationOff, CheckCircle2, AlertCircle, Search, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Trash2, User, X
 } from 'lucide-react';
@@ -20,13 +25,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import FaceCapture from '@/components/facial-recognition/FaceCapture';
 
-interface Employee {
-  id: string;
-  employeeNumber: number;
-  fullName: string;
-  employeeId: string;
-  email?: string;
-  userId?: string;
+interface Employee extends EmployeeBase {
+  userId: string | null;
 }
 
 interface Shift {
@@ -50,11 +50,24 @@ interface TimeLog {
   };
 }
 
+function getCookies() {
+  if (typeof document === 'undefined') return { loggedIn: false, role: '', id: '', email: '' };
+  const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+    const [key, value] = cookie.trim().split('=');
+    acc[key] = value;
+    return acc;
+  }, {} as Record<string, string>);
+  return {
+    loggedIn: cookies.isLoggedIn === 'true',
+    role: cookies.userRole || '',
+    id: cookies.userId || '',
+    email: cookies.userEmail || ''
+  };
+}
+
 export default function TimeLogsPage() {
-  const [timeLogs, setTimeLogs] = useState<TimeLog[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState('');
+
   const [userRole, setUserRole] = useState('');
   const [storedDescriptor, setStoredDescriptor] = useState<number[] | undefined>(undefined);
   const [employeeId, setEmployeeId] = useState('');
@@ -71,10 +84,13 @@ export default function TimeLogsPage() {
   const biometricFileInputRef = useRef<HTMLInputElement>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [distances, setDistances] = useState<Map<string, number>>(new Map());
-  const [officeLocations, setOfficeLocations] = useState<Array<{ id: string; name: string; lat: number; lon: number; radius: number; isActive: boolean }>>([]);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [withinRange, setWithinRange] = useState(false);
   const [closestLocation, setClosestLocation] = useState<{ name: string; distance: number } | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [timeLogToEdit, setTimeLogToEdit] = useState<TimeLog | null>(null);
+  const [editForm, setEditForm] = useState({ clockIn: '', clockOut: '' });
+  const [saving, setSaving] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [timeLogToDelete, setTimeLogToDelete] = useState<TimeLog | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -87,23 +103,17 @@ export default function TimeLogsPage() {
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [faceEnrollStatus, setFaceEnrollStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
+  const queryClient = useQueryClient();
+  const { data: timeLogs = [], isLoading, isPlaceholderData } = useTimeLogs();
+  const { data: employeesData = [], isLoading: empLoading } = useEmployees();
+  const { data: officeLocations = [] } = useOfficeLocations();
+  const initialLoading = isLoading && timeLogs.length === 0;
+  const clockInMutation = useClockIn();
+  const clockOutMutation = useClockOut();
+  const faceDescriptorQuery = useEmployeeFaceDescriptor(employeeId || '');
+
   useEffect(() => {
-    const getCookies = () => {
-      if (typeof document === 'undefined') return { loggedIn: false };
-      const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-        const [key, value] = cookie.trim().split('=');
-        acc[key] = value;
-        return acc;
-      }, {} as Record<string, string>);
-      return { 
-        loggedIn: cookies.isLoggedIn === 'true',
-        role: cookies.userRole || '',
-        id: cookies.userId || '',
-        email: cookies.userEmail || ''
-      };
-    };
-    
-    const { loggedIn, role, id, email } = getCookies();
+    const { loggedIn, role } = getCookies();
     if (!loggedIn) {
       if (typeof window !== 'undefined') {
         window.location.href = '/login';
@@ -111,12 +121,46 @@ export default function TimeLogsPage() {
       return;
     }
     setUserRole(role || '');
-    setUserId(id || '');
-    fetchEmployees(role || '', email || '');
-    fetchTimeLogs();
-    fetchOfficeLocation();
     getUserLocation();
   }, []);
+
+  useEffect(() => {
+    if (!employeesData.length) return;
+    const { role, id, email } = getCookies();
+
+    if (role === 'EMPLOYEE' && email) {
+      const lowerEmail = email.toLowerCase();
+      const myEmployee = employeesData.find((emp) => emp.email?.toLowerCase() === lowerEmail);
+      if (myEmployee) {
+        setEmployeeId(myEmployee.id);
+        setEmployees([myEmployee as Employee]);
+        return;
+      }
+      const myEmployeeByUserId = (employeesData as Employee[]).find((emp) => emp.userId === id);
+      if (myEmployeeByUserId) {
+        setEmployeeId(myEmployeeByUserId.id);
+        setEmployees([myEmployeeByUserId]);
+        return;
+      }
+      console.error('[Time Logs] EMPLOYEE role but no matching employee found for email:', email, 'Available employees:', employeesData.map(e => e.email));
+      setEmployees([]);
+      return;
+    }
+
+    setEmployees(employeesData as Employee[]);
+
+    if ((role === 'ADMIN' || role === 'MANAGER' || role === 'HR') && email) {
+      const myEmployee = employeesData.find((emp) => emp.email?.toLowerCase() === email.toLowerCase());
+      if (myEmployee) {
+        setEmployeeId(myEmployee.id);
+        return;
+      }
+    }
+
+    if (employeesData.length > 0) {
+      setEmployeeId(employeesData[0].id);
+    }
+  }, [employeesData]);
 
 useEffect(() => {
     if (timeLogs.length > 0 && employeeId) {
@@ -138,44 +182,6 @@ useEffect(() => {
       document.body.style.overflow = 'unset';
     };
   }, [showFaceModal]);
-
-  const fetchTimeLogs = async () => {
-    try {
-      const res = await fetch('/api/time-logs', { credentials: 'include' });
-      if (!res.ok) {
-        console.error('Failed to fetch time logs:', res.statusText);
-        setTimeLogs([]);
-        return;
-      }
-      const data = await res.json() as TimeLog[];
-      setTimeLogs(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Failed to fetch time logs:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchOfficeLocation = async () => {
-    try {
-      const res = await fetch('/api/office-location', { credentials: 'include' });
-      if (!res.ok) {
-        console.error('Failed to fetch office location:', res.statusText);
-        return;
-      }
-      const locations = await res.json() as Array<{ id: string; isActive: boolean; name: string; latitude: number; longitude: number; radius: number }>;
-      setOfficeLocations(locations.map((loc) => ({
-        id: loc.id,
-        name: loc.name,
-        lat: loc.latitude,
-        lon: loc.longitude,
-        radius: loc.radius,
-        isActive: loc.isActive,
-      })));
-    } catch (err) {
-      console.error('Failed to fetch office location:', err);
-    }
-  };
 
   const getUserLocation = () => {
     if (!navigator.geolocation) {
@@ -241,59 +247,12 @@ useEffect(() => {
       setDistances(newDistances);
       const anyInRange = officeLocations.some(loc => {
         const dist = newDistances.get(loc.id) || Infinity;
-        return dist <= loc.radius;
+        return dist <= loc.rangeMeters;
       });
       setWithinRange(anyInRange);
       setClosestLocation(minDistance !== Infinity ? { name: closestName, distance: minDistance } : null);
     }
   }, [userLocation, officeLocations]);
-
-  const fetchEmployees = async (role: string, email: string) => {
-    try {
-      const res = await fetch('/api/employees', { credentials: 'include' });
-      const data = await res.json() as Employee[];
-      
-      // For EMPLOYEE role, filter to only show their own record by email match (case-insensitive)
-      if (role === 'EMPLOYEE' && email) {
-        const lowerEmail = email.toLowerCase();
-        const myEmployee = data.find((emp) => emp.email?.toLowerCase() === lowerEmail);
-        if (myEmployee) {
-          setEmployeeId(myEmployee.id);
-          setEmployees([myEmployee]);
-          return;
-        }
-        // If no email match, try to find by userId
-        const myEmployeeByUserId = data.find((emp) => emp.userId === userId);
-        if (myEmployeeByUserId) {
-          setEmployeeId(myEmployeeByUserId.id);
-          setEmployees([myEmployeeByUserId]);
-          return;
-        }
-        // No match found - show empty and log error
-        console.error('[Time Logs] EMPLOYEE role but no matching employee found for email:', email, 'Available employees:', data.map(e => e.email));
-        setEmployees([]);
-        return;
-      }
-      
-      // For admin/manager/HR roles, show all employees and auto-select logged-in user's record
-      setEmployees(data);
-      
-      if ((role === 'ADMIN' || role === 'MANAGER' || role === 'HR') && email) {
-        const lowerEmail = email.toLowerCase();
-        const myEmployee = data.find((emp) => emp.email?.toLowerCase() === lowerEmail);
-        if (myEmployee) {
-          setEmployeeId(myEmployee.id);
-          return;
-        }
-      }
-      
-      if (data.length > 0) {
-        setEmployeeId(data[0].id);
-      }
-    } catch (err) {
-      console.error('Failed to fetch employees:', err);
-    }
-  };
 
   const handleClockIn = async () => {
     if (!employeeId) {
@@ -315,28 +274,16 @@ useEffect(() => {
 
     setClockingIn(true);
     try {
-      const res = await fetch('/api/time-logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          employeeId, 
-          type: 'clockIn',
-          latitude: userLocation?.lat,
-          longitude: userLocation?.lon,
-        }),
+      await clockInMutation.mutateAsync({
+        employeeId,
+        date: new Date().toISOString().split('T')[0],
+        clockIn: new Date().toISOString(),
+        location: userLocation ? { lat: userLocation.lat, lon: userLocation.lon } : undefined,
       });
-
-      const data = await res.json() as { error?: string };
-
-      if (!res.ok) {
-        alert(data.error || 'Failed to clock in');
-        return;
-      }
-
       alert('Clock in recorded successfully!');
-      fetchTimeLogs();
     } catch (err) {
-      alert('Something went wrong');
+      const msg = err instanceof ApiError ? err.message : 'Something went wrong';
+      alert(msg);
     } finally {
       setClockingIn(false);
     }
@@ -362,28 +309,16 @@ useEffect(() => {
 
     setClockingIn(true);
     try {
-      const res = await fetch('/api/time-logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          employeeId, 
-          type: 'clockOut',
-          latitude: userLocation?.lat,
-          longitude: userLocation?.lon,
-        }),
+      await clockOutMutation.mutateAsync({
+        employeeId,
+        date: new Date().toISOString().split('T')[0],
+        clockOut: new Date().toISOString(),
+        location: userLocation ? { lat: userLocation.lat, lon: userLocation.lon } : undefined,
       });
-
-      const data = await res.json() as { error?: string };
-
-      if (!res.ok) {
-        alert(data.error || 'Failed to clock out');
-        return;
-      }
-
       alert('Clock out recorded successfully!');
-      fetchTimeLogs();
     } catch (err) {
-      alert('Something went wrong');
+      const msg = err instanceof ApiError ? err.message : 'Something went wrong';
+      alert(msg);
     } finally {
       setClockingIn(false);
     }
@@ -472,28 +407,25 @@ useEffect(() => {
 
     setIsVerifying(true);
     try {
-      console.log('[Face Verification] Fetching descriptor for employeeId:', employeeId);
-      const res = await fetch(`/api/employees/${employeeId}/face-descriptor`, { credentials: 'include' });
-      const responseData = await res.json().catch(() => ({}));
-      
-      console.log('[Face Verification] Response status:', res.status, responseData);
-      
-      if (!res.ok) {
-        if (res.status === 404) {
-          throw new Error('Employee has not enrolled their face. Please contact HR to complete face enrollment.');
-        } else if (res.status === 401) {
-          throw new Error('Session expired. Please login again.');
+      const result = await faceDescriptorQuery.refetch();
+      if (result.error) {
+        if (result.error instanceof ApiError) {
+          if (result.error.status === 404) {
+            throw new Error('Employee has not enrolled their face. Please contact HR to complete face enrollment.');
+          }
+          if (result.error.status === 401) {
+            throw new Error('Session expired. Please login again.');
+          }
+          throw new Error(result.error.message || 'Failed to load face data');
         }
-        throw new Error(responseData.error || 'Failed to load face data');
+        throw new Error('Failed to load face data');
       }
-      
-      const data = responseData as { faceDescriptor: number[] };
-      
+
+      const data = result.data as { faceDescriptor: number[] };
       if (!data.faceDescriptor || data.faceDescriptor.length === 0) {
         throw new Error('Employee has not enrolled their face. Please contact HR to complete face enrollment.');
       }
 
-      console.log('[Face Verification] Descriptor loaded, length:', data.faceDescriptor.length);
       setStoredDescriptor(data.faceDescriptor);
       setShowFaceModal(true);
     } catch (err: unknown) {
@@ -533,8 +465,7 @@ useEffect(() => {
 
   const downloadTemplate = async () => {
     try {
-      const res = await fetch('/api/employees');
-      const employees: Employee[] = await res.json();
+      const employees = await api.get<Employee[]>('/api/employees');
       
       const headers = ['Employee Number', 'Date', 'Clock In', 'Clock Out', 'Notes'];
       const sampleRows = employees.slice(0, 3).map(emp => [
@@ -595,7 +526,7 @@ useEffect(() => {
       });
 
       if (data.results?.success ?? 0 > 0) {
-        fetchTimeLogs();
+        queryClient.invalidateQueries({ queryKey: queryKeys.timeLogs.lists() });
       }
     } catch (err) {
       setImportResult({ success: 0, failed: 1, errors: ['Something went wrong during import'] });
@@ -676,7 +607,7 @@ useEffect(() => {
       });
 
       if ((data.results?.success ?? 0) > 0 || (data.results?.absent ?? 0) > 0) {
-        fetchTimeLogs();
+        queryClient.invalidateQueries({ queryKey: queryKeys.timeLogs.lists() });
       }
     } catch (err) {
       setXclsImportResult({ success: 0, absent: 0, failed: 1, errors: ['Something went wrong during import'] });
@@ -718,7 +649,7 @@ useEffect(() => {
       });
 
       if (data.results?.success ?? 0 > 0) {
-        fetchTimeLogs();
+        queryClient.invalidateQueries({ queryKey: queryKeys.timeLogs.lists() });
       }
     } catch (err) {
       setBiometricImportResult({ success: 0, failed: 1, errors: ['Something went wrong during import'] });
@@ -737,6 +668,42 @@ useEffect(() => {
     window.location.href = '/login';
   };
 
+  const handleEditClick = (log: TimeLog) => {
+    setTimeLogToEdit(log);
+    setEditForm({
+      clockIn: log.clockIn ? new Date(log.clockIn).toISOString().slice(11, 16) : '',
+      clockOut: log.clockOut ? new Date(log.clockOut).toISOString().slice(11, 16) : '',
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!timeLogToEdit) return;
+
+    setSaving(true);
+    try {
+      const today = timeLogToEdit.date.split('T')[0];
+      const payload: { id: string; clockIn?: string; clockOut?: string | null } = { id: timeLogToEdit.id };
+      if (editForm.clockIn) {
+        payload.clockIn = `${today}T${editForm.clockIn}:00.000Z`;
+      }
+      if (editForm.clockOut) {
+        payload.clockOut = `${today}T${editForm.clockOut}:00.000Z`;
+      } else if (timeLogToEdit.clockOut) {
+        payload.clockOut = null;
+      }
+      await api.patch('/api/time-logs', payload);
+      queryClient.invalidateQueries({ queryKey: queryKeys.timeLogs.lists() });
+      setEditDialogOpen(false);
+      setTimeLogToEdit(null);
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Something went wrong';
+      alert(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDeleteClick = (log: TimeLog) => {
     setTimeLogToDelete(log);
     setDeleteDialogOpen(true);
@@ -747,21 +714,13 @@ useEffect(() => {
 
     setDeleting(true);
     try {
-      const res = await fetch(`/api/time-logs?id=${timeLogToDelete.id}`, {
-        method: 'DELETE',
-      });
-
-      if (!res.ok) {
-        const data = await res.json() as { error?: string };
-        alert(data.error || 'Failed to delete time log');
-        return;
-      }
-
-      fetchTimeLogs();
+      await api.delete(`/api/time-logs?id=${timeLogToDelete.id}`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.timeLogs.lists() });
       setDeleteDialogOpen(false);
       setTimeLogToDelete(null);
     } catch (err) {
-      alert('Something went wrong');
+      const msg = err instanceof ApiError ? err.message : 'Something went wrong';
+      alert(msg);
     } finally {
       setDeleting(false);
     }
@@ -1212,13 +1171,13 @@ useEffect(() => {
                     <div className="space-y-1">
                       {officeLocations.map((loc) => {
                         const dist = distances.get(loc.id);
-                        const inRange = dist !== undefined && dist <= loc.radius;
+                        const inRange = dist !== undefined && dist <= loc.rangeMeters;
                         return (
                           <div key={loc.id} className="flex items-center gap-1">
                             <span className={inRange ? 'text-green-600' : 'text-red-600'}>
                               {inRange ? '✓' : '✗'}
                             </span>
-                            <span>{loc.name}: {Math.round(dist || 0)}m / {loc.radius}m</span>
+                            <span>{loc.name}: {Math.round(dist || 0)}m / {loc.rangeMeters}m</span>
                           </div>
                         );
                       })}
@@ -1353,27 +1312,27 @@ useEffect(() => {
              </div>
            </div>
            
-           {loading ? (
-             <div className="p-8 text-center text-gray-500">Loading...</div>
-           ) : timeLogs.filter(log => 
-             log.employee?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
-           ).length === 0 ? (
-             <div className="p-8 text-center text-gray-500">No time logs found</div>
-           ) : (
-             <div className="overflow-x-auto">
-               <table className="w-full">
-                 <thead className="bg-gray-50 dark:bg-gray-900/50">
-                   <tr>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Employee</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Schedule</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock In</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock Out</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hours</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Remarks</th>
-                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
-                   </tr>
-                 </thead>
+            {initialLoading ? (
+              <div className="p-8 text-center text-gray-500">Loading...</div>
+            ) : timeLogs.filter(log => 
+              log.employee?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
+            ).length === 0 ? (
+              <div className="p-8 text-center text-gray-500">No time logs found</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-900/50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Employee</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Schedule</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock In</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock Out</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hours</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Remarks</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                    </tr>
+                  </thead>
                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                    {timeLogs
                      .filter(log => 
@@ -1416,24 +1375,33 @@ useEffect(() => {
                                {remarks.label}
                              </Badge>
                            </td>
-                           <td className="px-6 py-4">
-                             <button
-                               onClick={() => handleDeleteClick(log)}
-                               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                               title="Delete time log"
-                             >
-                               <Trash2 className="w-4 h-4" />
-                             </button>
-                           </td>
-                         </tr>
-                       );
-                     })}
-                 </tbody>
-               </table>
-             </div>
-           )}
-         </div>
-       )}
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleEditClick(log)}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Edit clock in/out"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClick(log)}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Delete time log"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
 {/* Time Logs Table for Employee (only their own data) */}
         {userRole === 'EMPLOYEE' && (
@@ -1442,7 +1410,7 @@ useEffect(() => {
               <h2 className="text-lg font-semibold dark:text-white">My Time Logs</h2>
             </div>
             
-            {loading ? (
+            {initialLoading ? (
               <div className="p-8 text-center text-gray-500">Loading...</div>
             ) : timeLogs.filter(log => employeeId && log.employeeId === employeeId).length === 0 ? (
               <div className="p-8 text-center text-gray-500">No time logs found</div>
@@ -1495,6 +1463,48 @@ useEffect(() => {
            )}
          </div>
        )}
+
+       {/* Edit Time Log Dialog (Admin/Manager only) */}
+       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Time Log</DialogTitle>
+            <DialogDescription>
+              Update clock in/out times for{' '}
+              <span className="font-semibold">{timeLogToEdit?.employee?.fullName}</span> on{' '}
+              <span className="font-semibold">{timeLogToEdit ? formatDate(timeLogToEdit.date) : ''}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="clockIn" className="text-right">Clock In</Label>
+              <Input
+                id="clockIn"
+                type="time"
+                value={editForm.clockIn}
+                onChange={(e) => setEditForm(f => ({ ...f, clockIn: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="clockOut" className="text-right">Clock Out</Label>
+              <Input
+                id="clockOut"
+                type="time"
+                value={editForm.clockOut}
+                onChange={(e) => setEditForm(f => ({ ...f, clockOut: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleEditSave} disabled={saving}>
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+       </Dialog>
 
        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md bg-black border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.3)]">

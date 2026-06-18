@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Plus, Search, Building, Pencil, Trash2, Eye, DollarSign } from 'lucide-react';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { api } from '@/lib/api-client';
+import { useVendors, useAccounts, useCreateVendor, useUpdateVendor, useDeleteVendor } from '@/hooks/use-accounting';
 
 interface CashAccount {
   id: string;
@@ -105,8 +107,6 @@ interface UnpaidJournalEntry {
 
 export default function VendorsPage() {
   const { selectedBranch } = useBranch();
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setViewDialogOpen] = useState(false);
@@ -125,7 +125,6 @@ export default function VendorsPage() {
     notes: '',
     cashAccountId: '',
   });
-  const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([]);
   const [unpaidBills, setUnpaidBills] = useState<UnpaidBill[]>([]);
   const [unpaidJournalEntries, setUnpaidJournalEntries] = useState<UnpaidJournalEntry[]>([]);
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
@@ -143,31 +142,19 @@ export default function VendorsPage() {
     paymentTerms: 'NET 30',
   });
 
-  useEffect(() => {
-    fetchVendors();
-    fetchCashAccounts();
-  }, [selectedBranch]);
-
-  async function fetchCashAccounts() {
-    try {
-      const res = await fetch('/api/accounting/accounts');
-      const data = (await res.json()) as CashAccount[];
-      if (Array.isArray(data)) {
-        setCashAccounts(data);
-      } else {
-        setCashAccounts([]);
-      }
-    } catch (err) {
-      console.error('Error fetching accounts:', err);
-      setCashAccounts([]);
-    }
-  }
+  const params: Record<string, string> = {};
+  if (selectedBranch) params.branchId = selectedBranch.id;
+  const { data: vendors = [], isLoading: loading } = useVendors(params) as { data: Vendor[]; isLoading: boolean };
+  const { data: allAccounts = [] } = useAccounts();
+  const cashAccounts = allAccounts as CashAccount[];
+  const createVendor = useCreateVendor();
+  const updateVendor = useUpdateVendor();
+  const deleteVendor = useDeleteVendor();
 
   async function fetchUnpaidBills(supplierName: string) {
     try {
       // Fetch purchase bills
-      const billsRes = await fetch('/api/accounting/purchases');
-      const bills = (await billsRes.json()) as PurchaseBill[];
+      const bills = await api.get<PurchaseBill[]>('/api/accounting/purchases');
       
       const unpaid = Array.isArray(bills) 
         ? bills
@@ -177,8 +164,7 @@ export default function VendorsPage() {
       setUnpaidBills(unpaid);
 
       // Fetch all journal entries for liability accounts (payables)
-      const jeRes = await fetch('/api/accounting/journal');
-      const journalEntries = (await jeRes.json()) as JournalEntry[];
+      const journalEntries = await api.get<JournalEntry[]>('/api/accounting/journal');
       
       if (!Array.isArray(journalEntries)) {
         setUnpaidJournalEntries([]);
@@ -228,43 +214,12 @@ export default function VendorsPage() {
     }
   }
 
-  async function fetchVendors() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (selectedBranch) params.set('branchId', selectedBranch.id);
-      const res = await fetch(`/api/accounting/vendors?${params}`);
-      const data = await res.json() as Vendor[];
-      if (Array.isArray(data)) {
-        setVendors(data);
-      } else {
-        setVendors([]);
-      }
-    } catch (err) {
-      console.error('Error fetching vendors:', err);
-      setVendors([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const res = await fetch('/api/accounting/vendors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, branchId: selectedBranch?.id || null }),
-      });
-
-      if (res.ok) {
-        setCreateDialogOpen(false);
-        resetForm();
-        fetchVendors();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create vendor');
-      }
+      await createVendor.mutateAsync({ ...formData, branchId: selectedBranch?.id || null });
+      setCreateDialogOpen(false);
+      resetForm();
     } catch (err) {
       console.error('Error creating vendor:', err);
     }
@@ -275,25 +230,13 @@ export default function VendorsPage() {
     if (!editingVendor) return;
 
     try {
-      const res = await fetch('/api/accounting/vendors', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingVendor.id,
-          ...formData,
-          branchId: selectedBranch?.id || null,
-        }),
+      await updateVendor.mutateAsync({
+        id: editingVendor.id,
+        data: { ...formData, branchId: selectedBranch?.id || null },
       });
-
-      if (res.ok) {
-        setEditDialogOpen(false);
-        setEditingVendor(null);
-        resetForm();
-        fetchVendors();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update vendor');
-      }
+      setEditDialogOpen(false);
+      setEditingVendor(null);
+      resetForm();
     } catch (err) {
       console.error('Error updating vendor:', err);
     }
@@ -305,16 +248,7 @@ export default function VendorsPage() {
     }
 
     try {
-      const res = await fetch(`/api/accounting/vendors?id=${vendor.id}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        fetchVendors();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to delete vendor');
-      }
+      await deleteVendor.mutateAsync(vendor.id);
     } catch (err) {
       console.error('Error deleting vendor:', err);
     }
@@ -355,19 +289,17 @@ export default function VendorsPage() {
     setEditDialogOpen(true);
   }
 
-  function openViewDialog(vendor: Vendor) {
-    fetch(`/api/accounting/vendors?id=${vendor.id}`)
-      .then((res: Response) => res.json() as Promise<VendorWithTransactions>)
-      .then((data: VendorWithTransactions) => {
-        if (data.transactions) {
-          data.transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        }
-        setViewingVendor(data);
-        setViewDialogOpen(true);
-      })
-      .catch((err: Error) => {
-        console.error('Error fetching vendor details:', err);
-      });
+  async function openViewDialog(vendor: Vendor) {
+    try {
+      const data = await api.get<VendorWithTransactions>(`/api/accounting/vendors?id=${vendor.id}`);
+      if (data.transactions) {
+        data.transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      }
+      setViewingVendor(data);
+      setViewDialogOpen(true);
+    } catch (err) {
+      console.error('Error fetching vendor details:', err);
+    }
   }
 
   function openPayAllDialog(vendor: Vendor) {
@@ -423,21 +355,9 @@ export default function VendorsPage() {
 
     setPayAllLoading(true);
     try {
-      const res = await fetch('/api/accounting/payments/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      console.log('Payment response:', data);
-      if (res.ok) {
-        alert(`Payment of ₱${payAllData.paymentAmount.toLocaleString('en-PH')} successful!`);
-        setPayAllDialogOpen(false);
-        fetchVendors();
-      } else {
-        alert(data.error || 'Failed to process payment');
-      }
+      await api.post('/api/accounting/payments/batch', payload);
+      alert(`Payment of ₱${payAllData.paymentAmount.toLocaleString('en-PH')} successful!`);
+      setPayAllDialogOpen(false);
     } catch (err) {
       console.error('Error paying:', err);
       alert('Failed to process payment');

@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Search, ArrowLeft, DollarSign } from 'lucide-react'
 import { format } from 'date-fns/format'
 import Link from 'next/link'
+import { useEmployees } from '@/hooks/use-employees'
+import { useAdvanceSummary } from '@/hooks/use-advances'
 
 interface Employee {
   id: string
@@ -33,21 +35,19 @@ interface SummaryData {
 }
 
 export default function AdvancesSummaryPage() {
-  const [employees, setEmployees] = useState<Employee[]>([])
+  const employeesQuery = useEmployees();
+  const employees = (employeesQuery.data ?? []) as unknown as Employee[];
+  const loadingEmployees = employeesQuery.isLoading;
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
-  const [summaryData, setSummaryData] = useState<SummaryData | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [loadingEmployees, setLoadingEmployees] = useState(true)
+  const summaryQuery = useAdvanceSummary(selectedEmployee?.id ?? '');
+  const summaryData = (summaryQuery.data ?? null) as unknown as SummaryData | null;
+  const loading = summaryQuery.isLoading;
   const [error, setError] = useState('')
 
   const [searchText, setSearchText] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    fetchEmployees()
-  }, [])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -73,51 +73,21 @@ export default function AdvancesSummaryPage() {
     }
   }, [searchText, employees])
 
-  const fetchEmployees = async () => {
-    try {
-      const res = await fetch('/api/employees', { credentials: 'include' })
-      if (!res.ok) throw new Error('Failed to fetch employees')
-      const data: Employee[] = await res.json()
-      setEmployees(data)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoadingEmployees(false)
+  useEffect(() => {
+    if (selectedEmployee) {
+      setError('')
     }
-  }
-
-  const fetchSummary = useCallback(async (employeeId: string) => {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch(`/api/advances/summary?employeeId=${employeeId}`, {
-        credentials: 'include',
-      })
-      if (!res.ok) {
-        const data = await res.json().then((d) => d as { error?: string })
-        throw new Error(data.error || 'Failed to fetch summary')
-      }
-      const data: SummaryData = await res.json()
-      setSummaryData(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-      setSummaryData(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  }, [selectedEmployee])
 
   const handleSelectEmployee = (emp: Employee) => {
     setSelectedEmployee(emp)
     setSearchText(emp.fullName)
     setShowDropdown(false)
-    fetchSummary(emp.id)
   }
 
   const handleClearSelection = () => {
     setSelectedEmployee(null)
     setSearchText('')
-    setSummaryData(null)
     setError('')
   }
 
@@ -170,7 +140,6 @@ export default function AdvancesSummaryPage() {
                 setShowDropdown(true)
                 if (selectedEmployee) {
                   setSelectedEmployee(null)
-                  setSummaryData(null)
                 }
               }}
               onFocus={() => setShowDropdown(true)}

@@ -1,14 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useOvertime, useSubmitOvertime, useApproveOvertime } from '@/hooks/use-overtime';
+import { useEmployees } from '@/hooks/use-employees';
 import { Plus, CheckCircle, XCircle, Clock, Search, Filter, Info, FileText } from 'lucide-react';
 import { format } from 'date-fns/format';
 import type { OvertimeRequest, OtStatus, EmployeeWithUser } from '@/types';
 
 export default function OvertimePage() {
-  const [overtimeRequests, setOvertimeRequests] = useState<OvertimeRequest[]>([]);
-  const [employees, setEmployees] = useState<EmployeeWithUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: _otData = [], isLoading } = useOvertime();
+  const overtimeRequests = _otData as unknown as OvertimeRequest[];
+  const { data: _employeesData = [] } = useEmployees();
+  const employees = _employeesData as unknown as EmployeeWithUser[];
+  const submitOvertime = useSubmitOvertime();
+  const approveOvertime = useApproveOvertime();
+
   const [showModal, setShowModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<OvertimeRequest | null>(null);
@@ -33,62 +39,13 @@ export default function OvertimePage() {
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    const getCookies = () => {
-      const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-        const [key, value] = cookie.trim().split('=');
-        acc[key] = value;
-        return acc;
-      }, {} as Record<string, string>);
-      return { 
-        role: cookies.userRole || '', 
-        loggedIn: cookies.isLoggedIn === 'true' 
-      };
-    };
-    
-    const { role, loggedIn } = getCookies();
-    if (!loggedIn) {
-      window.location.href = '/login';
-      return;
-    }
-    setUserRole(role);
-    fetchOvertime();
-    fetchEmployees();
+    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+      const [key, value] = cookie.trim().split('=');
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+    setUserRole(cookies.userRole || '');
   }, []);
-
-  const fetchOvertime = async () => {
-    try {
-      const res = await fetch('/api/overtime', { credentials: 'include' });
-      const data = await res.json();
-      
-      if (!res.ok) {
-        console.error('API Error:', data.error);
-        setError(data.error || 'Failed to fetch overtime requests');
-        setOvertimeRequests([]);
-        return;
-      }
-      
-      if (Array.isArray(data)) {
-        setOvertimeRequests(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch overtime:', err);
-      setOvertimeRequests([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchEmployees = async () => {
-    try {
-      const res = await fetch('/api/employees', { credentials: 'include' });
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setEmployees(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch employees:', err);
-    }
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -104,18 +61,7 @@ export default function OvertimePage() {
     }
 
     try {
-      const res = await fetch('/api/overtime', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(formData),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.details ? `${data.error}: ${data.details}` : (data.error || 'Failed to submit overtime request'));
-      }
-
+      await submitOvertime.mutateAsync(formData as any);
       alert('Overtime request submitted successfully!');
       setShowModal(false);
       setFormData({
@@ -124,7 +70,6 @@ export default function OvertimePage() {
         hours: '1',
         reason: '',
       });
-      fetchOvertime();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
@@ -135,23 +80,11 @@ export default function OvertimePage() {
     if (!selectedRequest) return;
 
     try {
-      const res = await fetch('/api/overtime', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          id: selectedRequest.id,
-          ...approvalData
-        }),
-      });
-
-      if (!res.ok) throw new Error('Failed to update overtime request');
-
+      await approveOvertime.mutateAsync({ id: selectedRequest.id, status: approvalData.status });
       alert(`Overtime request ${approvalData.status.toLowerCase()} successfully!`);
       setShowApproveModal(false);
       setSelectedRequest(null);
       setApprovalData({ status: 'APPROVED', adminNotes: '' });
-      fetchOvertime();
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'An unknown error occurred');
     }
@@ -232,7 +165,7 @@ export default function OvertimePage() {
           </div>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="p-8 text-center text-gray-500">Loading...</div>
         ) : overtimeRequests.length === 0 ? (
           <div className="p-12 text-center text-gray-500">

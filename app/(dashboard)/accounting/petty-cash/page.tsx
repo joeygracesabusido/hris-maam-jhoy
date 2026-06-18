@@ -10,6 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, DollarSign, Receipt, RefreshCw, ArrowRight } from 'lucide-react';
 import { useBranch, Branch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { api } from '@/lib/api-client';
+import { usePettyCash, useAccounts } from '@/hooks/use-accounting';
 
 interface Account {
   id: string;
@@ -70,9 +72,6 @@ interface Liquidation {
 }
 
 export default function PettyCashPage() {
-  const [funds, setFunds] = useState<PettyCashFund[]>([]);
-  const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
-  const [expenseAccounts, setExpenseAccounts] = useState<Account[]>([]);
   const [disbursements, setDisbursements] = useState<Disbursement[]>([]);
   const [liquidations, setLiquidations] = useState<Liquidation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,52 +123,27 @@ export default function PettyCashPage() {
     notes: '',
   });
 
+  const pcParams: Record<string, string> = {};
+  if (selectedBranch) pcParams.branchId = selectedBranch.id;
+  const { data: funds = [], isLoading: fundsLoading, refetch: refetchFunds } = usePettyCash(pcParams) as { data: PettyCashFund[]; isLoading: boolean; refetch: () => void };
+  const { data: allAccounts = [] } = useAccounts();
+  const expenseAccounts = allAccounts.filter((a: Account) => a.type === 'EXPENSE' || a.code.startsWith('5'));
+  const cashAccounts = allAccounts.filter((a: Account) => a.code.startsWith('11') || a.code.startsWith('10'));
+
   useEffect(() => {
-    fetchFunds();
-    fetchAccounts();
+    setLoading(fundsLoading);
+  }, [fundsLoading]);
+
+  useEffect(() => {
     fetchDisbursements();
     fetchLiquidations();
   }, [selectedBranch]);
 
-  async function fetchFunds() {
-    setLoading(true);
-    try {
-      const url = `/api/accounting/petty-cash${selectedBranch ? `?branchId=${selectedBranch.id}` : ''}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setFunds(data);
-      } else {
-        setFunds([]);
-      }
-    } catch (err) {
-      console.error('Error fetching funds:', err);
-      setFunds([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function fetchAccounts() {
-    try {
-      const res = await fetch('/api/accounting/accounts');
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        const expenseData = data.filter((a: Account) => a.type === 'EXPENSE' || a.code.startsWith('5'));
-        const cashData = data.filter((a: Account) => a.code.startsWith('11') || a.code.startsWith('10'));
-        setExpenseAccounts(expenseData);
-        setCashAccounts(cashData);
-      }
-    } catch (err) {
-      console.error('Error fetching accounts:', err);
-    }
-  }
-
   async function fetchDisbursements() {
     try {
-      const url = `/api/accounting/petty-cash/disbursements${selectedBranch ? `?branchId=${selectedBranch.id}` : ''}`;
-      const res = await fetch(url);
-      const data = await res.json();
+      const paramStr: Record<string, string> = {};
+      if (selectedBranch) paramStr.branchId = selectedBranch.id;
+      const data = await api.get<Disbursement[]>(`/api/accounting/petty-cash/disbursements`, { params: paramStr });
       if (Array.isArray(data)) {
         setDisbursements(data);
       } else {
@@ -183,9 +157,9 @@ export default function PettyCashPage() {
 
   async function fetchLiquidations() {
     try {
-      const url = `/api/accounting/petty-cash/liquidations${selectedBranch ? `?branchId=${selectedBranch.id}` : ''}`;
-      const res = await fetch(url);
-      const data = await res.json();
+      const paramStr: Record<string, string> = {};
+      if (selectedBranch) paramStr.branchId = selectedBranch.id;
+      const data = await api.get<Liquidation[]>(`/api/accounting/petty-cash/liquidations`, { params: paramStr });
       if (Array.isArray(data)) {
         setLiquidations(data);
       } else {
@@ -199,20 +173,9 @@ export default function PettyCashPage() {
 
   async function handleLiquidationAction(id: string, status: 'APPROVED' | 'REJECTED') {
     try {
-      const res = await fetch('/api/accounting/petty-cash/liquidations', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, branchId: selectedBranch?.id }),
-      });
-
-      if (res.ok) {
-        fetchLiquidations();
-        fetchDisbursements();
-        fetchFunds();
-      } else {
-        const data = await res.json();
-        alert(data.error || `Failed to ${status.toLowerCase()} liquidation`);
-      }
+      await api.patch('/api/accounting/petty-cash/liquidations', { id, status, branchId: selectedBranch?.id });
+      fetchLiquidations();
+      fetchDisbursements();
     } catch (err) {
       console.error(`Error ${status.toLowerCase()} liquidation:`, err);
     }
@@ -221,25 +184,14 @@ export default function PettyCashPage() {
   async function handleCreateFund(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const payload = {
+      await api.post('/api/accounting/petty-cash', {
         ...formData,
         fundAmount: parseFloat(String(formData.fundAmount)) || 0,
         branchId: formData.branchId || selectedBranch?.id || null,
-      };
-      const res = await fetch('/api/accounting/petty-cash', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
       });
-
-      if (res.ok) {
-        setCreateDialogOpen(false);
-        resetForm();
-        fetchFunds();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create fund');
-      }
+      setCreateDialogOpen(false);
+      resetForm();
+      refetchFunds();
     } catch (err) {
       console.error('Error creating fund:', err);
     }
@@ -250,26 +202,16 @@ export default function PettyCashPage() {
     if (!selectedFund) return;
 
     try {
-      const res = await fetch('/api/accounting/petty-cash/disbursements', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pettyCashId: selectedFund.id,
-          ...disburseData,
-          branchId: selectedBranch?.id,
-        }),
+      await api.post('/api/accounting/petty-cash/disbursements', {
+        pettyCashId: selectedFund.id,
+        ...disburseData,
+        branchId: selectedBranch?.id,
       });
-
-      if (res.ok) {
-        setDisburseDialogOpen(false);
-        setSelectedFund(null);
-        resetDisburseForm();
-        fetchFunds();
-        fetchDisbursements();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create disbursement');
-      }
+      setDisburseDialogOpen(false);
+      setSelectedFund(null);
+      resetDisburseForm();
+      refetchFunds();
+      fetchDisbursements();
     } catch (err) {
       console.error('Error creating disbursement:', err);
     }
@@ -284,25 +226,15 @@ export default function PettyCashPage() {
     if (!replenishTarget) return;
 
     try {
-      const res = await fetch('/api/accounting/petty-cash', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: replenishTarget.id,
-          fundAmount: replenishTarget.fundAmount,
-          replenish: true,
-          branchId: selectedBranch?.id,
-        }),
+      await api.patch('/api/accounting/petty-cash', {
+        id: replenishTarget.id,
+        fundAmount: replenishTarget.fundAmount,
+        replenish: true,
+        branchId: selectedBranch?.id,
       });
-
-      if (res.ok) {
-        setReplenishDialogOpen(false);
-        setReplenishTarget(null);
-        fetchFunds();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to replenish fund');
-      }
+      setReplenishDialogOpen(false);
+      setReplenishTarget(null);
+      refetchFunds();
     } catch (err) {
       console.error('Error replenishing fund:', err);
     }
@@ -323,28 +255,18 @@ export default function PettyCashPage() {
     if (!selectedDisbursement) return;
 
     try {
-      const res = await fetch('/api/accounting/petty-cash/liquidations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pettyCashId: selectedDisbursement.pettyCashId,
-          disbursementId: selectedDisbursement.id,
-          amount: parseFloat(String(liquidateData.amount)) || 0,
-          date: liquidateData.date,
-          notes: liquidateData.notes,
-          branchId: selectedBranch?.id,
-        }),
+      await api.post('/api/accounting/petty-cash/liquidations', {
+        pettyCashId: selectedDisbursement.pettyCashId,
+        disbursementId: selectedDisbursement.id,
+        amount: parseFloat(String(liquidateData.amount)) || 0,
+        date: liquidateData.date,
+        notes: liquidateData.notes,
+        branchId: selectedBranch?.id,
       });
-
-      if (res.ok) {
-        setLiquidateDialogOpen(false);
-        setSelectedDisbursement(null);
-        fetchDisbursements();
-        fetchLiquidations();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to submit liquidation');
-      }
+      setLiquidateDialogOpen(false);
+      setSelectedDisbursement(null);
+      fetchDisbursements();
+      fetchLiquidations();
     } catch (err) {
       console.error('Error submitting liquidation:', err);
     }
@@ -376,25 +298,14 @@ export default function PettyCashPage() {
     if (!selectedFund) return;
 
     try {
-      const payload = {
+      await api.patch('/api/accounting/petty-cash', {
         id: selectedFund.id,
         ...editFormData,
         fundAmount: parseFloat(String(editFormData.fundAmount)) || 0,
         branchId: selectedBranch?.id,
-      };
-      const res = await fetch('/api/accounting/petty-cash', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
       });
-
-      if (res.ok) {
-        setEditDialogOpen(false);
-        fetchFunds();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update fund');
-      }
+      setEditDialogOpen(false);
+      refetchFunds();
     } catch (err) {
       console.error('Error updating fund:', err);
     }
@@ -417,11 +328,8 @@ export default function PettyCashPage() {
     setDetailLoading(true);
     setDetailEntries([]);
     try {
-      const res = await fetch(`/api/accounting/petty-cash/transactions?pettyCashId=${fund.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setDetailEntries(data.entries || []);
-      }
+      const data = await api.get<any>(`/api/accounting/petty-cash/transactions`, { params: { pettyCashId: fund.id } });
+      setDetailEntries(data.entries || []);
     } catch (err) {
       console.error('Error fetching fund transactions:', err);
     } finally {

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Wallet, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useBranch } from '@/lib/branch-context';
+import { api } from '@/lib/api-client';
 
 interface Account {
   name: string;
@@ -41,10 +42,9 @@ export default function AccountTransactionsPage() {
   useEffect(() => {
     async function fetchTransactions() {
       try {
-        const urlParams = new URLSearchParams();
-        if (selectedBranch) urlParams.set('branchId', selectedBranch.id);
-        const res = await fetch(`/api/accounting/accounts/${params.id}/transactions?${urlParams}`);
-        const result = await res.json();
+        const queryParams: Record<string, string> = {};
+        if (selectedBranch) queryParams.branchId = selectedBranch.id;
+        const result = await api.get<ReportData>(`/api/accounting/accounts/${params.id}/transactions`, { params: queryParams });
         setData(result);
       } catch (err) {
         console.error('Error fetching transactions:', err);

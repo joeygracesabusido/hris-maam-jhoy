@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useDashboardStats } from '@/hooks/use-dashboard';
 import { Users, DollarSign, Clock, TrendingUp, UserMinus, CheckCircle, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -22,8 +23,7 @@ interface Stats {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: stats, isLoading } = useDashboardStats();
   const [userRole, setUserRole] = useState('');
 
   useEffect(() => {
@@ -34,22 +34,9 @@ export default function DashboardPage() {
       return acc;
     }, {} as Record<string, string>);
     setUserRole(cookies.userRole || '');
-    
-    async function fetchStats() {
-      try {
-        const response = await fetch('/api/dashboard/stats', { credentials: 'include' });
-        const data = await response.json();
-        setStats(data);
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchStats();
   }, []);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>

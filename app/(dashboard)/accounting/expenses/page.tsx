@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Plus, Search, Filter, Trash2, Save, Edit, XCircle,
   Calendar as CalendarIcon,
@@ -21,6 +21,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { api } from '@/lib/api-client';
+import { useExpenses, useAccounts, useCreateExpense, useUpdateExpense, useVendors } from '@/hooks/use-accounting';
 
 interface ExpenseItem {
   id?: string;
@@ -62,11 +64,6 @@ interface Account {
 
 export default function ExpensesPage() {
   const { selectedBranch, branches } = useBranch();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [cashAccounts, setCashAccounts] = useState<Account[]>([]);
-  const [vendors, setVendors] = useState<{ id: string; entityName: string }[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -93,60 +90,26 @@ export default function ExpensesPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const fetchInitialData = useCallback(async () => {
-    try {
-      const [accRes, vendorsRes] = await Promise.all([
-        fetch('/api/accounting/accounts').then(res => res.json()),
-        fetch('/api/accounting/vendors').then(res => res.json()),
-      ]);
+  const params: Record<string, string> = {};
+  if (search) params.search = search;
+  if (statusFilter !== 'ALL') params.status = statusFilter;
+  if (selectedBranch) params.branchId = selectedBranch.id;
+  const { data: _expenses, isLoading: loading } = useExpenses(params);
+  const expenses = (_expenses as Expense[]) || [];
+  const { data: allAccounts = [] } = useAccounts();
+  const { data: _vendors } = useVendors();
+  const vendors = (_vendors as { id: string; entityName: string }[]) || [];
+  const createExpense = useCreateExpense();
+  const updateExpense = useUpdateExpense();
 
-      const allAccounts = accRes;
-      setVendors(Array.isArray(vendorsRes) ? vendorsRes : []);
-      setAccounts(allAccounts.filter((a: Account) => a.type === 'EXPENSE'));
-
-      // Typically Cash/Bank accounts are ASSET type
-      const cashAccs = allAccounts.filter((a: Account) => a.type === 'ASSET' && (a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('bank')));
-      setCashAccounts(cashAccs);
-
-      if (cashAccs.length > 0) {
-        setFormData(prev => ({ ...prev, cashAccountId: cashAccs[0].id }));
-      }
-    } catch {
-      console.error('Error fetching initial data');
-    }
-  }, []);
-
-  const fetchExpenses = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (search) params.append('search', search);
-      if (statusFilter !== 'ALL') params.append('status', statusFilter);
-      if (selectedBranch) params.append('branchId', selectedBranch.id);
-
-      const res = await fetch(`/api/accounting/expenses?${params.toString()}`);
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setExpenses(data);
-      } else {
-        setExpenses([]);
-        toast.error('Failed to load expenses');
-      }
-    } catch {
-      setExpenses([]);
-      toast.error('Failed to load expenses');
-    } finally {
-      setLoading(false);
-    }
-  }, [search, statusFilter]);
+  const accounts = allAccounts.filter((a: Account) => a.type === 'EXPENSE');
+  const cashAccounts = allAccounts.filter((a: Account) => a.type === 'ASSET' && (a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('bank')));
 
   useEffect(() => {
-    fetchInitialData();
-  }, [fetchInitialData]);
-
-  useEffect(() => {
-    fetchExpenses();
-  }, [fetchExpenses, selectedBranch]);
+    if (cashAccounts.length > 0 && !formData.cashAccountId) {
+      setFormData(prev => ({ ...prev, cashAccountId: cashAccounts[0].id }));
+    }
+  }, [cashAccounts]);
 
   useEffect(() => {
     if (isDialogOpen && selectedBranch) {
@@ -246,6 +209,21 @@ export default function ExpensesPage() {
     setIsEditDialogOpen(true);
   };
 
+  function resetForm() {
+    setFormData({
+      payee: '',
+      date: new Date().toISOString().split('T')[0],
+      description: '',
+      cashAccountId: cashAccounts[0]?.id || '',
+      isVatInclusive: false,
+      noInputVat: false,
+      ewtAccountId: '',
+      ewtPercentage: '',
+      branchId: selectedBranch?.id || '',
+      items: [{ description: '', amount: 0, accountId: '' }]
+    });
+  }
+
   async function handleUpdate() {
     if (!editingExpense) return;
     if (!formData.payee || !formData.cashAccountId) {
@@ -259,41 +237,22 @@ export default function ExpensesPage() {
     }
 
     try {
-      const res = await fetch('/api/accounting/expenses', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({
-          id: editingExpense.id,
+      await updateExpense.mutateAsync({
+        id: editingExpense.id,
+        data: {
           ...formData,
           totalAmount: calculateTotal(),
           netAmount: netOfVat,
           vatAmount,
           ewtAmount,
           branchId: formData.branchId || selectedBranch?.id || ''
-        })
+        }
       });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to update expense');
-      }
 
       toast.success('Expense updated successfully');
       setIsEditDialogOpen(false);
       setEditingExpense(null);
-      setFormData({
-        payee: '',
-        date: new Date().toISOString().split('T')[0],
-        description: '',
-        cashAccountId: cashAccounts[0]?.id || '',
-        isVatInclusive: false,
-        noInputVat: false,
-        ewtAccountId: '',
-        ewtPercentage: '',
-        branchId: selectedBranch?.id || '',
-        items: [{ description: '', amount: 0, accountId: '' }]
-      });
-      fetchExpenses();
+      resetForm();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'An error occurred while updating');
     }
@@ -311,36 +270,18 @@ body: JSON.stringify({
     }
 
     try {
-      const res = await fetch('/api/accounting/expenses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({
-          ...formData,
-          totalAmount: calculateTotal(),
-          netAmount: netOfVat,
-          vatAmount,
-          ewtAmount,
-          branchId: formData.branchId || selectedBranch?.id || ''
-        })
+      await createExpense.mutateAsync({
+        ...formData,
+        totalAmount: calculateTotal(),
+        netAmount: netOfVat,
+        vatAmount,
+        ewtAmount,
+        branchId: formData.branchId || selectedBranch?.id || ''
       });
-
-      if (!res.ok) throw new Error('Failed to create expense');
 
       toast.success('Expense recorded successfully');
       setIsDialogOpen(false);
-      setFormData({
-        payee: '',
-        date: new Date().toISOString().split('T')[0],
-        description: '',
-        cashAccountId: cashAccounts[0]?.id || '',
-        isVatInclusive: false,
-        noInputVat: false,
-        ewtAccountId: '',
-        ewtPercentage: '',
-        branchId: selectedBranch?.id || '',
-        items: [{ description: '', amount: 0, accountId: '' }]
-      });
-      fetchExpenses();
+      resetForm();
     } catch {
       toast.error('An error occurred while saving');
     }
@@ -348,16 +289,8 @@ body: JSON.stringify({
 
   async function handleStatusChange(id: string, newStatus: string) {
     try {
-      const res = await fetch('/api/accounting/expenses', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: newStatus })
-      });
-
-      if (!res.ok) throw new Error('Failed to update status');
-
+      await api.patch('/api/accounting/expenses', { id, status: newStatus });
       toast.success(`Expense marked as ${newStatus}`);
-      fetchExpenses();
     } catch {
       toast.error('An error occurred while updating status');
     }
@@ -374,18 +307,23 @@ body: JSON.stringify({
     }
 
     try {
-      const res = await fetch('/api/accounting/expenses', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: 'VOID' })
-      });
-
-      if (!res.ok) throw new Error('Failed to void expense');
-
+      await api.patch('/api/accounting/expenses', { id, status: 'VOID' });
       toast.success(`Expense ${expenseNumber} voided successfully`);
-      fetchExpenses();
     } catch {
       toast.error('An error occurred while voiding the expense');
+    }
+  }
+
+  async function handleDelete(id: string, expenseNumber: string) {
+    if (!confirm(`Are you sure you want to delete expense ${expenseNumber}? This will permanently delete the expense, its items, and the linked journal entry. This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/api/accounting/expenses?id=${id}`);
+      toast.success(`Expense ${expenseNumber} deleted successfully`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'An error occurred while deleting the expense');
     }
   }
 
@@ -901,6 +839,15 @@ body: JSON.stringify({
                               Approve
                             </Button>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDelete(exp.id, exp.expenseNumber)}
+                            title="Delete expense and linked journal entry"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -982,6 +929,18 @@ body: JSON.stringify({
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>Close</Button>
+            {selectedExpense?.status === 'PENDING' && (
+              <Button
+                variant="destructive"
+                className="gap-2"
+                onClick={() => {
+                  handleDelete(selectedExpense.id, selectedExpense.expenseNumber);
+                  setIsDetailsOpen(false);
+                }}
+              >
+                <Trash2 className="w-4 h-4" /> Delete Expense
+              </Button>
+            )}
             {selectedExpense?.status === 'PENDING' && (
               <Button onClick={() => {
                 handleStatusChange(selectedExpense.id, 'APPROVED');

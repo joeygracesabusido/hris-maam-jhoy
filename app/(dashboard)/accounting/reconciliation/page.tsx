@@ -1,35 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, CheckCircle2, XCircle, Download } from 'lucide-react';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { useReconciliation } from '@/hooks/use-accounting';
 
 export default function ReconciliationPage() {
   const { selectedBranch } = useBranch();
-  const [reconciliations, setReconciliations] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  async function fetchReconciliation() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (selectedBranch) params.set('branchId', selectedBranch.id);
-      const res = await fetch(`/api/accounting/subsidiary-transactions?${params}`, {
-        method: 'DELETE', // Using DELETE for reconciliation check
-      });
-      const data = await res.json();
-      setReconciliations(data.reconciliations || []);
-    } catch (err) {
-      console.error('Error fetching reconciliation:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const params: Record<string, string> = {};
+  if (selectedBranch) params.branchId = selectedBranch.id;
+  const { data, isLoading: loading, refetch } = useReconciliation(params) as { data: any; isLoading: boolean; refetch: () => void };
+  const reconciliations = data?.reconciliations || [];
 
   return (
     <div className="space-y-6">
@@ -42,7 +27,7 @@ export default function ReconciliationPage() {
         </div>
         <div className="flex gap-2 items-center">
           <BranchSelector />
-          <Button onClick={fetchReconciliation} disabled={loading}>
+          <Button onClick={() => refetch()} disabled={loading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
@@ -81,7 +66,7 @@ export default function ReconciliationPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                reconciliations.map((rec) => (
+                reconciliations.map((rec: any) => (
                   <TableRow key={rec.accountId} className={
                     !rec.isBalanced ? 'bg-red-50 dark:bg-red-950/20' : ''
                   }>

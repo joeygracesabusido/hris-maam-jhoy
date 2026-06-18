@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { FileText, Download, RefreshCcw } from 'lucide-react';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { useAccountingReport } from '@/hooks/use-accounting';
 
 interface TrialBalanceItem {
   code: string;
@@ -50,27 +51,11 @@ interface ReportData {
 
 export default function ReportsPage() {
   const [activeReport, setActiveReport] = useState('trial-balance');
-  const [data, setData] = useState<ReportData | null>(null);
-  const [loading, setLoading] = useState(true);
   const { selectedBranch } = useBranch();
 
-  const fetchReport = useCallback(async () => {
-    setLoading(true);
-    try {
-      const url = `/api/accounting/reports/${activeReport}${selectedBranch ? `?branchId=${selectedBranch.id}` : ''}`;
-      const res = await fetch(url);
-      const json = await res.json();
-      setData(json);
-    } catch (err) {
-      console.error('Error fetching report:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeReport, selectedBranch]);
-
-  useEffect(() => {
-    fetchReport();
-  }, [fetchReport]);
+  const params: Record<string, string> = {};
+  if (selectedBranch) params.branchId = selectedBranch.id;
+  const { data, isLoading: loading, refetch } = useAccountingReport(activeReport, params) as { data: ReportData | null; isLoading: boolean; refetch: () => void };
 
   return (
     <div className="space-y-6">
@@ -81,7 +66,7 @@ export default function ReportsPage() {
         </div>
         <div className="flex items-center gap-4">
           <BranchSelector />
-          <Button variant="outline" onClick={fetchReport} disabled={loading} className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => refetch()} disabled={loading} className="flex items-center gap-2">
             <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh Data
           </Button>
@@ -102,7 +87,7 @@ export default function ReportsPage() {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={fetchReport} disabled={loading} className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => refetch()} disabled={loading} className="flex items-center gap-2">
             <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,16 +9,19 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useBranch } from '@/lib/branch-context';
+import { useAsset, useAssetCategories, useUpdateAsset } from '@/hooks/use-assets';
 
-export default function EditAssetPage({ params }: { params: { id: string } }) {
+export default function EditAssetPage() {
   const router = useRouter();
-  const [categories, setCategories] = useState<{
-    id: string;
-    name: string;
-  }[]>([]);
+  const routeParams = useParams();
+  const id = routeParams.id as string;
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const { selectedBranch } = useBranch();
+  const { data: rawCategories } = useAssetCategories();
+  const categories = (rawCategories || []) as any[];
+  const { data: rawAsset } = useAsset(id);
+  const updateAsset = useUpdateAsset();
 
   const [formData, setFormData] = useState({
     assetCode: '',
@@ -38,69 +41,40 @@ export default function EditAssetPage({ params }: { params: { id: string } }) {
   });
 
   useEffect(() => {
-    async function loadAssetAndCategories() {
-      try {
-        const [catRes, assetRes] = await Promise.all([
-          fetch('/api/assets/categories'),
-          fetch(`/api/assets/${params.id}`)
-        ]);
-
-        const catData = await catRes.json();
-        setCategories(catData || []);
-
-        const asset = await assetRes.json();
-        if (asset && !asset.error) {
-          setFormData({
-            assetCode: asset.assetCode || '',
-            name: asset.name || '',
-            brand: asset.brand || '',
-            description: asset.description || '',
-            categoryId: asset.categoryId || '',
-            purchaseDate: asset.purchaseDate ? asset.purchaseDate.split('T')[0] : '',
-            supplier: asset.supplier || '',
-            purchaseCost: asset.purchaseCost?.toString() || '',
-            usefulLife: asset.usefulLife?.toString() || '',
-            residualValue: asset.residualValue?.toString() || '0',
-            depreciationMethod: asset.depreciationMethod || 'STRAIGHT_LINE',
-            location: asset.location || '',
-            quantity: asset.quantity?.toString() || '1',
-            branchId: asset.branchId || '',
-          });
-        } else {
-          alert('Asset not found');
-          router.push('/asset-inventory');
-        }
-      } catch (error) {
-        console.error('Error loading asset data:', error);
-        alert('An error occurred while loading the asset.');
-      } finally {
-        setInitializing(false);
-      }
+    if (rawAsset) {
+      const asset = rawAsset as any;
+      setFormData({
+        assetCode: asset.assetCode || '',
+        name: asset.name || '',
+        brand: asset.brand || '',
+        description: asset.description || '',
+        categoryId: asset.categoryId || '',
+        purchaseDate: asset.purchaseDate ? asset.purchaseDate.split('T')[0] : '',
+        supplier: asset.supplier || '',
+        purchaseCost: asset.purchaseCost?.toString() || '',
+        usefulLife: asset.usefulLife?.toString() || '',
+        residualValue: asset.residualValue?.toString() || '0',
+        depreciationMethod: asset.depreciationMethod || 'STRAIGHT_LINE',
+        location: asset.location || '',
+        quantity: asset.quantity?.toString() || '1',
+        branchId: asset.branchId || '',
+      });
+      setInitializing(false);
     }
-
-    loadAssetAndCategories();
-  }, [params.id, router]);
+  }, [rawAsset]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const res = await fetch(`/api/assets/${params.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await updateAsset.mutateAsync({
+        id,
+        data: {
           ...formData,
           branchId: formData.branchId || selectedBranch?.id || null,
-        }),
+        } as any,
       });
-
-      if (res.ok) {
-        router.push('/asset-inventory');
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update asset');
-      }
+      router.push('/asset-inventory');
     } catch (error) {
       console.error('Error updating asset:', error);
       alert('An error occurred while updating the asset.');

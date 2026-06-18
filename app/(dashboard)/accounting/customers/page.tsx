@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Plus, Search, Users, Pencil, Trash2, Eye } from 'lucide-react';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { api } from '@/lib/api-client';
+import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '@/hooks/use-accounting';
 
 interface Customer {
   id: string;
@@ -37,8 +39,6 @@ interface CustomerWithTransactions extends Customer {
 
 export default function CustomersPage() {
   const { selectedBranch } = useBranch();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setViewDialogOpen] = useState(false);
@@ -58,47 +58,19 @@ export default function CustomersPage() {
     paymentTerms: 'NET 30',
   });
 
-  useEffect(() => {
-    fetchCustomers();
-  }, [selectedBranch]);
-
-  async function fetchCustomers() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (selectedBranch) params.set('branchId', selectedBranch.id);
-      const res = await fetch(`/api/accounting/customers?${params}`);
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setCustomers(data);
-      } else {
-        setCustomers([]);
-      }
-    } catch (err) {
-      console.error('Error fetching customers:', err);
-      setCustomers([]);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const params: Record<string, string> = {};
+  if (selectedBranch) params.branchId = selectedBranch.id;
+  const { data: customers = [], isLoading: loading } = useCustomers(params) as { data: Customer[]; isLoading: boolean };
+  const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
+  const deleteCustomer = useDeleteCustomer();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const res = await fetch('/api/accounting/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, branchId: selectedBranch?.id || null }),
-      });
-
-      if (res.ok) {
-        setCreateDialogOpen(false);
-        resetForm();
-        fetchCustomers();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create customer');
-      }
+      await createCustomer.mutateAsync({ ...formData, branchId: selectedBranch?.id || null });
+      setCreateDialogOpen(false);
+      resetForm();
     } catch (err) {
       console.error('Error creating customer:', err);
     }
@@ -109,25 +81,13 @@ export default function CustomersPage() {
     if (!editingCustomer) return;
 
     try {
-      const res = await fetch('/api/accounting/customers', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingCustomer.id,
-          ...formData,
-          branchId: selectedBranch?.id || null,
-        }),
+      await updateCustomer.mutateAsync({
+        id: editingCustomer.id,
+        data: { ...formData, branchId: selectedBranch?.id || null },
       });
-
-      if (res.ok) {
-        setEditDialogOpen(false);
-        setEditingCustomer(null);
-        resetForm();
-        fetchCustomers();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update customer');
-      }
+      setEditDialogOpen(false);
+      setEditingCustomer(null);
+      resetForm();
     } catch (err) {
       console.error('Error updating customer:', err);
     }
@@ -139,16 +99,7 @@ export default function CustomersPage() {
     }
 
     try {
-      const res = await fetch(`/api/accounting/customers?id=${customer.id}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        fetchCustomers();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to delete customer');
-      }
+      await deleteCustomer.mutateAsync(customer.id);
     } catch (err) {
       console.error('Error deleting customer:', err);
     }
@@ -193,21 +144,21 @@ export default function CustomersPage() {
     setEditDialogOpen(true);
   }
 
-  function openViewDialog(customer: Customer) {
-    // Fetch customer details with transactions
-    fetch(`/api/accounting/customers?id=${customer.id}`)
-      .then(res => res.json())
-      .then(data => {
-        setViewingCustomer(data);
-        setViewDialogOpen(true);
-      });
+  async function openViewDialog(customer: Customer) {
+    try {
+      const data = await api.get<CustomerWithTransactions>(`/api/accounting/customers?id=${customer.id}`);
+      setViewingCustomer(data);
+      setViewDialogOpen(true);
+    } catch (err) {
+      console.error('Error fetching customer details:', err);
+    }
   }
 
-  const filteredCustomers = Array.isArray(customers) ? customers.filter(c =>
+  const filteredCustomers = (customers || []).filter(c =>
     c.entityName.toLowerCase().includes(search.toLowerCase()) ||
     c.entityCode.toLowerCase().includes(search.toLowerCase()) ||
     (c.description && c.description.toLowerCase().includes(search.toLowerCase()))
-  ) : [];
+  );
 
   return (
     <div className="space-y-6">

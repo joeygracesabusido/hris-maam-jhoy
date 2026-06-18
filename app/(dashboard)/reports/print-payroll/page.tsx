@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import { Printer, Calendar, CheckSquare, Square } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { api } from '@/lib/api-client';
+import { useEmployees } from '@/hooks/use-employees';
 
 interface PayrollRecord {
   id: string;
@@ -47,12 +49,8 @@ interface Employee {
 }
 
 export default function PrintPayrollPage() {
-  const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<PayrollRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [accountants, setAccountants] = useState<Employee[]>([]);
-  const [managers, setManagers] = useState<Employee[]>([]);
   const [selectedAccountant, setSelectedAccountant] = useState('');
   const [selectedManager, setSelectedManager] = useState('');
   const [periodStart, setPeriodStart] = useState('');
@@ -60,6 +58,13 @@ export default function PrintPayrollPage() {
   const [mounted, setMounted] = useState(false);
   const [filterApplied, setFilterApplied] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const { data: employeesData = [], isLoading: employeesLoading } = useEmployees();
+  const [payrollData, setPayrollData] = useState<PayrollRecord[]>([]);
+  const [payrollLoading, setPayrollLoading] = useState(true);
+  const loading = employeesLoading || payrollLoading;
+  const accountants = employeesData as Employee[];
+  const managers = employeesData as Employee[];
 
   useEffect(() => {
     setMounted(true);
@@ -80,8 +85,7 @@ export default function PrintPayrollPage() {
         role: cookies.userRole || '',
       });
     } else if (cookies.userId) {
-      fetch(`/api/current-user?userId=${cookies.userId}`)
-        .then(res => res.json())
+      api.get<{ id: string; name: string; email: string; role: string }>(`/api/current-user?userId=${cookies.userId}`)
         .then(userData => {
           setCurrentUser({
             id: userData.id || '',
@@ -93,48 +97,27 @@ export default function PrintPayrollPage() {
         .catch(err => console.error('Error fetching user:', err));
     }
 
-    fetchEmployees(setAccountants, setManagers);
-    fetchPayrollRecords();
+    api.get<PayrollRecord[]>('/api/payroll')
+      .then(data => {
+        if (Array.isArray(data)) {
+          setPayrollData(data);
+        }
+      })
+      .catch(err => console.error('Error fetching payroll records:', err))
+      .finally(() => setPayrollLoading(false));
   }, []);
-
-  const fetchEmployees = async (accountantSetter: (employees: Employee[]) => void, managerSetter: (employees: Employee[]) => void) => {
-    try {
-      const res = await fetch('/api/employees', { credentials: 'include' });
-      if (res.ok) {
-        const data: Employee[] = await res.json();
-        accountantSetter(data);
-        managerSetter(data);
-      }
-    } catch (error) {
-      console.error('Error fetching employees: ', error);
-    }
-  };
-
-  const fetchPayrollRecords = async () => {
-    try {
-      const res = await fetch('/api/payroll', { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setPayrollRecords(data);
-      }
-    } catch (error) {
-      console.error('Error fetching payroll records:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleFilter = () => {
     const start = periodStart ? new Date(periodStart) : null;
     const end = periodEnd ? new Date(periodEnd) : null;
 
     if (!start && !end) {
-      setFilteredRecords(payrollRecords);
+      setFilteredRecords(payrollData || []);
       setFilterApplied(true);
       return;
     }
 
-    const filtered = payrollRecords.filter((record) => {
+    const filtered = (payrollData || []).filter((record) => {
       const recordStart = new Date(record.periodStart);
       const recordEnd = new Date(record.periodEnd);
 

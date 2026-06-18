@@ -3,18 +3,26 @@
 import { useState, useEffect } from 'react';
 import { Plus, Calendar, CheckCircle, XCircle, Clock, Search, Filter, Info, FileText } from 'lucide-react';
 import { format } from 'date-fns/format';
+import { api } from '@/lib/api-client';
 import type { LeaveRequest, LeaveStatus, EmployeeWithUser } from '@/types';
+import { useLeaves, useLeaveBalance, useSubmitLeave, useApproveLeave } from '@/hooks/use-leaves';
+import { useEmployees } from '@/hooks/use-employees';
 
 export default function LeavesPage() {
-  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [employees, setEmployees] = useState<EmployeeWithUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const leavesQuery = useLeaves();
+  const leaves = (leavesQuery.data ?? []) as unknown as LeaveRequest[];
+  const loading = leavesQuery.isLoading;
+  const employeesQuery = useEmployees();
+  const employees = (employeesQuery.data ?? []) as unknown as EmployeeWithUser[];
+  const submitLeave = useSubmitLeave();
+  const approveLeave = useApproveLeave();
   const [showModal, setShowModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
   const [userRole, setUserRole] = useState<string>('');
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   
   // Autocomplete state
   const [employeeSearch, setEmployeeSearch] = useState('');
@@ -34,18 +42,10 @@ export default function LeavesPage() {
     adminNotes: '',
   });
 
-  const [leaveBalance, setLeaveBalance] = useState({ vacation: 0, sick: 0 });
-
-  const fetchLeaveBalance = async () => {
-    try {
-      const res = await fetch('/api/leave-credits/balance', { credentials: 'include' });
-      const data = await res.json();
-      if (data.vacation !== undefined) {
-        setLeaveBalance({ vacation: data.vacation, sick: data.sick });
-      }
-    } catch (err) {
-      console.error('Failed to fetch leave balance:', err);
-    }
+  const { data: leaveBalanceData } = useLeaveBalance(currentUserId);
+  const leaveBalance = {
+    vacation: leaveBalanceData?.vacationLeave ?? 0,
+    sick: leaveBalanceData?.sickLeave ?? 0,
   };
 
   useEffect(() => {
@@ -69,61 +69,18 @@ export default function LeavesPage() {
       return;
     }
     setUserRole(role);
-    fetchLeaves();
-    fetchEmployees();
+    setCurrentUserId(id);
     fetchCurrentUser(id);
   }, []);
 
-  useEffect(() => {
-    if (showModal) {
-      fetchLeaveBalance();
-    }
-  }, [showModal]);
-
   const fetchCurrentUser = async (uid: string) => {
     try {
-      const res = await fetch(`/api/current-user?userId=${uid}`, { credentials: 'include' });
-      const data = await res.json();
+      const data = await api.get<{ role: string }>(`/api/current-user?userId=${uid}`);
       if (data.role) {
         setUserRole(data.role);
       }
     } catch (err) {
       console.error('Failed to fetch current user info:', err);
-    }
-  };
-
-  const fetchLeaves = async () => {
-    try {
-      const res = await fetch('/api/leaves', { credentials: 'include' });
-      const data = await res.json();
-      
-      if (!res.ok) {
-        console.error('API Error:', data.error);
-        setError(data.error || 'Failed to fetch leaves');
-        setLeaves([]);
-        return;
-      }
-      
-      if (Array.isArray(data)) {
-        setLeaves(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch leaves:', err);
-      setLeaves([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchEmployees = async () => {
-    try {
-      const res = await fetch('/api/employees', { credentials: 'include' });
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setEmployees(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch employees:', err);
     }
   };
 
@@ -136,17 +93,7 @@ export default function LeavesPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/leaves', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(formData),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to submit leave request');
-      }
+      await submitLeave.mutateAsync(formData);
 
       alert('Leave request submitted successfully!');
       setShowModal(false);
@@ -158,7 +105,6 @@ export default function LeavesPage() {
         reason: '',
         daysCount: '1',
       });
-      fetchLeaves();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
@@ -169,23 +115,15 @@ export default function LeavesPage() {
     if (!selectedLeave) return;
 
     try {
-      const res = await fetch('/api/leaves', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          id: selectedLeave.id,
-          ...approvalData
-        }),
+      await approveLeave.mutateAsync({
+        id: selectedLeave.id,
+        status: approvalData.status,
       });
-
-      if (!res.ok) throw new Error('Failed to update leave request');
 
       alert(`Leave request ${approvalData.status.toLowerCase()} successfully!`);
       setShowApproveModal(false);
       setSelectedLeave(null);
       setApprovalData({ status: 'APPROVED', adminNotes: '' });
-      fetchLeaves();
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'An unknown error occurred');
     }

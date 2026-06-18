@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -13,14 +13,13 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
+import { api } from '@/lib/api-client';
+import { useAccounts, useSubsidiaryLedgers } from '@/hooks/use-accounting';
 
 export default function SubsidiaryLedgerPage() {
   const { selectedBranch } = useBranch();
-  const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
-  const [ledgers, setLedgers] = useState<any[]>([]);
-  const [reconciliation, setReconciliation] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   
   // Dialog states
@@ -32,74 +31,41 @@ export default function SubsidiaryLedgerPage() {
     description: '',
   });
 
-  // Fetch accounts with subsidiary ledgers
-  const fetchAccounts = useCallback(async () => {
-    try {
-      const params = new URLSearchParams();
-      if (selectedBranch) params.set('branchId', selectedBranch.id);
-      const res = await fetch(`/api/accounting/accounts?${params}`);
-      const data = await res.json();
-      // Filter accounts that have subsidiary ledgers
-      const controlAccounts = data.filter((acc: any) => acc.hasSubsidiaryLedger === true || acc.subsidiaryType !== undefined);
-      setAccounts(controlAccounts);
-    } catch (err) {
-      console.error('Error fetching accounts:', err);
-    }
-  }, [selectedBranch]);
+  const paramsAccounts: Record<string, string> = {};
+  if (selectedBranch) paramsAccounts.branchId = selectedBranch.id;
+  const { data: allAccounts = [] } = useAccounts(paramsAccounts);
+  const accounts = allAccounts.filter((acc: any) => acc.hasSubsidiaryLedger === true || acc.subsidiaryType !== undefined);
+
+  const slParams: Record<string, string> = { accountId: selectedAccountId };
+  if (selectedBranch) slParams.branchId = selectedBranch.id;
+  const { data: slData, isLoading: slLoading, refetch: refetchLedgers } = useSubsidiaryLedgers(selectedAccountId ? slParams : undefined);
+  const ledgers = (slData as any)?.ledgers || [];
+  const reconciliation = (slData as any)?.reconciliation || null;
 
   useEffect(() => {
-    fetchAccounts();
-  }, [fetchAccounts]);
-
-  // Fetch subsidiary ledgers when account selected
-  const fetchLedgers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ accountId: selectedAccountId });
-      if (selectedBranch) params.set('branchId', selectedBranch.id);
-      const res = await fetch(`/api/accounting/subsidiary-ledgers?${params}`);
-      const data = await res.json();
-      setLedgers(data.ledgers || []);
-      setReconciliation(data.reconciliation);
-      setSelectedAccount(data.account);
-    } catch (err) {
-      console.error('Error fetching ledgers:', err);
-    } finally {
-      setLoading(false);
+    if (slData) {
+      setSelectedAccount((slData as any)?.account || null);
     }
-  }, [selectedAccountId, selectedBranch]);
+  }, [slData]);
 
   useEffect(() => {
-    if (selectedAccountId) {
-      fetchLedgers();
-    }
-  }, [selectedAccountId, fetchLedgers]);
+    setLoading(slLoading);
+  }, [slLoading]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
       const account = accounts.find(a => a.id === selectedAccountId);
-      const res = await fetch('/api/accounting/subsidiary-ledgers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId: selectedAccountId,
-          entityCode: formData.entityCode,
-          entityName: formData.entityName,
-          entityType: account?.subsidiaryType,
-          description: formData.description,
-          branchId: selectedBranch?.id || null,
-        }),
+      await api.post('/api/accounting/subsidiary-ledgers', {
+        accountId: selectedAccountId,
+        entityCode: formData.entityCode,
+        entityName: formData.entityName,
+        entityType: account?.subsidiaryType,
+        description: formData.description,
+        branchId: selectedBranch?.id || null,
       });
-
-      if (res.ok) {
-        setIsDialogOpen(false);
-        setFormData({ entityCode: '', entityName: '', description: '' });
-        fetchLedgers();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create ledger');
-      }
+      setIsDialogOpen(false);
+      setFormData({ entityCode: '', entityName: '', description: '' });
     } catch (err) {
       console.error('Error creating ledger:', err);
     }
@@ -108,17 +74,12 @@ export default function SubsidiaryLedgerPage() {
   async function handleSync() {
     setIsSyncing(true);
     try {
-      const res = await fetch('/api/accounting/subsidiary-ledgers/sync', {
-        method: 'POST',
-      });
-      if (res.ok) {
-        if (selectedAccountId) fetchLedgers();
-        alert('Balances synchronized successfully!');
-      } else {
-        alert('Failed to sync balances');
-      }
+      await api.post('/api/accounting/subsidiary-ledgers/sync');
+      if (selectedAccountId) refetchLedgers();
+      alert('Balances synchronized successfully!');
     } catch (err) {
       console.error('Error syncing:', err);
+      alert('Failed to sync balances');
     } finally {
       setIsSyncing(false);
     }
@@ -183,7 +144,7 @@ export default function SubsidiaryLedgerPage() {
 
             <div className="flex items-end gap-2">
               <Button 
-                onClick={fetchLedgers} 
+                onClick={() => refetchLedgers()} 
                 disabled={!selectedAccountId || loading}
                 className="flex-1"
               >

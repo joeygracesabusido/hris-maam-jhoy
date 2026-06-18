@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -9,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Plus, Trash2, Scale, FileText, Search, Edit, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { api } from '@/lib/api-client';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
 
@@ -21,11 +24,30 @@ interface JournalLine {
   memo: string;
 }
 
+interface JournalEntry {
+  id: string;
+  date: string;
+  description: string;
+  reference: string | null;
+  branchId?: string | null;
+  lines: any[];
+}
+
+interface JournalListResponse {
+  entries: JournalEntry[];
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+}
+
+// Centralized query keys so invalidations stay in sync if the keys are ever renamed.
+const journalKeys = {
+  all: ['journal'] as const,
+  list: (branchId: string | null, page: number, search: string) =>
+    ['journal', 'list', branchId, page, search] as const,
+  accounts: (branchId: string | null) => ['journal', 'accounts', branchId] as const,
+  subsidiaries: (branchId: string | null) => ['journal', 'subsidiaries', branchId] as const,
+};
+
 export default function JournalPage() {
-  const [entries, setEntries] = useState<any[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [subsidiaryLedgers, setSubsidiaryLedgers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
@@ -34,8 +56,6 @@ export default function JournalPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -47,45 +67,15 @@ export default function JournalPage() {
     ],
   });
   const { selectedBranch } = useBranch();
+  const queryClient = useQueryClient();
+  const branchId = selectedBranch?.id ?? null;
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (selectedBranch) params.set('branchId', selectedBranch.id);
-      params.set('page', page.toString());
-      params.set('pageSize', pageSize.toString());
-      if (debouncedSearch) params.set('search', debouncedSearch);
-
-      const [entriesRes, accountsRes, subsidiaryRes] = await Promise.all([
-        fetch(`/api/accounting/journal?${params}`),
-        fetch(`/api/accounting/accounts?${params}`),
-        fetch(`/api/accounting/subsidiary-ledgers?${params}`),
-      ]);
-      const entriesJson = await entriesRes.json();
-      const accountsData = await accountsRes.json();
-      const subsidiaryData = await subsidiaryRes.json();
-      setEntries(entriesJson.entries || []);
-      setTotal(entriesJson.pagination?.total || 0);
-      setTotalPages(entriesJson.pagination?.totalPages || 1);
-      setAccounts(accountsData);
-      setSubsidiaryLedgers(subsidiaryData);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedBranch, page, pageSize, debouncedSearch]);
-
+  // Reset to page 1 whenever the user changes branches (keep UI state, not server state).
   useEffect(() => {
     setPage(1);
-    fetchData();
-  }, [selectedBranch]);
+  }, [branchId]);
 
-  useEffect(() => {
-    fetchData();
-  }, [page, debouncedSearch, fetchData]);
-
+  // Debounce the search input so we don't hammer the API on every keystroke.
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
@@ -93,6 +83,79 @@ export default function JournalPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // --- Queries ---
+  const entriesQuery = useQuery({
+    queryKey: journalKeys.list(branchId, page, debouncedSearch),
+    queryFn: async ({ signal }): Promise<JournalListResponse> => {
+      const params: Record<string, string> = {};
+      if (branchId) params.branchId = branchId;
+      params.page = page.toString();
+      params.pageSize = pageSize.toString();
+      if (debouncedSearch) params.search = debouncedSearch;
+      return api.get('/api/accounting/journal', { params, signal });
+    },
+  });
+
+  const accountsQuery = useQuery<any[]>({
+    queryKey: journalKeys.accounts(branchId),
+    queryFn: async ({ signal }) => {
+      const params: Record<string, string> = {};
+      if (branchId) params.branchId = branchId;
+      return api.get<any[]>('/api/accounting/accounts', { params, signal });
+    },
+  });
+
+  const subsidiariesQuery = useQuery<any[]>({
+    queryKey: journalKeys.subsidiaries(branchId),
+    queryFn: async ({ signal }) => {
+      const params: Record<string, string> = {};
+      if (branchId) params.branchId = branchId;
+      return api.get<any[]>('/api/accounting/subsidiary-ledgers', { params, signal });
+    },
+  });
+
+  // Convenience derivations — keeps the JSX below identical to the original.
+  const entries = entriesQuery.data?.entries ?? [];
+  const total = entriesQuery.data?.pagination?.total ?? 0;
+  const totalPages = entriesQuery.data?.pagination?.totalPages ?? 1;
+  const accounts: any[] = accountsQuery.data ?? [];
+  const subsidiaryLedgers: any[] = subsidiariesQuery.data ?? [];
+  const loading = entriesQuery.isPending || accountsQuery.isPending || subsidiariesQuery.isPending;
+
+  // --- Mutations ---
+  const saveEntry = useMutation({
+    mutationFn: async (vars: { id: string | null; body: any }) => {
+      if (vars.id) {
+        return api.patch('/api/accounting/journal', { ...vars.body, id: vars.id, branchId });
+      }
+      return api.post('/api/accounting/journal', { ...vars.body, branchId });
+    },
+    onSuccess: (_, vars) => {
+      toast.success(vars.id ? 'Journal entry updated' : 'Journal entry posted');
+      setIsDialogOpen(false);
+      setEditingId(null);
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        description: '',
+        reference: '',
+        lines: [
+          { accountId: '', accountName: '', subsidiaryLedgerId: '', debit: '', credit: '', memo: '' },
+          { accountId: '', accountName: '', subsidiaryLedgerId: '', debit: '', credit: '', memo: '' },
+        ],
+      });
+      // Invalidate any list that might be affected (current branch and any other branch view).
+      queryClient.invalidateQueries({ queryKey: journalKeys.all });
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to save journal entry');
+    },
+  });
+
+  // On query error, surface it in the console the same way the original did.
+  useEffect(() => {
+    if (entriesQuery.error) console.error('Error fetching data:', entriesQuery.error);
+  }, [entriesQuery.error]);
 
   const addLine = () => {
     setFormData({
@@ -146,41 +209,14 @@ export default function JournalPage() {
 
     const hasDebitOrCredit = formData.lines.some(l => l.debit || l.credit);
     if (!hasDebitOrCredit) {
-      alert('Please enter at least one debit or credit amount');
+      toast.error('Please enter at least one debit or credit amount');
       return;
     }
 
-    try {
-      const url = '/api/accounting/journal';
-      const method = editingId ? 'PUT' : 'POST';
-      const body = editingId ? { ...formData, id: editingId, branchId: selectedBranch?.id } : { ...formData, branchId: selectedBranch?.id };
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      if (res.ok) {
-        setIsDialogOpen(false);
-        setEditingId(null);
-        setFormData({
-          date: new Date().toISOString().split('T')[0],
-          description: '',
-          reference: '',
-          lines: [
-            { accountId: '', accountName: '', subsidiaryLedgerId: '', debit: '', credit: '', memo: '' },
-            { accountId: '', accountName: '', subsidiaryLedgerId: '', debit: '', credit: '', memo: '' },
-          ],
-        });
-        fetchData();
-      } else {
-        const data = await res.json();
-        alert(data.error || `Failed to ${editingId ? 'update' : 'post'} journal entry`);
-      }
-    } catch (err) {
-      console.error('Error processing entry:', err);
-    }
+    // Validation errors and success side effects are handled inside the mutation
+    // (toast, form reset, cache invalidation). The mutation's onSuccess also
+    // closes the dialog and clears editingId.
+    saveEntry.mutate({ id: editingId, body: formData });
     }
 
 
@@ -188,8 +224,6 @@ export default function JournalPage() {
   const totalCredit = formData.lines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
   const hasAnyValue = formData.lines.some(l => l.debit || l.credit);
-
-  const filteredEntries = entries;
 
   return (
     <div className="space-y-6">
@@ -354,8 +388,8 @@ export default function JournalPage() {
 
               <DialogFooter className="gap-4">
                 <Button variant="outline" className="h-11 px-8 text-base" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" className="h-11 px-8 text-base font-bold" disabled={!isBalanced || !hasAnyValue}>
-                  {editingId ? 'Update Transaction' : 'Post Transaction'}
+                <Button type="submit" className="h-11 px-8 text-base font-bold" disabled={!isBalanced || !hasAnyValue || saveEntry.isPending}>
+                  {saveEntry.isPending ? 'Saving…' : (editingId ? 'Update Transaction' : 'Post Transaction')}
                 </Button>
               </DialogFooter>
             </form>
@@ -461,14 +495,14 @@ export default function JournalPage() {
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8">Loading entries...</TableCell>
                 </TableRow>
-              ) : filteredEntries.length === 0 ? (
+              ) : entries.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     No journal entries found.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredEntries.map(entry => {
+                entries.map(entry => {
                   const total = (entry.lines || []).reduce((sum: number, l: any) => sum + (l.debit || 0), 0);
                   return (
                     <TableRow key={entry.id}>

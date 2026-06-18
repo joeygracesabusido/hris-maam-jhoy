@@ -319,6 +319,47 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  try {
+    let userRole: string;
+    try {
+      const session = await getRequestSession(request);
+      userRole = session.userRole;
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+      return NextResponse.json({ error: 'Only admins and managers can update time logs' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { id, clockIn, clockOut } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Time log ID is required' }, { status: 400 });
+    }
+
+    const updateData: Record<string, string | null> = {};
+    if (clockIn !== undefined) updateData.clockIn = clockIn;
+    if (clockOut !== undefined) updateData.clockOut = clockOut;
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    }
+
+    const updated = await prisma.timeLog.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error('Error updating time log:', error);
+    return NextResponse.json({ error: 'Failed to update time log' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     let _userRole: string;

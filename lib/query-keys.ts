@@ -1,0 +1,140 @@
+export const queryKeys = {
+  employees: {
+    all: ['employees'] as const,
+    lists: () => [...queryKeys.employees.all, 'list'] as const,
+    list: (filters?: Record<string, string>) => [...queryKeys.employees.lists(), filters] as const,
+    details: () => [...queryKeys.employees.all, 'detail'] as const,
+    detail: (id: string) => [...queryKeys.employees.details(), id] as const,
+  },
+  timeLogs: {
+    all: ['timeLogs'] as const,
+    lists: () => [...queryKeys.timeLogs.all, 'list'] as const,
+    list: (filters?: Record<string, string>) => [...queryKeys.timeLogs.lists(), filters] as const,
+  },
+  leaves: {
+    all: ['leaves'] as const,
+    lists: () => [...queryKeys.leaves.all, 'list'] as const,
+    list: (filters?: Record<string, string>) => [...queryKeys.leaves.lists(), filters] as const,
+    details: () => [...queryKeys.leaves.all, 'detail'] as const,
+    detail: (id: string) => [...queryKeys.leaves.details(), id] as const,
+  },
+  overtime: {
+    all: ['overtime'] as const,
+    lists: () => [...queryKeys.overtime.all, 'list'] as const,
+    list: (filters?: Record<string, string>) => [...queryKeys.overtime.lists(), filters] as const,
+  },
+  payroll: {
+    all: ['payroll'] as const,
+    lists: () => [...queryKeys.payroll.all, 'list'] as const,
+    list: (filters?: Record<string, string>) => [...queryKeys.payroll.lists(), filters] as const,
+  },
+  advances: {
+    all: ['advances'] as const,
+    lists: () => [...queryKeys.advances.all, 'list'] as const,
+    list: (filters?: Record<string, string>) => [...queryKeys.advances.lists(), filters] as const,
+    details: () => [...queryKeys.advances.all, 'detail'] as const,
+    detail: (id: string) => [...queryKeys.advances.details(), id] as const,
+    summary: (employeeId: string) => [...queryKeys.advances.all, 'summary', employeeId] as const,
+  },
+  holidays: {
+    all: ['holidays'] as const,
+    lists: () => [...queryKeys.holidays.all, 'list'] as const,
+    list: (year?: number) => [...queryKeys.holidays.lists(), year] as const,
+  },
+  schedules: {
+    all: ['schedules'] as const,
+    lists: () => [...queryKeys.schedules.all, 'list'] as const,
+    list: (filters?: Record<string, string>) => [...queryKeys.schedules.lists(), filters] as const,
+  },
+  users: {
+    all: ['users'] as const,
+    lists: () => [...queryKeys.users.all, 'list'] as const,
+    list: () => [...queryKeys.users.lists()] as const,
+  },
+  accounting: {
+    accounts: {
+      all: ['accounting', 'accounts'] as const,
+      lists: () => [...queryKeys.accounting.accounts.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.accounting.accounts.lists(), filters] as const,
+    },
+    journal: {
+      all: ['accounting', 'journal'] as const,
+      lists: () => [...queryKeys.accounting.journal.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.accounting.journal.lists(), filters] as const,
+    },
+    expenses: {
+      all: ['accounting', 'expenses'] as const,
+      lists: () => [...queryKeys.accounting.expenses.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.accounting.expenses.lists(), filters] as const,
+    },
+    purchases: {
+      all: ['accounting', 'purchases'] as const,
+      lists: () => [...queryKeys.accounting.purchases.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.accounting.purchases.lists(), filters] as const,
+    },
+    sales: {
+      all: ['accounting', 'sales'] as const,
+      lists: () => [...queryKeys.accounting.sales.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.accounting.sales.lists(), filters] as const,
+    },
+    vendors: {
+      all: ['accounting', 'vendors'] as const,
+      lists: () => [...queryKeys.accounting.vendors.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.accounting.vendors.lists(), filters] as const,
+    },
+    customers: {
+      all: ['accounting', 'customers'] as const,
+      lists: () => [...queryKeys.accounting.customers.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.accounting.customers.lists(), filters] as const,
+    },
+    reports: {
+      all: ['accounting', 'reports'] as const,
+      data: (type: string, filters?: Record<string, string>) => [...queryKeys.accounting.reports.all, type, filters] as const,
+    },
+    subsidiaryLedgers: {
+      all: ['accounting', 'subsidiary-ledgers'] as const,
+      lists: () => [...queryKeys.accounting.subsidiaryLedgers.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.accounting.subsidiaryLedgers.lists(), filters] as const,
+    },
+    reconciliation: {
+      all: ['accounting', 'reconciliation'] as const,
+      data: (filters?: Record<string, string>) => [...queryKeys.accounting.reconciliation.all, filters] as const,
+    },
+    pettyCash: {
+      all: ['accounting', 'petty-cash'] as const,
+      lists: () => [...queryKeys.accounting.pettyCash.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.accounting.pettyCash.lists(), filters] as const,
+    },
+  },
+  assets: {
+    all: ['assets'] as const,
+    lists: () => [...queryKeys.assets.all, 'list'] as const,
+    list: (filters?: Record<string, string>) => [...queryKeys.assets.lists(), filters] as const,
+    details: () => [...queryKeys.assets.all, 'detail'] as const,
+    detail: (id: string) => [...queryKeys.assets.details(), id] as const,
+    categories: {
+      all: ['assets', 'categories'] as const,
+      lists: () => [...queryKeys.assets.categories.all, 'list'] as const,
+      list: () => [...queryKeys.assets.categories.lists()] as const,
+    },
+    transactions: {
+      all: ['assets', 'transactions'] as const,
+      lists: () => [...queryKeys.assets.transactions.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.assets.transactions.lists(), filters] as const,
+    },
+  },
+  branches: {
+    all: ['branches'] as const,
+    lists: () => [...queryKeys.branches.all, 'list'] as const,
+    list: () => [...queryKeys.branches.lists()] as const,
+  },
+  officeLocations: {
+    all: ['officeLocations'] as const,
+    lists: () => [...queryKeys.officeLocations.all, 'list'] as const,
+    list: () => [...queryKeys.officeLocations.lists()] as const,
+  },
+  dashboard: {
+    all: ['dashboard'] as const,
+    stats: (filters?: Record<string, string>) => [...queryKeys.dashboard.all, 'stats', filters] as const,
+  },
+}
