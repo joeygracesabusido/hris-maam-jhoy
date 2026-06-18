@@ -32,8 +32,8 @@ function getManilaDayRange(utcDate: Date): { start: Date; end: Date } {
   const m = manilaDate.getUTCMonth();
   const d = manilaDate.getUTCDate();
   return {
-    start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0)),
-    end: new Date(Date.UTC(y, m, d, 23, 59, 59, 999)),
+    start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - manilaOffset),
+    end: new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - manilaOffset),
   };
 }
 
