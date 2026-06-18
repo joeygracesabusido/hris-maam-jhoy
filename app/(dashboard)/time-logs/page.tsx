@@ -23,7 +23,12 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import FaceCapture from '@/components/facial-recognition/FaceCapture';
+import dynamic from 'next/dynamic';
+
+const FaceCapture = dynamic(
+  () => import('@/components/facial-recognition/FaceCapture'),
+  { ssr: false }
+);
 
 interface Employee extends EmployeeBase {
   userId: string | null;
