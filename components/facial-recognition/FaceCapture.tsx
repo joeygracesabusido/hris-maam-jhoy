@@ -122,13 +122,20 @@ export default function FaceCapture({
     const faceapi = faceapiRef.current;
     if (!faceapi || !videoRef.current || step !== 'ready') return;
 
+    const video = videoRef.current;
+    if (video.readyState < 2) {
+      setError('Camera is not ready yet. Please wait a moment and try again.');
+      setStep('ready');
+      return;
+    }
+
     setStep('processing');
     setCaptureResult(null);
     setError(null);
 
     try {
       const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+        .detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
         .withFaceLandmarks()
         .withFaceDescriptor();
 
@@ -144,6 +151,20 @@ export default function FaceCapture({
         onCapture(descriptor);
         setCaptureResult({ success: true, message: '✓ Face captured successfully!' });
       } else if (mode === 'verify' && storedDescriptor && onVerify) {
+        if (storedDescriptor.length !== descriptor.length) {
+          console.error(
+            '[FaceCapture] Descriptor length mismatch:',
+            'stored:', storedDescriptor.length,
+            'live:', descriptor.length,
+            '– model files may have changed since enrollment'
+          );
+          setError(
+            `Your enrolled face data is incompatible with the current system (descriptor length mismatch: ${storedDescriptor.length} vs ${descriptor.length}). ` +
+            'Please contact HR to re-enroll your face.'
+          );
+          setStep('ready');
+          return;
+        }
         const distance = faceapi.euclideanDistance(storedDescriptor, descriptor);
         const isMatch = distance < 0.6;
         onVerify(isMatch, distance);
@@ -156,7 +177,14 @@ export default function FaceCapture({
       }
     } catch (err: unknown) {
       console.error('[FaceCapture] Capture error:', err);
-      setError('An error occurred during face processing. Please try again.');
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('NotAllowedError') || msg.includes('Permission denied')) {
+        setError('Camera permission was denied. Please allow camera access and try again.');
+      } else if (msg.includes('AbortError') || msg.includes('gpu')) {
+        setError('Your browser or device may not support the AI model. Try using Chrome on a desktop/laptop.');
+      } else {
+        setError(`Face processing failed: ${msg}`);
+      }
     } finally {
       setStep('ready');
     }
