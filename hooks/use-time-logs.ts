@@ -57,7 +57,7 @@ export function useClockOut() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: { employeeId: string; date: string; clockOut: string; location?: { lat: number; lon: number } }) =>
-      api.patch<TimeLog>('/api/time-logs', data),
+      api.post<TimeLog>('/api/time-logs', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.timeLogs.lists() })
     },

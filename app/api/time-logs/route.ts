@@ -201,7 +201,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { employeeId, type, latitude, longitude } = body;
+    const { employeeId, type: legacyType, latitude, longitude, clockIn, clockOut, location, date: _unusedDate } = body;
+
+    // Support both legacy format ({ type, latitude, longitude }) and hook format ({ clockIn/clockOut, location: { lat, lon } })
+    const type = clockIn ? 'clockIn' : clockOut ? 'clockOut' : legacyType;
+    const lat = latitude ?? location?.lat;
+    const lon = longitude ?? location?.lon;
 
     if (!employeeId || !type) {
       return NextResponse.json({ error: 'Employee ID and type are required' }, { status: 400 });
@@ -212,8 +217,8 @@ export async function POST(request: Request) {
     let gpsDistance = 0;
     let gpsRadius = 0;
     
-    if (latitude !== undefined && longitude !== undefined) {
-      const gpsResult = await validateGPS(latitude, longitude);
+    if (lat !== undefined && lon !== undefined) {
+      const gpsResult = await validateGPS(lat, lon);
       gpsValid = gpsResult.valid;
       gpsDistance = gpsResult.distance;
       gpsRadius = gpsResult.radius ?? 0;
@@ -279,8 +284,8 @@ export async function POST(request: Request) {
           data: {
             clockIn: now,
             lateMinutes,
-            clockInLatitude: latitude,
-            clockInLongitude: longitude,
+            clockInLatitude: lat,
+            clockInLongitude: lon,
           },
         });
       } else {
@@ -290,8 +295,8 @@ export async function POST(request: Request) {
             date: now,
             clockIn: now,
             lateMinutes,
-            clockInLatitude: latitude,
-            clockInLongitude: longitude,
+            clockInLatitude: lat,
+            clockInLongitude: lon,
           },
         });
       }
@@ -333,8 +338,8 @@ export async function POST(request: Request) {
           clockOut: now,
           workHours: Math.round(hoursWorked * 100) / 100,
           undertimeMinutes,
-          clockOutLatitude: latitude,
-          clockOutLongitude: longitude,
+            clockOutLatitude: lat,
+            clockOutLongitude: lon,
         },
       });
 
