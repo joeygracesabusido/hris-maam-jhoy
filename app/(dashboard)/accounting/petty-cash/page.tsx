@@ -484,6 +484,12 @@ export default function PettyCashPage() {
                       ₱{fund.currentBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Net Disbursed</span>
+                    <span className="font-medium">
+                      ₱{(fund.fundAmount - fund.currentBalance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
                   <div className="h-px bg-border my-2" />
                   <div className="flex gap-2">
                     <Button
@@ -947,6 +953,24 @@ export default function PettyCashPage() {
                     ₱{(detailFund.fundAmount - detailFund.currentBalance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await api.post('/api/accounting/petty-cash/recover', {});
+                      refetchFunds();
+                      openFundDetail(detailFund!);
+                    } catch (err) {
+                      console.error('Error recalculating balance:', err);
+                    }
+                  }}
+                >
+                  Recalculate Balance
+                </Button>
               </div>
 
               {detailLoading ? (

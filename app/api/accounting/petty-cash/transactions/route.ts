@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 interface FundTransaction {
   id: string;
   date: string;
-  type: 'DISBURSEMENT' | 'LIQUIDATION' | 'REPLENISHMENT';
+  type: 'DISBURSEMENT' | 'REPLENISHMENT';
   description: string;
   payee: string | null;
   amount: number;
@@ -40,37 +40,20 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Fund not found' }, { status: 404 });
     }
 
-    const [disbursements, liquidations] = await Promise.all([
-      prisma.pettyCashDisbursement.findMany({
-        where: { pettyCashId },
-        orderBy: { date: 'asc' },
-      }),
-      prisma.pettyCashLiquidation.findMany({
-        where: { pettyCashId },
-        orderBy: { date: 'asc' },
-      }),
-    ]);
+    const disbursements = await prisma.pettyCashDisbursement.findMany({
+      where: { pettyCashId },
+      orderBy: { date: 'asc' },
+    });
 
-    const transactions: FundTransaction[] = [
-      ...disbursements.map(d => ({
-        id: d.id,
-        date: (d.date || d.createdAt).toISOString(),
-        type: 'DISBURSEMENT' as const,
-        description: d.description || 'Disbursement',
-        payee: d.payeeName,
-        amount: d.amount,
-        status: d.status,
-      })),
-      ...liquidations.map(l => ({
-        id: l.id,
-        date: (l.date || l.createdAt).toISOString(),
-        type: 'LIQUIDATION' as const,
-        description: l.notes || 'Liquidation',
-        payee: null,
-        amount: l.amount,
-        status: l.status,
-      })),
-    ];
+    const transactions: FundTransaction[] = disbursements.map(d => ({
+      id: d.id,
+      date: (d.date || d.createdAt).toISOString(),
+      type: 'DISBURSEMENT' as const,
+      description: d.description || 'Disbursement',
+      payee: d.payeeName,
+      amount: d.amount,
+      status: d.status,
+    }));
 
     // Fetch replenishment journal entries for this fund
     const replenishments = await prisma.journalEntry.findMany({
@@ -95,19 +78,20 @@ export async function GET(request: Request) {
       });
     }
 
-    // Sort by date ascending
-    transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    // Calculate running balance
+    // Calculate running balance chronologically, then sort descending for display
+    const chronological = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     let runningBalance = fund.fundAmount;
-    const entries = transactions.map(t => {
+    const entries = chronological.map(t => {
       if (t.type === 'DISBURSEMENT') {
-        runningBalance -= t.amount;
-      } else if (t.type === 'LIQUIDATION' || t.type === 'REPLENISHMENT') {
+        if (t.status !== 'REJECTED') {
+          runningBalance -= t.amount;
+        }
+      } else if (t.type === 'REPLENISHMENT') {
         runningBalance += t.amount;
       }
       return { ...t, runningBalance };
     });
+    entries.reverse();
 
     return NextResponse.json({
       fund: {
