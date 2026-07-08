@@ -226,6 +226,94 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### Water Billing Module (2026-07-08)
+
+**New Feature:** Complete water billing module for external tenant management — submeters, tiered rate computation, bill generation, payment collection, and accounting integration.
+
+**Database (7 new Prisma models):**
+- `Tenant` — External tenants with contact info, unit assignment, status
+- `WaterMeter` — Individual submeters per unit (unique `meterNo`)
+- `WaterMeterReading` — Periodic readings with previous/current/computed consumption
+- `WaterRate` — Rate structures (`TIERED` or `FLAT`) with effective dates
+- `WaterRateTier` — Tier rows within a rate (`fromUnit`, `toUnit`, `pricePerUnit`)
+- `WaterBill` — Generated bills with consumption, amount, balance, status, journal entry link
+- `WaterPayment` — Payments against bills with accounting integration
+
+**Files Created:**
+- `lib/water-billing.ts` — Tiered computation engine (`computeTieredAmount()`), bill number generator, account helpers
+- `hooks/use-water.ts` — React Query hooks for all water entities
+- `app/api/water/tenants/route.ts` + `[id]/route.ts`
+- `app/api/water/meters/route.ts` + `[id]/route.ts`
+- `app/api/water/readings/route.ts` + `[id]/route.ts`
+- `app/api/water/rates/route.ts` + `[id]/route.ts`
+- `app/api/water/bills/route.ts` + `[id]/route.ts` — Core billing engine (batch generation + tiered computation)
+- `app/api/water/payments/route.ts` + `[id]/route.ts`
+- `app/(dashboard)/water/tenants/page.tsx`
+- `app/(dashboard)/water/meters/page.tsx`
+- `app/(dashboard)/water/readings/page.tsx`
+- `app/(dashboard)/water/rates/page.tsx`
+- `app/(dashboard)/water/bills/page.tsx` + `[id]/print/page.tsx`
+- `app/(dashboard)/water/payments/page.tsx`
+- `.opencode/plans/2026-07-08-water-billing-design.md`
+
+**Files Updated:**
+- `prisma/schema.prisma` — Added 7 models with indexes, Branch back-references, JournalEntry relations
+- `lib/query-keys.ts` — Added `water` key factory
+- `app/(dashboard)/layout.tsx` — Added "Water Billing" sidebar section under Accounting (adminOnly)
+- `middleware.ts` — Added `/water` to EMPLOYEE restricted paths
+
+**How It Works:**
+
+**Bill Generation** (`POST /api/water/bills`):
+1. Fetches active meters with readings for the selected billing month
+2. For each meter, computes consumption and applies rate tiers
+3. Creates WaterBill + JournalEntry (Debit 1200 AR / Credit 4120 Service Income) in `$transaction`
+4. Auto-skips already-billed meters
+
+**Tiered Rate Computation** (`lib/water-billing.ts`):
+```typescript
+export function computeTieredAmount(consumption: number, tiers: RateTier[]): number {
+  let total = 0
+  let remaining = consumption
+  const sorted = [...tiers].sort((a, b) => a.sequence - b.sequence)
+  for (const tier of sorted) {
+    if (remaining <= 0) break
+    const tierMax = tier.toUnit ?? Infinity
+    const tierRange = tierMax - tier.fromUnit
+    const tierUnits = Math.min(remaining, tierRange)
+    total += tierUnits * tier.pricePerUnit
+    remaining -= tierUnits
+  }
+  return total
+}
+```
+
+**Payment Recording** (`POST /api/water/payments`):
+1. Creates WaterPayment record
+2. Updates WaterBill balance + status (PAID/PARTIAL)
+3. Creates JournalEntry (Debit Cash / Credit 1200 AR)
+
+**Key Behaviors:**
+- All admin-only (EMPLOYEE blocked by middleware + sidebar)
+- Branch-aware (`branchId` filtering on all queries)
+- Audit trail via journal entries (bill void = reverse entry status)
+- Bill number format: `WTR-YYYYMM-XXXX`
+- Consumption validation: no negative readings, spike detection (>200% of previous)
+- PDF bill printing with reading details, amount breakdown, payment history
+
+**Navigation Paths:**
+```
+Accounting > Water Billing
+  ├── Tenants         /water/tenants
+  ├── Meters          /water/meters
+  ├── Meter Readings  /water/readings
+  ├── Rate Setup      /water/rates
+  ├── Bills           /water/bills
+  └── Payments        /water/payments
+```
+
+---
+
 ### Advances Summary Page (2026-06-01)
 
 **Issue:** No dedicated view existed to display a running ledger of cash advances per employee.

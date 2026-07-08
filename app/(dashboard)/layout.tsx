@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer, Package, Database, CheckCircle2, Building } from 'lucide-react';
+import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer, Package, Database, CheckCircle2, Building, Gauge, Droplets, CreditCard } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -54,6 +54,20 @@ const navItems = [
     ],
   },
   {
+    href: '/water',
+    label: 'Water Billing',
+    icon: Droplets,
+    adminOnly: true,
+    subItems: [
+      { href: '/water/tenants', label: 'Tenants', icon: Users },
+      { href: '/water/meters', label: 'Meters', icon: Gauge },
+      { href: '/water/readings', label: 'Meter Readings', icon: FileText },
+      { href: '/water/rates', label: 'Rate Setup', icon: DollarSign },
+      { href: '/water/bills', label: 'Bills', icon: FileText },
+      { href: '/water/payments', label: 'Payments', icon: CreditCard },
+    ],
+  },
+  {
     href: '/asset-inventory',
     label: 'Asset Inventory',
     icon: Package,
@@ -97,6 +111,7 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hrisOpen, setHrisOpen] = useState(false);
   const [accountingOpen, setAccountingOpen] = useState(false);
+  const [waterOpen, setWaterOpen] = useState(false);
   const [payrollOpen, setPayrollOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [assetInventoryOpen, setAssetInventoryOpen] = useState(false);
@@ -170,6 +185,7 @@ export default function DashboardLayout({
               const isPayrollActive = pathname.startsWith('/payroll');
               const isReportsActive = pathname.startsWith('/reports');
               const isAssetInventoryActive = pathname.startsWith('/asset-inventory');
+              const isWaterActive = pathname.startsWith('/water');
               
               let isActive = false;
               let open: boolean = false;
@@ -183,6 +199,10 @@ export default function DashboardLayout({
                 isActive = pathname.startsWith('/accounting');
                 open = accountingOpen;
                 setOpen = setAccountingOpen;
+              } else if (item.href === '/water') {
+                isActive = isWaterActive;
+                open = waterOpen;
+                setOpen = setWaterOpen;
               } else if (item.href === '/payroll') {
                 isActive = isPayrollActive;
                 open = payrollOpen;

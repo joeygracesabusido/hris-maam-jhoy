@@ -137,4 +137,45 @@ export const queryKeys = {
     all: ['dashboard'] as const,
     stats: (filters?: Record<string, string>) => [...queryKeys.dashboard.all, 'stats', filters] as const,
   },
+  water: {
+    all: ['water'] as const,
+    tenants: {
+      all: ['water', 'tenants'] as const,
+      lists: () => [...queryKeys.water.tenants.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.water.tenants.lists(), filters] as const,
+      details: () => [...queryKeys.water.tenants.all, 'detail'] as const,
+      detail: (id: string) => [...queryKeys.water.tenants.details(), id] as const,
+    },
+    meters: {
+      all: ['water', 'meters'] as const,
+      lists: () => [...queryKeys.water.meters.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.water.meters.lists(), filters] as const,
+      details: () => [...queryKeys.water.meters.all, 'detail'] as const,
+      detail: (id: string) => [...queryKeys.water.meters.details(), id] as const,
+    },
+    readings: {
+      all: ['water', 'readings'] as const,
+      lists: () => [...queryKeys.water.readings.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.water.readings.lists(), filters] as const,
+    },
+    rates: {
+      all: ['water', 'rates'] as const,
+      lists: () => [...queryKeys.water.rates.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.water.rates.lists(), filters] as const,
+      details: () => [...queryKeys.water.rates.all, 'detail'] as const,
+      detail: (id: string) => [...queryKeys.water.rates.details(), id] as const,
+    },
+    bills: {
+      all: ['water', 'bills'] as const,
+      lists: () => [...queryKeys.water.bills.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.water.bills.lists(), filters] as const,
+      details: () => [...queryKeys.water.bills.all, 'detail'] as const,
+      detail: (id: string) => [...queryKeys.water.bills.details(), id] as const,
+    },
+    payments: {
+      all: ['water', 'payments'] as const,
+      lists: () => [...queryKeys.water.payments.all, 'list'] as const,
+      list: (filters?: Record<string, string>) => [...queryKeys.water.payments.lists(), filters] as const,
+    },
+  },
 }

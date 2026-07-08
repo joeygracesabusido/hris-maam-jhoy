@@ -49,6 +49,7 @@ export function middleware(request: NextRequest) {
       '/employees',
       '/reports',
       '/settings',
+      '/water',
     ];
 
     if (restrictedPaths.some(path => pathname === path || pathname.startsWith(path + '/'))) {
