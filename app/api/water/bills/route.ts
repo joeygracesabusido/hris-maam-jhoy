@@ -114,7 +114,7 @@ export async function POST(request: Request) {
       let totalAmount: number
       if (rate.rateType === 'FLAT') {
         const flatTier = rate.tiers[0]
-        totalAmount = flatTier ? flatTier.pricePerUnit : 0
+        totalAmount = flatTier ? reading.consumption * flatTier.pricePerUnit : 0
       } else {
         totalAmount = computeTieredAmount(
           reading.consumption,

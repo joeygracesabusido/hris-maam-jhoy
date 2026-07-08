@@ -110,6 +110,7 @@ export default function ReadingsPage() {
       const data = {
         meterId: formData.meterId,
         readingDate: formData.readingDate,
+        previousReading,
         currentReading,
         notes: formData.notes || undefined,
         isEstimated: formData.isEstimated,
@@ -271,8 +272,7 @@ export default function ReadingsPage() {
                     step="0.1"
                     value={formData.previousReading}
                     onChange={(e) => setFormData({ ...formData, previousReading: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg bg-gray-50"
-                    readOnly
+                    className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
                 <div>

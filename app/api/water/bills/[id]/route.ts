@@ -107,17 +107,17 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
       )
     }
 
-    await prisma.$transaction(async (tx) => {
-      if (bill.journalEntryId) {
-        await tx.journalLine.deleteMany({ where: { entryId: bill.journalEntryId } })
-        await tx.journalEntry.delete({ where: { id: bill.journalEntryId } })
-      }
-      await tx.waterBill.delete({ where: { id } })
-    })
+    // Delete bill first, then journal entry (avoids relation constraint issues)
+    await prisma.waterBill.delete({ where: { id: bill.id } })
+    if (bill.journalEntryId) {
+      await prisma.journalLine.deleteMany({ where: { entryId: bill.journalEntryId } })
+      await prisma.journalEntry.delete({ where: { id: bill.journalEntryId } })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
     console.error('Error deleting bill:', error)
-    return NextResponse.json({ error: 'Failed to delete bill' }, { status: 500 })
+    return NextResponse.json({ error: `Failed to delete bill: ${msg}` }, { status: 500 })
   }
 }

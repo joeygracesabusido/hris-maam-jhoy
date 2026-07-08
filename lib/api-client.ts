@@ -18,10 +18,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json()
 }
 
-function buildUrl(path: string, params?: Record<string, string>): string {
+function buildUrl(path: string, params?: Record<string, string | undefined>): string {
   if (params) {
     const url = new URL(path, window.location.origin)
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) url.searchParams.set(k, v)
+    })
     return url.toString()
   }
   return path

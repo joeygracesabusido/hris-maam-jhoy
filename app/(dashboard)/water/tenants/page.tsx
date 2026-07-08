@@ -11,7 +11,7 @@ export default function TenantsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState('')
 
-  const { data: tenants, isLoading } = useTenants({ search: searchTerm || undefined })
+  const { data: tenants, isLoading } = useTenants(searchTerm ? { search: searchTerm } : undefined)
   const createTenant = useCreateTenant()
   const updateTenant = useUpdateTenant()
   const deleteTenant = useDeleteTenant()

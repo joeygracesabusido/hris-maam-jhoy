@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, XCircle, FileText, Printer, DollarSign } from 'lucide-react'
+import { Search, XCircle, FileText, Printer, DollarSign, Trash2 } from 'lucide-react'
 import { useBills, useGenerateBills, useUpdateBill, useDeleteBill, useRates, useTenants, useCreatePayment } from '@/hooks/use-water'
 import type { WaterBill } from '@/hooks/use-water'
 import { format } from 'date-fns'
@@ -273,6 +273,15 @@ export default function BillsPage() {
                     >
                       <Printer className="w-4 h-4" />
                     </button>
+                    {(bill.status === 'DRAFT' || bill.status === 'UNPAID') && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(bill) }}
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                        title="Delete Bill"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -461,7 +470,7 @@ export default function BillsPage() {
                     Void
                   </button>
                 )}
-                {selectedBill.status === 'DRAFT' && (
+                {(selectedBill.status === 'DRAFT' || selectedBill.status === 'UNPAID') && (
                   <button onClick={() => handleDelete(selectedBill)} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
                     Delete
                   </button>
