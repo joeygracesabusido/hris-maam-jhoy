@@ -5,7 +5,16 @@ import { useParams } from 'next/navigation'
 import type { WaterBill } from '@/hooks/use-water'
 import { format } from 'date-fns'
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+function formatBillingPeriod(bill: WaterBill & { previousReadingDate?: string }): string {
+  if (bill.previousReadingDate && bill.reading?.readingDate) {
+    const from = format(new Date(bill.previousReadingDate), 'MMM dd')
+    const to = format(new Date(bill.reading.readingDate), 'MMM dd, yyyy')
+    return `${from} to ${to}`
+  }
+  const firstDay = new Date(bill.billingYear, bill.billingMonth - 1, 1)
+  const lastDay = new Date(bill.billingYear, bill.billingMonth, 0)
+  return `${format(firstDay, 'MMM d')}-${format(lastDay, 'd, yyyy')}`
+}
 
 export default function PrintBillPage() {
   const params = useParams()
@@ -52,7 +61,7 @@ export default function PrintBillPage() {
         </div>
         <div className="text-right">
           <div className="space-y-1">
-            <p><span className="text-gray-500">Billing Period:</span> {MONTHS[bill.billingMonth - 1]} {bill.billingYear}</p>
+            <p><span className="text-gray-500">Billing Period:</span> {formatBillingPeriod(bill)}</p>
             <p><span className="text-gray-500">Due Date:</span> {format(new Date(bill.dueDate), 'MMM dd, yyyy')}</p>
             <p><span className="text-gray-500">Meter No.:</span> {bill.meter?.meterNo || 'N/A'}</p>
             <p><span className="text-gray-500">Status:</span> {bill.status}</p>

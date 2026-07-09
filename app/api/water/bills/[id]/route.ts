@@ -22,7 +22,19 @@ export async function GET(request: Request, { params }: { params: { id: string }
       return NextResponse.json({ error: 'Bill not found' }, { status: 404 })
     }
 
-    return NextResponse.json(bill)
+    let previousReadingDate: Date | null = null
+    if (bill.reading) {
+      const prevReading = await prisma.waterMeterReading.findFirst({
+        where: {
+          meterId: bill.meterId,
+          readingDate: { lt: bill.reading.readingDate },
+        },
+        orderBy: { readingDate: 'desc' },
+      })
+      previousReadingDate = prevReading?.readingDate || null
+    }
+
+    return NextResponse.json({ ...bill, previousReadingDate })
   } catch (error) {
     console.error('Error fetching bill:', error)
     return NextResponse.json({ error: 'Failed to fetch bill' }, { status: 500 })

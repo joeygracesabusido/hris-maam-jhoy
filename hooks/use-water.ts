@@ -308,7 +308,7 @@ export function useGenerateBills() {
       dueDate: string
       meterIds?: string[]
       branchId?: string
-    }) => api.post<WaterBill[]>('/api/water/bills', data),
+    }) => api.post<WaterBill[] | { message: string }>('/api/water/bills', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.water.bills.lists() })
       queryClient.invalidateQueries({ queryKey: queryKeys.water.tenants.lists() })
