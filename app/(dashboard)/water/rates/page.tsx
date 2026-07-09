@@ -80,7 +80,7 @@ export default function RatesPage() {
     setFormData({ ...formData, tiers: tiers.map((t, i) => ({ ...t, sequence: i + 1 })) })
   }
 
-  const updateTier = (index: number, field: string, value: string | number) => {
+  const updateTier = (index: number, field: string, value: string | number | null) => {
     const tiers = [...formData.tiers]
     tiers[index] = { ...tiers[index], [field]: value }
     setFormData({ ...formData, tiers })
