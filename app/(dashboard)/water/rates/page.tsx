@@ -108,7 +108,7 @@ export default function RatesPage() {
         name: formData.name,
         rateType: formData.rateType,
         effectiveFrom: formData.effectiveFrom,
-        effectiveTo: formData.effectiveTo || null,
+        effectiveTo: formData.effectiveTo || undefined,
         isActive: formData.isActive,
         tiers: formData.rateType === 'TIERED' ? formData.tiers.map((t, i) => ({
           fromUnit: t.fromUnit || 0,
