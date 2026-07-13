@@ -9,13 +9,13 @@ import {
 
 export async function GET(request: Request) {
   try {
-  const { searchParams } = new URL(request.url)
-  const status = searchParams.get('status')
-  const quarter = searchParams.get('quarter')
-  const year = searchParams.get('year')
-  const unitId = searchParams.get('unitId')
-  const branchId = searchParams.get('branchId')
-  const limit = searchParams.get('limit')
+    const { searchParams } = new URL(request.url)
+    const status = searchParams.get('status')
+    const quarter = searchParams.get('quarter')
+    const year = searchParams.get('year')
+    const unitId = searchParams.get('unitId')
+    const branchId = searchParams.get('branchId')
+    const limit = searchParams.get('limit')
 
     const where: Record<string, unknown> = {}
     if (status) where.status = status
@@ -23,6 +23,13 @@ export async function GET(request: Request) {
     if (year) where.billingYear = parseInt(year)
     if (unitId) where.unitId = unitId
     if (branchId && branchId !== 'all') where.branchId = branchId
+
+    // Validate and cap limit
+    const parsedLimit = limit ? parseInt(limit) : undefined
+    if (parsedLimit && (isNaN(parsedLimit) || parsedLimit < 1)) {
+      return NextResponse.json({ error: 'Invalid limit parameter' }, { status: 400 })
+    }
+    const cappedLimit = parsedLimit ? Math.min(parsedLimit, 100) : undefined
 
     const bills = await prisma.cusaBill.findMany({
       where,
@@ -32,7 +39,7 @@ export async function GET(request: Request) {
         payments: { orderBy: { paymentDate: 'desc' } },
       },
       orderBy: [{ billingYear: 'desc' }, { billingQuarter: 'desc' }, { billNo: 'desc' }],
-      ...(limit ? { take: parseInt(limit) } : {}),
+      ...(cappedLimit ? { take: cappedLimit } : {}),
     })
 
     return NextResponse.json(bills)

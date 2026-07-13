@@ -2,14 +2,6 @@
 
 import { Building2, DollarSign, AlertCircle, Clock, CheckCircle } from 'lucide-react'
 import { useCusaDashboard, useCusaBills } from '@/hooks/use-cusa'
-import { format } from 'date-fns'
-
-const QUARTER_LABELS: Record<number, string> = {
-  1: 'Q1',
-  2: 'Q2',
-  3: 'Q3',
-  4: 'Q4',
-}
 
 const STATUS_BADGE: Record<string, string> = {
   PAID: 'bg-green-100 text-green-700',
