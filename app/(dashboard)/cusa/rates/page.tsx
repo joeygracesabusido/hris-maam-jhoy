@@ -20,7 +20,7 @@ export default function CusaRatesPage() {
     effectiveTo: '',
   })
 
-  const [tiers, setTiers] = useState<(Omit<CusaRateTier, 'id'> & { fromArea: number | string; pricePerSqm: number | string })[]>([
+  const [tiers, setTiers] = useState<{ fromArea: number | string; toArea?: number; pricePerSqm: number | string; sequence: number }[]>([
     { fromArea: '', toArea: undefined, pricePerSqm: '', sequence: 1 },
   ])
 
@@ -66,7 +66,7 @@ export default function CusaRatesPage() {
     setTiers(tiers.filter((_, i) => i !== index))
   }
 
-  const updateTier = (index: number, field: keyof Omit<CusaRateTier, 'id'>, value: number | undefined) => {
+  const updateTier = (index: number, field: 'fromArea' | 'toArea' | 'pricePerSqm' | 'sequence', value: number | string | undefined) => {
     const updated = [...tiers]
     updated[index] = { ...updated[index], [field]: value }
     setTiers(updated)
@@ -115,7 +115,7 @@ export default function CusaRatesPage() {
         name: formData.name,
         effectiveFrom: formData.effectiveFrom,
         effectiveTo: formData.effectiveTo || undefined,
-        tiers: parsedTiers,
+        tiers: parsedTiers as Omit<CusaRateTier, 'id'>[],
       }
 
       if (editingRate) {

@@ -126,7 +126,7 @@ export function useCusaRate(id: string) {
 export function useCreateCusaRate() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: Partial<CusaRate> & { tiers: Omit<CusaRateTier, 'id'>[] }) =>
+    mutationFn: (data: Omit<Partial<CusaRate>, 'tiers'> & { tiers: Omit<CusaRateTier, 'id'>[] }) =>
       api.post<CusaRate>('/api/cusa/rates', data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.rates.lists() }),
   })
@@ -135,7 +135,7 @@ export function useCreateCusaRate() {
 export function useUpdateCusaRate() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<CusaRate> & { tiers?: Omit<CusaRateTier, 'id'>[] } }) =>
+    mutationFn: ({ id, data }: { id: string; data: Omit<Partial<CusaRate>, 'tiers'> & { tiers?: Omit<CusaRateTier, 'id'>[] } }) =>
       api.patch<CusaRate>(`/api/cusa/rates/${id}`, data),
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.cusa.rates.lists() })
