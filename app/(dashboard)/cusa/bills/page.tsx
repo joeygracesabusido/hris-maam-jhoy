@@ -7,9 +7,9 @@ import { useCusaBills, useGenerateCusaBills, useRecordCusaPayment } from '@/hook
 import type { CusaBill } from '@/hooks/use-cusa'
 
 const STATUS_BADGE: Record<string, string> = {
-  PAID: 'bg-green-100 text-green-700',
-  UNPAID: 'bg-yellow-100 text-yellow-700',
-  OVERDUE: 'bg-red-100 text-red-700',
+  PAID: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  UNPAID: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+  OVERDUE: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 }
 
 const PAYMENT_METHODS = ['Cash', 'Check', 'Bank Transfer']
@@ -149,7 +149,7 @@ export default function CusaBillsPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border rounded-lg bg-white"
+          className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-white"
         >
           <option value="">All Statuses</option>
           <option value="PAID">Paid</option>
@@ -159,7 +159,7 @@ export default function CusaBillsPage() {
         <select
           value={quarterFilter}
           onChange={(e) => setQuarterFilter(e.target.value)}
-          className="px-4 py-2 border rounded-lg bg-white"
+          className="px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-white"
         >
           <option value="">All Quarters</option>
           <option value="1">Q1</option>
@@ -172,52 +172,54 @@ export default function CusaBillsPage() {
           placeholder="Year"
           value={yearFilter}
           onChange={(e) => setYearFilter(e.target.value)}
-          className="px-4 py-2 border rounded-lg w-32"
+          className="px-4 py-2 border rounded-lg w-32 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
           min="2000"
           max="2100"
         />
       </div>
 
       {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
+        </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50">
-                <th className="text-left px-4 py-3 font-medium text-sm">Bill No</th>
-                <th className="text-left px-4 py-3 font-medium text-sm">Unit</th>
-                <th className="text-left px-4 py-3 font-medium text-sm">Tenant</th>
-                <th className="text-center px-4 py-3 font-medium text-sm">Quarter</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Amount</th>
-                <th className="text-center px-4 py-3 font-medium text-sm">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-sm">Due Date</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Actions</th>
+              <tr className="bg-gray-50 dark:bg-gray-900/50">
+                <th className="text-left px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Bill No</th>
+                <th className="text-left px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Unit</th>
+                <th className="text-left px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Tenant</th>
+                <th className="text-center px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Quarter</th>
+                <th className="text-right px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Amount</th>
+                <th className="text-center px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Due Date</th>
+                <th className="text-right px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {(bills || []).map((bill) => (
-                <tr key={bill.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{bill.billNo}</td>
-                  <td className="px-4 py-3 text-gray-600">{bill.unit?.unitNo || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{bill.tenant?.fullName || '—'}</td>
-                  <td className="px-4 py-3 text-center">
+                <tr key={bill.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <td className="px-4 py-3 font-medium dark:text-white">{bill.billNo}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{bill.unit?.unitNo || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{bill.tenant?.fullName || '—'}</td>
+                  <td className="px-4 py-3 text-center dark:text-white">
                     {getQuarterName(bill.billingQuarter)} {bill.billingYear}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono">{formatCurrency(bill.totalAmount)}</td>
+                  <td className="px-4 py-3 text-right font-mono dark:text-white">{formatCurrency(bill.totalAmount)}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      STATUS_BADGE[bill.status] || 'bg-gray-100 text-gray-600'
+                      STATUS_BADGE[bill.status] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                     }`}>
                       {bill.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{formatDate(bill.dueDate)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{formatDate(bill.dueDate)}</td>
                   <td className="px-4 py-3 text-right">
                     {bill.status === 'UNPAID' && (
                       <button
                         onClick={() => openPaymentModal(bill)}
-                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg mr-2"
+                        className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg mr-2"
                         title="Record Payment"
                       >
                         <CreditCard className="w-4 h-4" />
@@ -226,7 +228,7 @@ export default function CusaBillsPage() {
                     <Link
                       href={`/cusa/bills/${bill.id}/print`}
                       target="_blank"
-                      className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg inline-flex"
+                      className="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg inline-flex"
                       title="Print Bill"
                     >
                       <Printer className="w-4 h-4" />
@@ -236,7 +238,7 @@ export default function CusaBillsPage() {
               ))}
               {(!bills || bills.length === 0) && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">No bills found</td>
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No bills found</td>
                 </tr>
               )}
             </tbody>
@@ -246,8 +248,8 @@ export default function CusaBillsPage() {
 
       {showGenerateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md shadow-xl">
-            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
+            <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
               <h2 className="text-xl font-bold">Generate Bills</h2>
               <button onClick={() => { setShowGenerateModal(false); resetGenerateForm() }}>
                 <XCircle className="w-6 h-6" />
@@ -255,16 +257,16 @@ export default function CusaBillsPage() {
             </div>
             <form onSubmit={handleGenerate} className="p-6 space-y-4">
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg text-sm">
                   {error}
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium mb-1">Quarter *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Quarter *</label>
                 <select
                   value={generateForm.billingQuarter}
                   onChange={(e) => setGenerateForm({ ...generateForm, billingQuarter: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                   required
                 >
                   <option value={1}>Q1</option>
@@ -274,24 +276,24 @@ export default function CusaBillsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Year *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Year *</label>
                 <input
                   type="number"
                   value={generateForm.billingYear}
                   onChange={(e) => setGenerateForm({ ...generateForm, billingYear: parseInt(e.target.value) || new Date().getFullYear() })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                   min="2000"
                   max="2100"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Due Date *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Due Date *</label>
                 <input
                   type="date"
                   value={generateForm.dueDate}
                   onChange={(e) => setGenerateForm({ ...generateForm, dueDate: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                   required
                 />
               </div>
@@ -299,7 +301,7 @@ export default function CusaBillsPage() {
                 <button
                   type="button"
                   onClick={() => { setShowGenerateModal(false); resetGenerateForm() }}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-700 dark:text-gray-300"
                 >
                   Cancel
                 </button>
@@ -318,8 +320,8 @@ export default function CusaBillsPage() {
 
       {showPaymentModal && selectedBill && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md shadow-xl">
-            <div className="p-6 border-b flex justify-between items-center bg-green-600 text-white rounded-t-xl">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
+            <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center bg-green-600 text-white rounded-t-xl">
               <h2 className="text-xl font-bold">Record Payment</h2>
               <button onClick={() => { setShowPaymentModal(false); resetPaymentForm() }}>
                 <XCircle className="w-6 h-6" />
@@ -327,36 +329,36 @@ export default function CusaBillsPage() {
             </div>
             <form onSubmit={handleRecordPayment} className="p-6 space-y-4">
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg text-sm">
                   {error}
                 </div>
               )}
-              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+              <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Bill No:</span>
-                  <span className="font-medium">{selectedBill.billNo}</span>
+                  <span className="text-gray-600 dark:text-gray-400">Bill No:</span>
+                  <span className="font-medium dark:text-white">{selectedBill.billNo}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Amount Due:</span>
-                  <span className="font-medium text-lg">{formatCurrency(selectedBill.totalAmount)}</span>
+                  <span className="text-gray-600 dark:text-gray-400">Amount Due:</span>
+                  <span className="font-medium text-lg dark:text-white">{formatCurrency(selectedBill.totalAmount)}</span>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Payment Date *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Payment Date *</label>
                 <input
                   type="date"
                   value={paymentForm.paymentDate}
                   onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Payment Method *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Payment Method *</label>
                 <select
                   value={paymentForm.paymentMethod}
                   onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                   required
                 >
                   {PAYMENT_METHODS.map((method) => (
@@ -367,12 +369,12 @@ export default function CusaBillsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Reference No</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Reference No</label>
                 <input
                   type="text"
                   value={paymentForm.referenceNo}
                   onChange={(e) => setPaymentForm({ ...paymentForm, referenceNo: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                   placeholder="Optional"
                 />
               </div>
@@ -380,7 +382,7 @@ export default function CusaBillsPage() {
                 <button
                   type="button"
                   onClick={() => { setShowPaymentModal(false); resetPaymentForm() }}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-700 dark:text-gray-300"
                 >
                   Cancel
                 </button>
