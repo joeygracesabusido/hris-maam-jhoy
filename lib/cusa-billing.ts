@@ -8,6 +8,8 @@ export interface CusaRateTier {
 }
 
 export function findApplicableTier(areaSqm: number, tiers: CusaRateTier[]): CusaRateTier | null {
+  if (areaSqm < 0) throw new Error('Area must be non-negative')
+  
   const sorted = [...tiers].sort((a, b) => a.sequence - b.sequence)
   
   for (const tier of sorted) {
@@ -21,6 +23,8 @@ export function findApplicableTier(areaSqm: number, tiers: CusaRateTier[]): Cusa
 }
 
 export function computeCusaAmount(areaSqm: number, pricePerSqm: number): number {
+  if (areaSqm < 0) throw new Error('Area must be non-negative')
+  if (pricePerSqm < 0) throw new Error('Price per sq.m. must be non-negative')
   return Math.round(areaSqm * pricePerSqm * 100) / 100
 }
 
@@ -63,7 +67,9 @@ export async function getNextCusaPaymentSequence(date: Date): Promise<number> {
 }
 
 export function getQuarterDates(quarter: number, year: number): { start: Date; end: Date } {
-  const quarterStarts = [0, 0, 3, 6, 9] // Index 0 unused, Q1=0, Q2=3, Q3=6, Q4=9
+  if (quarter < 1 || quarter > 4) throw new Error('Quarter must be 1-4')
+  
+  const quarterStarts = [0, 0, 3, 6, 9] // Q1=January(0), Q2=April(3), Q3=July(6), Q4=October(9)
   const month = quarterStarts[quarter]
   
   const start = new Date(Date.UTC(year, month, 1))
