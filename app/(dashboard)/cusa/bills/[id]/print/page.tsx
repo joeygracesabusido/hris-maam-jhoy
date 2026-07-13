@@ -147,6 +147,7 @@ export default function PrintCusaBillPage() {
                 <th className="border px-4 py-2 text-right">Amount</th>
                 <th className="border px-4 py-2 text-left">Method</th>
                 <th className="border px-4 py-2 text-left">Reference No.</th>
+                <th className="border px-4 py-2 text-left">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -156,6 +157,9 @@ export default function PrintCusaBillPage() {
                   <td className="border px-4 py-2 text-right font-mono">₱{p.amount.toFixed(2)}</td>
                   <td className="border px-4 py-2">{p.paymentMethod}</td>
                   <td className="border px-4 py-2">{p.referenceNo || '—'}</td>
+                  <td className="border px-4 py-2">
+                    <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">COMPLETED</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
