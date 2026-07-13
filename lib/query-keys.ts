@@ -137,6 +137,19 @@ export const queryKeys = {
     all: ['dashboard'] as const,
     stats: (filters?: Record<string, string>) => [...queryKeys.dashboard.all, 'stats', filters] as const,
   },
+  cusa: {
+    all: ['cusa'] as const,
+    units: () => [...queryKeys.cusa.all, 'units'] as const,
+    unit: (id: string) => [...queryKeys.cusa.units(), id] as const,
+    rates: () => [...queryKeys.cusa.all, 'rates'] as const,
+    rate: (id: string) => [...queryKeys.cusa.rates(), id] as const,
+    bills: () => [...queryKeys.cusa.all, 'bills'] as const,
+    bill: (id: string) => [...queryKeys.cusa.bills(), id] as const,
+    payments: () => [...queryKeys.cusa.all, 'payments'] as const,
+    payment: (id: string) => [...queryKeys.cusa.payments(), id] as const,
+    dashboard: () => [...queryKeys.cusa.all, 'dashboard'] as const,
+    overdue: () => [...queryKeys.cusa.all, 'overdue'] as const,
+  },
   water: {
     all: ['water'] as const,
     tenants: {
