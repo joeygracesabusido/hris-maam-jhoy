@@ -133,40 +133,42 @@ export default function CusaRatesPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
+        </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border dark:border-gray-700 overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50">
-                <th className="text-left px-4 py-3 font-medium text-sm">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-sm">Effective From</th>
-                <th className="text-left px-4 py-3 font-medium text-sm">Effective To</th>
-                <th className="text-center px-4 py-3 font-medium text-sm">Status</th>
-                <th className="text-center px-4 py-3 font-medium text-sm">Tiers</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Actions</th>
+              <tr className="bg-gray-50 dark:bg-gray-900/50">
+                <th className="text-left px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Name</th>
+                <th className="text-left px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Effective From</th>
+                <th className="text-left px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Effective To</th>
+                <th className="text-center px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Status</th>
+                <th className="text-center px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Tiers</th>
+                <th className="text-right px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {(rates || []).map((rate) => (
-                <tr key={rate.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{rate.name}</td>
-                  <td className="px-4 py-3 text-gray-600">{formatDate(rate.effectiveFrom)}</td>
-                  <td className="px-4 py-3 text-gray-600">{rate.effectiveTo ? formatDate(rate.effectiveTo) : '—'}</td>
+                <tr key={rate.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <td className="px-4 py-3 font-medium dark:text-white">{rate.name}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{formatDate(rate.effectiveFrom)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{rate.effectiveTo ? formatDate(rate.effectiveTo) : '—'}</td>
                   <td className="px-4 py-3 text-center">
                     <span
                       className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        rate.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                        rate.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                       }`}
                     >
                       {rate.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-center text-gray-600">{rate.tiers.length}</td>
+                  <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{rate.tiers.length}</td>
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => openEdit(rate)}
-                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                      className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
                       title="Edit"
                     >
                       <Pencil className="w-4 h-4" />
@@ -176,7 +178,7 @@ export default function CusaRatesPage() {
               ))}
               {(!rates || rates.length === 0) && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No rates found
                   </td>
                 </tr>
@@ -188,8 +190,8 @@ export default function CusaRatesPage() {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl my-8">
-            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-lg shadow-xl my-8">
+            <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
               <h2 className="text-xl font-bold">{editingRate ? 'Edit Rate' : 'Add Rate'}</h2>
               <button
                 onClick={() => {
@@ -202,18 +204,18 @@ export default function CusaRatesPage() {
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg text-sm">
                   {error}
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-medium mb-1">Rate Name *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Rate Name *</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                   placeholder="e.g., Standard CUSA Rate"
                   required
                 />
@@ -221,33 +223,33 @@ export default function CusaRatesPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Effective From *</label>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Effective From *</label>
                   <input
                     type="date"
                     value={formData.effectiveFrom}
                     onChange={(e) => setFormData({ ...formData, effectiveFrom: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Effective To</label>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Effective To</label>
                   <input
                     type="date"
                     value={formData.effectiveTo}
                     onChange={(e) => setFormData({ ...formData, effectiveTo: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                   />
                 </div>
               </div>
 
-              <div className="border-t pt-4">
+              <div className="border-t dark:border-gray-700 pt-4">
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-medium">Tiers *</label>
+                  <label className="block text-sm font-medium dark:text-gray-300">Tiers *</label>
                   <button
                     type="button"
                     onClick={addTier}
-                    className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                    className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50"
                   >
                     <Plus className="w-3 h-3" /> Add Tier
                   </button>
@@ -255,40 +257,40 @@ export default function CusaRatesPage() {
 
                 <div className="space-y-3">
                   {tiers.map((tier, index) => (
-                    <div key={index} className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg">
+                    <div key={index} className="flex items-start gap-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
                       <div className="grid grid-cols-3 gap-2 flex-1">
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">From Area (sq.m.)</label>
+                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">From Area (sq.m.)</label>
                           <input
                             type="number"
                             value={tier.fromArea}
                             onChange={(e) => updateTier(index, 'fromArea', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1.5 border rounded text-sm"
+                            className="w-full px-2 py-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                             min="0"
                             step="0.01"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">To Area (sq.m.)</label>
+                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">To Area (sq.m.)</label>
                           <input
                             type="number"
                             value={tier.toArea ?? ''}
                             onChange={(e) =>
                               updateTier(index, 'toArea', e.target.value ? parseFloat(e.target.value) : undefined)
                             }
-                            className="w-full px-2 py-1.5 border rounded text-sm"
+                            className="w-full px-2 py-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                             min="0"
                             step="0.01"
                             placeholder="No limit"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">Price per Sq.m.</label>
+                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Price per Sq.m.</label>
                           <input
                             type="number"
                             value={tier.pricePerSqm}
                             onChange={(e) => updateTier(index, 'pricePerSqm', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1.5 border rounded text-sm"
+                            className="w-full px-2 py-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                             min="0"
                             step="0.01"
                           />
@@ -298,7 +300,7 @@ export default function CusaRatesPage() {
                         type="button"
                         onClick={() => removeTier(index)}
                         disabled={tiers.length <= 1}
-                        className="p-1.5 text-red-500 hover:bg-red-50 rounded disabled:opacity-30 disabled:cursor-not-allowed mt-5"
+                        className="p-1.5 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded disabled:opacity-30 disabled:cursor-not-allowed mt-5"
                         title="Remove Tier"
                       >
                         <X className="w-4 h-4" />
@@ -308,14 +310,14 @@ export default function CusaRatesPage() {
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-4 border-t">
+              <div className="flex gap-3 pt-4 border-t dark:border-gray-700">
                 <button
                   type="button"
                   onClick={() => {
                     setShowModal(false)
                     resetForm()
                   }}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-700 dark:text-gray-300"
                 >
                   Cancel
                 </button>
