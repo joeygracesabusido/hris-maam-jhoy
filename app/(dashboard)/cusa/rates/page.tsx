@@ -100,9 +100,9 @@ export default function CusaRatesPage() {
       }
 
       if (editingRate) {
-        await updateRate.mutateAsync({ id: editingRate.id, data: payload as any })
+        await updateRate.mutateAsync({ id: editingRate.id, data: payload })
       } else {
-        await createRate.mutateAsync(payload as any)
+        await createRate.mutateAsync(payload)
       }
       setShowModal(false)
       resetForm()
@@ -113,11 +113,8 @@ export default function CusaRatesPage() {
 
   const formatDate = (dateStr: string) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const date = new Date(dateStr)
-    const day = date.getDate()
-    const month = months[date.getMonth()]
-    const year = date.getFullYear()
-    return `${month} ${day.toString().padStart(2, '0')}, ${year}`
+    const [year, month, day] = dateStr.split('T')[0].split('-').map(Number)
+    return `${months[month - 1]} ${day.toString().padStart(2, '0')}, ${year}`
   }
 
   return (
