@@ -362,15 +362,15 @@ model Branch {
   assetTransactions        AssetTransaction[]
   subsidiaryLedgers        SubsidiaryLedger[]
   holidays                 Holiday[]
-  tenants                  Tenant[]
-   waterMeters              WaterMeter[]
-   waterRates               WaterRate[]
-   waterBills               WaterBill[]
-   cusaUnits                CusaUnit[]
-   cusaRates                CusaRate[]
-   cusaBills                CusaBill[]
+tenants                  Tenant[]
+  waterMeters              WaterMeter[]
+  waterRates               WaterRate[]
+  waterBills               WaterBill[]
+  cusaUnits                CusaUnit[]
+  cusaRates                CusaRate[]
+  cusaBills                CusaBill[]
 
-   @@map("branches")
+  @@map("branches")
 }
 
 /// Holiday model for managing company holidays
@@ -1034,17 +1034,17 @@ model Tenant {
   branchId      String?  @db.ObjectId
   branch        Branch?  @relation(fields: [branchId], references: [id])
 
-   meters    WaterMeter[]
-   bills     WaterBill[]
-   cusaUnits CusaUnit[]
-   cusaBills CusaBill[]
+  meters    WaterMeter[]
+  bills     WaterBill[]
+  cusaUnits CusaUnit[]
+  cusaBills CusaBill[]
 
-   createdAt DateTime @default(now())
-   updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-   @@index([status])
-   @@index([branchId])
-   @@map("tenants")
+  @@index([status])
+  @@index([branchId])
+  @@map("tenants")
 }
 
 /// Water meter assigned to a tenant unit
@@ -1286,6 +1286,7 @@ model CusaPayment {
   referenceNo   String?
   notes         String?
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   @@index([billId])
   @@map("cusa_payments")
 }
