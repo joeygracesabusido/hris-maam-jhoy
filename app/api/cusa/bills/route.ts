@@ -9,12 +9,13 @@ import {
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const status = searchParams.get('status')
-    const quarter = searchParams.get('quarter')
-    const year = searchParams.get('year')
-    const unitId = searchParams.get('unitId')
-    const branchId = searchParams.get('branchId')
+  const { searchParams } = new URL(request.url)
+  const status = searchParams.get('status')
+  const quarter = searchParams.get('quarter')
+  const year = searchParams.get('year')
+  const unitId = searchParams.get('unitId')
+  const branchId = searchParams.get('branchId')
+  const limit = searchParams.get('limit')
 
     const where: Record<string, unknown> = {}
     if (status) where.status = status
@@ -31,6 +32,7 @@ export async function GET(request: Request) {
         payments: { orderBy: { paymentDate: 'desc' } },
       },
       orderBy: [{ billingYear: 'desc' }, { billingQuarter: 'desc' }, { billNo: 'desc' }],
+      ...(limit ? { take: parseInt(limit) } : {}),
     })
 
     return NextResponse.json(bills)
