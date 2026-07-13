@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus, Search, Pencil, Trash2, XCircle, Home } from 'lucide-react'
 import { useCusaUnits, useCreateCusaUnit, useUpdateCusaUnit, useDeleteCusaUnit } from '@/hooks/use-cusa'
 import type { CusaUnit } from '@/hooks/use-cusa'
@@ -18,9 +18,12 @@ export default function CusaUnitsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [error, setError] = useState('')
 
-  const filters: Record<string, string> = {}
-  if (searchTerm) filters.search = searchTerm
-  if (statusFilter) filters.status = statusFilter
+  const filters = useMemo(() => {
+    const f: Record<string, string> = {}
+    if (searchTerm) f.search = searchTerm
+    if (statusFilter) f.status = statusFilter
+    return f
+  }, [searchTerm, statusFilter])
 
   const { data: units, isLoading } = useCusaUnits(Object.keys(filters).length > 0 ? filters : undefined)
   const createUnit = useCreateCusaUnit()
@@ -109,23 +112,6 @@ export default function CusaUnitsPage() {
     }
   }
 
-  const filteredUnits = units?.filter((u) => {
-    if (!searchTerm && !statusFilter) return true
-    let matches = true
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase()
-      matches = matches && (
-        u.unitNo.toLowerCase().includes(term) ||
-        (u.tenant?.fullName || '').toLowerCase().includes(term) ||
-        (u.zone || '').toLowerCase().includes(term)
-      )
-    }
-    if (statusFilter) {
-      matches = matches && u.status === statusFilter
-    }
-    return matches
-  })
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -180,7 +166,7 @@ export default function CusaUnitsPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {(filteredUnits || []).map((unit) => (
+              {(units || []).map((unit) => (
                 <tr key={unit.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{unit.unitNo}</td>
                   <td className="px-4 py-3 text-gray-600">{unit.floor}</td>
@@ -210,7 +196,7 @@ export default function CusaUnitsPage() {
                   </td>
                 </tr>
               ))}
-              {(!filteredUnits || filteredUnits.length === 0) && (
+              {(!units || units.length === 0) && (
                 <tr>
                   <td colSpan={9} className="px-4 py-8 text-center text-gray-500">No units found</td>
                 </tr>
