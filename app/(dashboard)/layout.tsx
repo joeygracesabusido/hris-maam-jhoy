@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer, Package, Database, CheckCircle2, Building, Gauge, Droplets, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer, Package, Database, CheckCircle2, Building, Gauge, Droplets, CreditCard, Building2, Home, AlertTriangle } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -68,6 +68,20 @@ const navItems = [
     ],
   },
   {
+    href: '/cusa',
+    label: 'CUSA Billing',
+    icon: Building2,
+    adminOnly: true,
+    subItems: [
+      { href: '/cusa', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/cusa/units', label: 'Units', icon: Home },
+      { href: '/cusa/rates', label: 'Rate Setup', icon: DollarSign },
+      { href: '/cusa/bills', label: 'Bills', icon: FileText },
+      { href: '/cusa/payments', label: 'Payments', icon: CreditCard },
+      { href: '/cusa/overdue', label: 'Overdue Report', icon: AlertTriangle },
+    ],
+  },
+  {
     href: '/asset-inventory',
     label: 'Asset Inventory',
     icon: Package,
@@ -112,6 +126,7 @@ export default function DashboardLayout({
   const [hrisOpen, setHrisOpen] = useState(false);
   const [accountingOpen, setAccountingOpen] = useState(false);
   const [waterOpen, setWaterOpen] = useState(false);
+  const [cusaOpen, setCusaOpen] = useState(false);
   const [payrollOpen, setPayrollOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [assetInventoryOpen, setAssetInventoryOpen] = useState(false);
@@ -186,6 +201,7 @@ export default function DashboardLayout({
               const isReportsActive = pathname.startsWith('/reports');
               const isAssetInventoryActive = pathname.startsWith('/asset-inventory');
               const isWaterActive = pathname.startsWith('/water');
+              const isCusaActive = pathname.startsWith('/cusa');
               
               let isActive = false;
               let open: boolean = false;
@@ -203,6 +219,10 @@ export default function DashboardLayout({
                 isActive = isWaterActive;
                 open = waterOpen;
                 setOpen = setWaterOpen;
+              } else if (item.href === '/cusa') {
+                isActive = isCusaActive;
+                open = cusaOpen;
+                setOpen = setCusaOpen;
               } else if (item.href === '/payroll') {
                 isActive = isPayrollActive;
                 open = payrollOpen;
