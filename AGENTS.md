@@ -1140,3 +1140,86 @@ Employees can now enroll their own face from the Time Logs page without needing 
 - `scripts/fix-branch-objectid.ts` — String-to-ObjectId conversion
 - `docs/plans/2026-05-22-branch-support-design.md` — Architecture design doc
 - `docs/plans/2026-05-22-branch-support-implementation.md` — Implementation plan
+
+---
+
+### CUSA Billing Module (2026-07-13)
+
+**New Feature:** Complete CUSA (Common Use Service Area) billing module for commercial buildings — quarterly billing, tiered rates by unit area, payment tracking, bill printing, and overdue reporting.
+
+**Database (5 new Prisma models):**
+- `CusaUnit` — Building units with floor, zone, area (sq.m.), status (OCCUPIED/VACANT/UNDER_RENOVATION), tenant relation, lease dates
+- `CusaRate` — Rate structures with effective dates and active status
+- `CusaRateTier` — Tiered pricing by area range (`fromArea`, `toArea`, `pricePerSqm`)
+- `CusaBill` — Generated bills with `CUSA-YYYYQ#-XXXX` format, status tracking, balance
+- `CusaPayment` — Payments against bills with `CUSAPAY-YYYYMMDD-XXXX` format
+
+**Files Created:**
+- `lib/cusa-billing.ts` — Tiered computation engine, bill/payment number generators, sequence helpers
+- `hooks/use-cusa.ts` — 16 React Query hooks for all CUSA entities
+- `lib/query-keys.ts` — CUSA query key factory (list/detail pattern)
+- `app/api/cusa/units/route.ts` + `[id]/route.ts` — Units CRUD
+- `app/api/cusa/rates/route.ts` + `[id]/route.ts` — Rates CRUD
+- `app/api/cusa/bills/route.ts` + `[id]/route.ts` — Bill generation + status updates
+- `app/api/cusa/payments/route.ts` + `[id]/route.ts` — Payment recording
+- `app/api/cusa/reports/dashboard/route.ts` — Dashboard stats API
+- `app/api/cusa/reports/overdue/route.ts` — Overdue report API
+- `app/(dashboard)/cusa/page.tsx` — Dashboard with stats cards + recent bills
+- `app/(dashboard)/cusa/units/page.tsx` — Units management with tenant dropdown, dark mode
+- `app/(dashboard)/cusa/rates/page.tsx` — Rate setup with tier management, dark mode
+- `app/(dashboard)/cusa/bills/page.tsx` — Bill generation + payment recording, dark mode
+- `app/(dashboard)/cusa/bills/[id]/print/page.tsx` — Print-friendly bill with payment history
+- `app/(dashboard)/cusa/payments/page.tsx` — Payment history with filters, dark mode
+- `app/(dashboard)/cusa/overdue/page.tsx` — Overdue report with days count, dark mode
+
+**Files Updated:**
+- `prisma/schema.prisma` — Added 5 CUSA models with indexes, Tenant back-references
+- `app/(dashboard)/layout.tsx` — Added "CUSA Billing" sidebar section (adminOnly)
+- `middleware.ts` — Added `/cusa` to EMPLOYEE restricted paths
+
+**Bugs Fixed:**
+1. **Bill generation unique constraint violation** — `getNextCusaBillSequence` was called inside `$transaction` but used `prisma` (not `tx`), so each loop iteration got the same sequence. **Fix:** Pre-compute starting sequence before transaction, increment locally.
+2. **Area field defaulted to 0** — Area fields in Add Unit and Add Rate forms started with `0`, preventing typing. **Fix:** Changed initial values to empty string, convert to number on submit.
+3. **Tenant ID required manual entry** — Users had to manually type tenant ObjectId. **Fix:** Replaced text input with dropdown listing all tenants from Water Billing.
+4. **Dark mode text invisible** — Print page (Amount Details table, labels, headers) and several pages had no dark mode text colors. **Fix:** Added `dark:text-white/gray-300/gray-400` to all visible text, `dark:border-gray-700` to borders, `dark:bg-gray-800/900` to backgrounds.
+
+**Key Patterns:**
+```typescript
+// Bill number format
+const billNo = `CUSA-${year}Q${quarter}-${String(sequence).padStart(4, '0')}`
+// e.g., CUSA-2026Q3-0001
+
+// Payment number format
+const paymentNo = `CUSAPAY-${dateStr}-${String(sequence).padStart(4, '0')}`
+// e.g., CUSAPAY-20260713-0001
+
+// Tier computation
+export function findApplicableTier(areaSqm: number, tiers: CusaRateTier[]): CusaRateTier | null {
+  const sorted = [...tiers].sort((a, b) => a.sequence - b.sequence)
+  for (const tier of sorted) {
+    const tierMax = tier.toArea ?? Infinity
+    if (areaSqm >= tier.fromArea && areaSqm <= tierMax) return tier
+  }
+  return null
+}
+
+// Bill generation sequence fix (avoids unique constraint on billNo)
+let currentSequence = await getNextCusaBillSequence(year, quarter)
+const createdBills = await prisma.$transaction(async (tx) => {
+  for (const unit of units) {
+    const seq = currentSequence++
+    // ... create bill with seq
+  }
+})
+```
+
+**Navigation Paths:**
+```
+Properties Management > CUSA Billing
+  ├── Dashboard       /cusa
+  ├── Units           /cusa/units
+  ├── Rates           /cusa/rates
+  ├── Bills           /cusa/bills   (Generate Bills + Record Payment)
+  ├── Payments        /cusa/payments
+  └── Overdue Report  /cusa/overdue
+```
