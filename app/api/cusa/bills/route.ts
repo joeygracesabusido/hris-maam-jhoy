@@ -134,17 +134,26 @@ export async function POST(request: Request) {
 
     const billedUnitIds = new Set(existingBills.map((b) => b.unitId))
 
-    // 4. Generate bills for unbilled units in a transaction
+    // 4. Pre-compute sequences for unbilled units (outside transaction to avoid race conditions)
+    const unbilledUnits = units.filter((u) => !billedUnitIds.has(u.id))
+    const validUnits = unbilledUnits
+      .map((u) => ({ unit: u, tier: findApplicableTier(u.areaSqm, rate.tiers) }))
+      .filter((entry): entry is { unit: typeof units[number]; tier: NonNullable<ReturnType<typeof findApplicableTier>> } => entry.tier !== null)
+
+    if (validUnits.length === 0) {
+      return NextResponse.json(
+        { error: 'No units match the rate tiers for billing' },
+        { status: 400 }
+      )
+    }
+
+    let currentSequence = await getNextCusaBillSequence(billingYear, billingQuarter)
+
     const createdBills = await prisma.$transaction(async (tx) => {
       const bills = []
-      for (const unit of units) {
-        if (billedUnitIds.has(unit.id)) continue
-
-        const tier = findApplicableTier(unit.areaSqm, rate.tiers)
-        if (!tier) continue
-
+      for (const { unit, tier } of validUnits) {
         const totalAmount = computeCusaAmount(unit.areaSqm, tier.pricePerSqm)
-        const sequence = await getNextCusaBillSequence(billingYear, billingQuarter)
+        const sequence = currentSequence++
         const billNo = generateCusaBillNo(billingYear, billingQuarter, sequence)
 
         const bill = await tx.cusaBill.create({
