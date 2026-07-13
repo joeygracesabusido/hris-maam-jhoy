@@ -35,7 +35,7 @@ export default function CusaUnitsPage() {
     unitNo: '',
     floor: 1,
     zone: '',
-    areaSqm: 0,
+    areaSqm: '',
     status: 'VACANT',
     leaseStart: '',
     leaseEnd: '',
@@ -47,7 +47,7 @@ export default function CusaUnitsPage() {
       unitNo: '',
       floor: 1,
       zone: '',
-      areaSqm: 0,
+      areaSqm: '',
       status: 'VACANT',
       leaseStart: '',
       leaseEnd: '',
@@ -68,7 +68,7 @@ export default function CusaUnitsPage() {
       unitNo: unit.unitNo,
       floor: unit.floor,
       zone: unit.zone || '',
-      areaSqm: unit.areaSqm,
+      areaSqm: unit.areaSqm.toString(),
       status: unit.status,
       leaseStart: unit.leaseStart ? new Date(unit.leaseStart).toISOString().split('T')[0] : '',
       leaseEnd: unit.leaseEnd ? new Date(unit.leaseEnd).toISOString().split('T')[0] : '',
@@ -85,16 +85,23 @@ export default function CusaUnitsPage() {
       return
     }
 
-    if (formData.areaSqm <= 0) {
+    const areaValue = typeof formData.areaSqm === 'string' ? parseFloat(formData.areaSqm) : formData.areaSqm
+    if (!formData.areaSqm || isNaN(areaValue) || areaValue <= 0) {
       setError('Area must be greater than 0')
       return
     }
 
+    // Convert areaSqm to number before submitting
+    const submitData = {
+      ...formData,
+      areaSqm: areaValue,
+    }
+
     try {
       if (editingUnit) {
-        await updateUnit.mutateAsync({ id: editingUnit.id, data: formData })
+        await updateUnit.mutateAsync({ id: editingUnit.id, data: submitData })
       } else {
-        await createUnit.mutateAsync(formData)
+        await createUnit.mutateAsync(submitData)
       }
       setShowModal(false)
       resetForm()
@@ -244,10 +251,11 @@ export default function CusaUnitsPage() {
                   <input
                     type="number"
                     value={formData.areaSqm}
-                    onChange={(e) => setFormData({ ...formData, areaSqm: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, areaSqm: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                     min="0"
                     step="0.01"
+                    placeholder="Enter area"
                     required
                   />
                 </div>
