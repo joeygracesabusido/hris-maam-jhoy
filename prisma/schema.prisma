@@ -363,11 +363,14 @@ model Branch {
   subsidiaryLedgers        SubsidiaryLedger[]
   holidays                 Holiday[]
   tenants                  Tenant[]
-  waterMeters              WaterMeter[]
-  waterRates               WaterRate[]
-  waterBills               WaterBill[]
+   waterMeters              WaterMeter[]
+   waterRates               WaterRate[]
+   waterBills               WaterBill[]
+   cusaUnits                CusaUnit[]
+   cusaRates                CusaRate[]
+   cusaBills                CusaBill[]
 
-  @@map("branches")
+   @@map("branches")
 }
 
 /// Holiday model for managing company holidays
@@ -1031,15 +1034,17 @@ model Tenant {
   branchId      String?  @db.ObjectId
   branch        Branch?  @relation(fields: [branchId], references: [id])
 
-  meters  WaterMeter[]
-  bills   WaterBill[]
+   meters    WaterMeter[]
+   bills     WaterBill[]
+   cusaUnits CusaUnit[]
+   cusaBills CusaBill[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+   createdAt DateTime @default(now())
+   updatedAt DateTime @updatedAt
 
-  @@index([status])
-  @@index([branchId])
-  @@map("tenants")
+   @@index([status])
+   @@index([branchId])
+   @@map("tenants")
 }
 
 /// Water meter assigned to a tenant unit
@@ -1177,4 +1182,110 @@ model WaterPayment {
 
   @@index([billId])
   @@map("water_payments")
+}
+
+// ============================================================================
+// CUSA BILLING MODELS
+// ============================================================================
+
+/// CUSA unit - extends tenant data with floor/zone/status/lease info
+model CusaUnit {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  tenantId        String   @db.ObjectId
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  unitNo          String
+  floor           Int
+  zone            String?
+  areaSqm         Float
+  status          String   @default("OCCUPIED")
+  leaseStart      DateTime?
+  leaseEnd        DateTime?
+  branchId        String?  @db.ObjectId
+  branch          Branch?  @relation(fields: [branchId], references: [id])
+  bills           CusaBill[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@index([tenantId])
+  @@index([status])
+  @@index([branchId])
+  @@index([floor])
+  @@map("cusa_units")
+}
+
+/// CUSA rate structure with tiers based on unit area
+model CusaRate {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  isActive      Boolean  @default(true)
+  branchId      String?  @db.ObjectId
+  branch        Branch?  @relation(fields: [branchId], references: [id])
+  tiers         CusaRateTier[]
+  bills         CusaBill[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@index([isActive])
+  @@index([branchId])
+  @@map("cusa_rates")
+}
+
+/// Tier within CUSA rate (based on unit area ranges)
+model CusaRateTier {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  rateId      String   @db.ObjectId
+  rate        CusaRate @relation(fields: [rateId], references: [id], onDelete: Cascade)
+  fromArea    Float
+  toArea      Float?
+  pricePerSqm Float
+  sequence    Int
+  @@index([rateId])
+  @@map("cusa_rate_tiers")
+}
+
+/// Generated CUSA bill for a quarterly period
+model CusaBill {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  billNo         String   @unique
+  unitId         String   @db.ObjectId
+  unit           CusaUnit @relation(fields: [unitId], references: [id])
+  tenantId       String   @db.ObjectId
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  rateId         String   @db.ObjectId
+  rate           CusaRate @relation(fields: [rateId], references: [id])
+  billingQuarter Int
+  billingYear    Int
+  areaSqm        Float
+  ratePerSqm     Float
+  totalAmount    Float
+  amountPaid     Float    @default(0)
+  balance        Float
+  dueDate        DateTime
+  status         String   @default("UNPAID")
+  branchId       String?  @db.ObjectId
+  branch         Branch?  @relation(fields: [branchId], references: [id])
+  payments       CusaPayment[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@index([tenantId, billingYear, billingQuarter])
+  @@index([status])
+  @@index([unitId])
+  @@index([branchId])
+  @@map("cusa_bills")
+}
+
+/// Payment recorded against a CUSA bill
+model CusaPayment {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  billId        String   @db.ObjectId
+  bill          CusaBill @relation(fields: [billId], references: [id])
+  paymentNo     String   @unique
+  amount        Float
+  paymentDate   DateTime
+  paymentMethod String
+  referenceNo   String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  @@index([billId])
+  @@map("cusa_payments")
 }
