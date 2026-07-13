@@ -30,6 +30,36 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   try {
     const body = await request.json()
 
+    // Validate input ranges if provided
+    if (body.floor !== undefined && body.floor < 0) {
+      return NextResponse.json({ error: 'Floor must be non-negative' }, { status: 400 })
+    }
+    if (body.areaSqm !== undefined && body.areaSqm <= 0) {
+      return NextResponse.json({ error: 'Area must be positive' }, { status: 400 })
+    }
+
+    // Validate status if provided
+    const validStatuses = ['OCCUPIED', 'VACANT', 'UNDER_RENOVATION']
+    if (body.status && !validStatuses.includes(body.status)) {
+      return NextResponse.json({ error: `Status must be one of: ${validStatuses.join(', ')}` }, { status: 400 })
+    }
+
+    // Validate tenant exists if provided
+    if (body.tenantId) {
+      const tenant = await prisma.tenant.findUnique({ where: { id: body.tenantId } })
+      if (!tenant) {
+        return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+      }
+    }
+
+    // Validate branch exists if provided
+    if (body.branchId) {
+      const branch = await prisma.branch.findUnique({ where: { id: body.branchId } })
+      if (!branch) {
+        return NextResponse.json({ error: 'Branch not found' }, { status: 404 })
+      }
+    }
+
     const unit = await prisma.cusaUnit.update({
       where: { id: params.id },
       data: {

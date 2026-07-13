@@ -49,6 +49,34 @@ export async function POST(request: Request) {
       )
     }
 
+    // Validate tenant exists
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } })
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+    }
+
+    // Validate input ranges
+    if (floor < 0) {
+      return NextResponse.json({ error: 'Floor must be non-negative' }, { status: 400 })
+    }
+    if (areaSqm <= 0) {
+      return NextResponse.json({ error: 'Area must be positive' }, { status: 400 })
+    }
+
+    // Validate status
+    const validStatuses = ['OCCUPIED', 'VACANT', 'UNDER_RENOVATION']
+    if (status && !validStatuses.includes(status)) {
+      return NextResponse.json({ error: `Status must be one of: ${validStatuses.join(', ')}` }, { status: 400 })
+    }
+
+    // Validate branch exists if provided
+    if (branchId) {
+      const branch = await prisma.branch.findUnique({ where: { id: branchId } })
+      if (!branch) {
+        return NextResponse.json({ error: 'Branch not found' }, { status: 404 })
+      }
+    }
+
     const unit = await prisma.cusaUnit.create({
       data: {
         tenantId,
