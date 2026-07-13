@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
 import { FileText, CreditCard, Printer, XCircle } from 'lucide-react'
 import { useCusaBills, useGenerateCusaBills, useRecordCusaPayment } from '@/hooks/use-cusa'
 import type { CusaBill } from '@/hooks/use-cusa'
@@ -222,13 +223,14 @@ export default function CusaBillsPage() {
                         <CreditCard className="w-4 h-4" />
                       </button>
                     )}
-                    <button
-                      onClick={() => window.print()}
-                      className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg"
+                    <Link
+                      href={`/cusa/bills/${bill.id}/print`}
+                      target="_blank"
+                      className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg inline-flex"
                       title="Print Bill"
                     >
                       <Printer className="w-4 h-4" />
-                    </button>
+                    </Link>
                   </td>
                 </tr>
               ))}
