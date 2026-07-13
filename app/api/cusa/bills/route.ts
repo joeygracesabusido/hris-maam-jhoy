@@ -60,6 +60,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'billingYear must be between 2000 and 2100' }, { status: 400 })
     }
 
+    // Validate dueDate is a valid date
+    const dueDateObj = new Date(dueDate)
+    if (isNaN(dueDateObj.getTime())) {
+      return NextResponse.json({ error: 'Invalid dueDate format' }, { status: 400 })
+    }
+
     // Validate branch exists if provided
     if (branchId) {
       const branch = await prisma.branch.findUnique({ where: { id: branchId } })
@@ -112,43 +118,46 @@ export async function POST(request: Request) {
 
     const billedUnitIds = new Set(existingBills.map((b) => b.unitId))
 
-    // 4. Generate bills for unbilled units
-    const createdBills = []
-    for (const unit of units) {
-      if (billedUnitIds.has(unit.id)) continue
+    // 4. Generate bills for unbilled units in a transaction
+    const createdBills = await prisma.$transaction(async (tx) => {
+      const bills = []
+      for (const unit of units) {
+        if (billedUnitIds.has(unit.id)) continue
 
-      const tier = findApplicableTier(unit.areaSqm, rate.tiers)
-      if (!tier) continue
+        const tier = findApplicableTier(unit.areaSqm, rate.tiers)
+        if (!tier) continue
 
-      const totalAmount = computeCusaAmount(unit.areaSqm, tier.pricePerSqm)
-      const sequence = await getNextCusaBillSequence(billingYear, billingQuarter)
-      const billNo = generateCusaBillNo(billingYear, billingQuarter, sequence)
+        const totalAmount = computeCusaAmount(unit.areaSqm, tier.pricePerSqm)
+        const sequence = await getNextCusaBillSequence(billingYear, billingQuarter)
+        const billNo = generateCusaBillNo(billingYear, billingQuarter, sequence)
 
-      const bill = await prisma.cusaBill.create({
-        data: {
-          billNo,
-          unitId: unit.id,
-          tenantId: unit.tenantId,
-          rateId: rate.id,
-          billingQuarter,
-          billingYear,
-          areaSqm: unit.areaSqm,
-          ratePerSqm: tier.pricePerSqm,
-          totalAmount,
-          balance: totalAmount,
-          dueDate: new Date(dueDate),
-          status: 'UNPAID',
-          branchId: unit.branchId || null,
-        },
-        include: {
-          unit: true,
-          tenant: true,
-          rate: true,
-        },
-      })
+        const bill = await tx.cusaBill.create({
+          data: {
+            billNo,
+            unitId: unit.id,
+            tenantId: unit.tenantId,
+            rateId: rate.id,
+            billingQuarter,
+            billingYear,
+            areaSqm: unit.areaSqm,
+            ratePerSqm: tier.pricePerSqm,
+            totalAmount,
+            balance: totalAmount,
+            dueDate: dueDateObj,
+            status: 'UNPAID',
+            branchId: unit.branchId || null,
+          },
+          include: {
+            unit: true,
+            tenant: true,
+            rate: true,
+          },
+        })
 
-      createdBills.push(bill)
-    }
+        bills.push(bill)
+      }
+      return bills
+    })
 
     return NextResponse.json({
       generated: createdBills.length,
