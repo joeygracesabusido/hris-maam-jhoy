@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { Plus, Search, Pencil, Trash2, XCircle, Home } from 'lucide-react'
 import { useCusaUnits, useCreateCusaUnit, useUpdateCusaUnit, useDeleteCusaUnit } from '@/hooks/use-cusa'
+import { useTenants } from '@/hooks/use-water'
 import type { CusaUnit } from '@/hooks/use-cusa'
 
 const STATUS_BADGE: Record<string, string> = {
@@ -26,6 +27,7 @@ export default function CusaUnitsPage() {
   }, [searchTerm, statusFilter])
 
   const { data: units, isLoading } = useCusaUnits(Object.keys(filters).length > 0 ? filters : undefined)
+  const { data: tenants } = useTenants()
   const createUnit = useCreateCusaUnit()
   const updateUnit = useUpdateCusaUnit()
   const deleteUnit = useDeleteCusaUnit()
@@ -269,15 +271,21 @@ export default function CusaUnitsPage() {
                   className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Tenant ID</label>
-                <input
-                  type="text"
-                  value={formData.tenantId}
-                  onChange={(e) => setFormData({ ...formData, tenantId: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
-                />
-              </div>
+<div>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Tenant</label>
+                  <select
+                    value={formData.tenantId}
+                    onChange={(e) => setFormData({ ...formData, tenantId: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                  >
+                    <option value="">Select Tenant (Optional)</option>
+                    {(tenants || []).map((tenant) => (
+                      <option key={tenant.id} value={tenant.id}>
+                        {tenant.fullName} {tenant.unitNo ? `(${tenant.unitNo})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">Status *</label>
                 <select
