@@ -197,9 +197,23 @@ export function useCusaDashboard() {
   })
 }
 
+export interface CusaOverdueBill {
+  id: string
+  billNo: string
+  billingQuarter: number
+  billingYear: number
+  totalAmount: number
+  amountPaid: number
+  balance: number
+  dueDate: string
+  daysOverdue: number
+  unit: CusaUnit
+  tenant: { id: string; fullName: string }
+}
+
 export function useCusaOverdue() {
   return useQuery({
     queryKey: queryKeys.cusa.overdue(),
-    queryFn: ({ signal }) => api.get<CusaBill[]>('/api/cusa/reports/overdue', { signal }),
+    queryFn: ({ signal }) => api.get<CusaOverdueBill[]>('/api/cusa/reports/overdue', { signal }),
   })
 }
