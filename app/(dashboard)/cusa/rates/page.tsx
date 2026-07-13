@@ -20,13 +20,13 @@ export default function CusaRatesPage() {
     effectiveTo: '',
   })
 
-  const [tiers, setTiers] = useState<Omit<CusaRateTier, 'id'>[]>([
-    { fromArea: 0, toArea: undefined, pricePerSqm: 0, sequence: 1 },
+  const [tiers, setTiers] = useState<(Omit<CusaRateTier, 'id'> & { fromArea: number | string; pricePerSqm: number | string })[]>([
+    { fromArea: '', toArea: undefined, pricePerSqm: '', sequence: 1 },
   ])
 
   const resetForm = () => {
     setFormData({ name: '', effectiveFrom: '', effectiveTo: '' })
-    setTiers([{ fromArea: 0, toArea: undefined, pricePerSqm: 0, sequence: 1 }])
+    setTiers([{ fromArea: '', toArea: undefined, pricePerSqm: '', sequence: 1 }])
     setEditingRate(null)
     setError('')
   }
@@ -57,7 +57,7 @@ export default function CusaRatesPage() {
   const addTier = () => {
     setTiers([
       ...tiers,
-      { fromArea: 0, toArea: undefined, pricePerSqm: 0, sequence: tiers.length + 1 },
+      { fromArea: '', toArea: undefined, pricePerSqm: '', sequence: tiers.length + 1 },
     ])
   }
 
@@ -91,12 +91,31 @@ export default function CusaRatesPage() {
       return
     }
 
+    // Validate tiers and convert to numbers
+    const parsedTiers = tiers.map((tier, idx) => {
+      const fromArea = typeof tier.fromArea === 'string' ? parseFloat(tier.fromArea) : tier.fromArea
+      const pricePerSqm = typeof tier.pricePerSqm === 'string' ? parseFloat(tier.pricePerSqm) : tier.pricePerSqm
+      const toArea = tier.toArea !== undefined ? (typeof tier.toArea === 'string' ? parseFloat(tier.toArea) : tier.toArea) : undefined
+
+      if (isNaN(fromArea) || fromArea < 0) {
+        throw new Error(`Tier ${idx + 1}: Invalid From Area`)
+      }
+      if (isNaN(pricePerSqm) || pricePerSqm < 0) {
+        throw new Error(`Tier ${idx + 1}: Invalid Price per Sq.m.`)
+      }
+      if (toArea !== undefined && (isNaN(toArea) || toArea < fromArea)) {
+        throw new Error(`Tier ${idx + 1}: To Area must be greater than or equal to From Area`)
+      }
+
+      return { fromArea, toArea, pricePerSqm, sequence: tier.sequence }
+    })
+
     try {
       const payload = {
         name: formData.name,
         effectiveFrom: formData.effectiveFrom,
         effectiveTo: formData.effectiveTo || undefined,
-        tiers,
+        tiers: parsedTiers,
       }
 
       if (editingRate) {
@@ -264,10 +283,11 @@ export default function CusaRatesPage() {
                           <input
                             type="number"
                             value={tier.fromArea}
-                            onChange={(e) => updateTier(index, 'fromArea', parseFloat(e.target.value) || 0)}
+                            onChange={(e) => updateTier(index, 'fromArea', e.target.value)}
                             className="w-full px-2 py-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                             min="0"
                             step="0.01"
+                            placeholder="0"
                           />
                         </div>
                         <div>
@@ -289,10 +309,11 @@ export default function CusaRatesPage() {
                           <input
                             type="number"
                             value={tier.pricePerSqm}
-                            onChange={(e) => updateTier(index, 'pricePerSqm', parseFloat(e.target.value) || 0)}
+                            onChange={(e) => updateTier(index, 'pricePerSqm', e.target.value)}
                             className="w-full px-2 py-1.5 border rounded text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                             min="0"
                             step="0.01"
+                            placeholder="0.00"
                           />
                         </div>
                       </div>
