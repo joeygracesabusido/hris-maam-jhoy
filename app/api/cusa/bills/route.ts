@@ -99,6 +99,13 @@ export async function POST(request: Request) {
       )
     }
 
+    if (!rate.tiers || rate.tiers.length === 0) {
+      return NextResponse.json(
+        { error: 'Active rate has no tiers configured' },
+        { status: 400 }
+      )
+    }
+
     // 2. Fetch occupied units for branch
     const unitWhere: Record<string, unknown> = { status: 'OCCUPIED' }
     if (branchId) unitWhere.branchId = branchId
@@ -175,6 +182,7 @@ export async function POST(request: Request) {
     }, { status: 201 })
   } catch (error) {
     console.error('Error generating CUSA bills:', error)
-    return NextResponse.json({ error: 'Failed to generate CUSA bills' }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: `Failed to generate bills: ${message}` }, { status: 500 })
   }
 }
