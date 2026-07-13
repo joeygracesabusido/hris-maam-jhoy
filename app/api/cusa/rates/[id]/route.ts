@@ -26,6 +26,12 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   try {
     const body = await request.json()
 
+    // Check rate exists
+    const existingRate = await prisma.cusaRate.findUnique({ where: { id: params.id } })
+    if (!existingRate) {
+      return NextResponse.json({ error: 'CUSA rate not found' }, { status: 404 })
+    }
+
     if (body.effectiveTo !== undefined && body.effectiveTo !== null) {
       const effectiveFrom = body.effectiveFrom
         ? new Date(body.effectiveFrom)
