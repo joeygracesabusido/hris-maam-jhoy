@@ -1,6 +1,7 @@
 'use client'
 
 import { Building2, DollarSign, AlertCircle, Clock, CheckCircle } from 'lucide-react'
+import { format } from 'date-fns'
 import { useCusaDashboard, useCusaBills } from '@/hooks/use-cusa'
 
 const STATUS_BADGE: Record<string, string> = {
