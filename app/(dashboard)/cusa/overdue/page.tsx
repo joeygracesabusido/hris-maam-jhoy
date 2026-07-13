@@ -10,11 +10,11 @@ const STATUS_BADGE: Record<string, string> = {
 }
 
 export default function CusaOverduePage() {
-  const { data: overdueBills, isLoading } = useCusaOverdue()
+  const { data: overdueBills, isLoading, error } = useCusaOverdue()
 
   const bills: CusaOverdueBill[] = overdueBills || []
 
-  const totalOverdueAmount = bills.reduce((sum, bill) => sum + (bill.balance || bill.totalAmount), 0)
+  const totalOverdueAmount = bills.reduce((sum, bill) => sum + bill.balance, 0)
 
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -26,6 +26,22 @@ export default function CusaOverduePage() {
       month: 'short',
       day: 'numeric',
     })
+  }
+
+if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-red-600">Failed to load overdue report. Please try again.</p>
+      </div>
+    )
   }
 
   return (
