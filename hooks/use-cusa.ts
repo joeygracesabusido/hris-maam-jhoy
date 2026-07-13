@@ -1,5 +1,3 @@
-'use client'
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api-client'
 import { queryKeys } from '@/lib/query-keys'
@@ -68,14 +66,14 @@ export interface CusaPayment {
 // Units
 export function useCusaUnits(filters?: Record<string, unknown>) {
   return useQuery({
-    queryKey: queryKeys.cusa.units(),
+    queryKey: queryKeys.cusa.units.list(filters as Record<string, string>),
     queryFn: ({ signal }) => api.get<CusaUnit[]>('/api/cusa/units', { params: filters as Record<string, string>, signal }),
   })
 }
 
 export function useCusaUnit(id: string) {
   return useQuery({
-    queryKey: queryKeys.cusa.unit(id),
+    queryKey: queryKeys.cusa.units.detail(id),
     queryFn: ({ signal }) => api.get<CusaUnit>(`/api/cusa/units/${id}`, { signal }),
     enabled: !!id,
   })
@@ -85,7 +83,7 @@ export function useCreateCusaUnit() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: Partial<CusaUnit>) => api.post<CusaUnit>('/api/cusa/units', data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.units() }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.units.lists() }),
   })
 }
 
@@ -94,7 +92,10 @@ export function useUpdateCusaUnit() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<CusaUnit> }) =>
       api.patch<CusaUnit>(`/api/cusa/units/${id}`, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.units() }),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cusa.units.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.cusa.units.detail(id) })
+    },
   })
 }
 
@@ -102,21 +103,21 @@ export function useDeleteCusaUnit() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => api.delete(`/api/cusa/units/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.units() }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.units.lists() }),
   })
 }
 
 // Rates
 export function useCusaRates(filters?: Record<string, unknown>) {
   return useQuery({
-    queryKey: queryKeys.cusa.rates(),
+    queryKey: queryKeys.cusa.rates.list(filters as Record<string, string>),
     queryFn: ({ signal }) => api.get<CusaRate[]>('/api/cusa/rates', { params: filters as Record<string, string>, signal }),
   })
 }
 
 export function useCusaRate(id: string) {
   return useQuery({
-    queryKey: queryKeys.cusa.rate(id),
+    queryKey: queryKeys.cusa.rates.detail(id),
     queryFn: ({ signal }) => api.get<CusaRate>(`/api/cusa/rates/${id}`, { signal }),
     enabled: !!id,
   })
@@ -127,7 +128,7 @@ export function useCreateCusaRate() {
   return useMutation({
     mutationFn: (data: Partial<CusaRate> & { tiers: Omit<CusaRateTier, 'id'>[] }) =>
       api.post<CusaRate>('/api/cusa/rates', data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.rates() }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.rates.lists() }),
   })
 }
 
@@ -136,21 +137,24 @@ export function useUpdateCusaRate() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<CusaRate> & { tiers?: Omit<CusaRateTier, 'id'>[] } }) =>
       api.patch<CusaRate>(`/api/cusa/rates/${id}`, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.rates() }),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cusa.rates.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.cusa.rates.detail(id) })
+    },
   })
 }
 
 // Bills
 export function useCusaBills(filters?: Record<string, unknown>) {
   return useQuery({
-    queryKey: queryKeys.cusa.bills(),
+    queryKey: queryKeys.cusa.bills.list(filters as Record<string, string>),
     queryFn: ({ signal }) => api.get<CusaBill[]>('/api/cusa/bills', { params: filters as Record<string, string>, signal }),
   })
 }
 
 export function useCusaBill(id: string) {
   return useQuery({
-    queryKey: queryKeys.cusa.bill(id),
+    queryKey: queryKeys.cusa.bills.detail(id),
     queryFn: ({ signal }) => api.get<CusaBill>(`/api/cusa/bills/${id}`, { signal }),
     enabled: !!id,
   })
@@ -161,14 +165,14 @@ export function useGenerateCusaBills() {
   return useMutation({
     mutationFn: (data: { billingQuarter: number; billingYear: number; dueDate: string }) =>
       api.post<CusaBill[]>('/api/cusa/bills', data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.bills() }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.bills.lists() }),
   })
 }
 
 // Payments
 export function useCusaPayments(filters?: Record<string, unknown>) {
   return useQuery({
-    queryKey: queryKeys.cusa.payments(),
+    queryKey: queryKeys.cusa.payments.list(filters as Record<string, string>),
     queryFn: ({ signal }) => api.get<CusaPayment[]>('/api/cusa/payments', { params: filters as Record<string, string>, signal }),
   })
 }
@@ -179,8 +183,8 @@ export function useRecordCusaPayment() {
     mutationFn: (data: { billId: string; amount: number; paymentDate: string; paymentMethod: string; referenceNo?: string }) =>
       api.post<CusaPayment>('/api/cusa/payments', data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.cusa.bills() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.cusa.payments() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.cusa.bills.lists() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.cusa.payments.lists() })
     },
   })
 }
