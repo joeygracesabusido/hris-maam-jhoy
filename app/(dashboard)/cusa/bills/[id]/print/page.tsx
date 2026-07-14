@@ -18,6 +18,10 @@ const STATUS_COLORS: Record<string, string> = {
   OVERDUE: 'text-red-700 dark:text-red-400',
 }
 
+function formatCurrency(amount: number): string {
+  return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 export default function PrintCusaBillPage() {
   const params = useParams()
   const [bill, setBill] = useState<CusaBill | null>(null)
@@ -51,7 +55,7 @@ export default function PrintCusaBillPage() {
     <div className="max-w-3xl mx-auto p-8 print:p-0 print:text-black dark:text-gray-200 dark:bg-gray-900 min-h-screen">
       {/* Company Header */}
       <div className="text-center mb-6 border-b dark:border-gray-700 pb-4">
-        <h1 className="text-xl font-bold dark:text-white">MA&apos;AM JHOY PROPERTIES</h1>
+        <h1 className="text-xl font-bold dark:text-white">CARIGARA LEISURE AND STAY CORP.</h1>
         <p className="text-sm text-gray-600 dark:text-gray-400">Common Use Service Area Billing</p>
       </div>
 
@@ -112,24 +116,24 @@ export default function PrintCusaBillPage() {
           <tbody>
             <tr className="dark:border-gray-700">
               <td className="border dark:border-gray-700 px-4 py-2 dark:text-gray-200">Unit Area (sq.m.)</td>
-              <td className="border dark:border-gray-700 px-4 py-2 text-right font-mono dark:text-white">{bill.areaSqm.toFixed(2)}</td>
+              <td className="border dark:border-gray-700 px-4 py-2 text-right font-mono dark:text-white">{bill.areaSqm.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
             </tr>
             <tr className="dark:border-gray-700">
               <td className="border dark:border-gray-700 px-4 py-2 dark:text-gray-200">Rate per Sq.m.</td>
-              <td className="border dark:border-gray-700 px-4 py-2 text-right font-mono dark:text-white">₱{bill.ratePerSqm.toFixed(2)}</td>
+              <td className="border dark:border-gray-700 px-4 py-2 text-right font-mono dark:text-white">{formatCurrency(bill.ratePerSqm)}</td>
             </tr>
             <tr className="bg-gray-100 dark:bg-gray-700 font-bold">
               <td className="border dark:border-gray-600 px-4 py-3 dark:text-white">Total Amount Due</td>
-              <td className="border dark:border-gray-600 px-4 py-3 text-right font-mono text-lg dark:text-white">₱{bill.totalAmount.toFixed(2)}</td>
+              <td className="border dark:border-gray-600 px-4 py-3 text-right font-mono text-lg dark:text-white">{formatCurrency(bill.totalAmount)}</td>
             </tr>
             <tr className="dark:border-gray-700">
               <td className="border dark:border-gray-700 px-4 py-2 dark:text-gray-200">Amount Paid</td>
-              <td className="border dark:border-gray-700 px-4 py-2 text-right font-mono dark:text-white">₱{bill.amountPaid.toFixed(2)}</td>
+              <td className="border dark:border-gray-700 px-4 py-2 text-right font-mono dark:text-white">{formatCurrency(bill.amountPaid)}</td>
             </tr>
             <tr className="font-bold">
               <td className="border dark:border-gray-700 px-4 py-2 dark:text-white">Balance Due</td>
               <td className={`border dark:border-gray-700 px-4 py-2 text-right font-mono text-lg ${bill.balance > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                ₱{bill.balance.toFixed(2)}
+                {formatCurrency(bill.balance)}
               </td>
             </tr>
           </tbody>
@@ -154,7 +158,7 @@ export default function PrintCusaBillPage() {
               {bill.payments.map((p) => (
                 <tr key={p.id}>
                   <td className="border dark:border-gray-700 px-4 py-2 dark:text-gray-200">{format(new Date(p.paymentDate), 'MMM dd, yyyy')}</td>
-                  <td className="border dark:border-gray-700 px-4 py-2 text-right font-mono dark:text-white">₱{p.amount.toFixed(2)}</td>
+                  <td className="border dark:border-gray-700 px-4 py-2 text-right font-mono dark:text-white">{formatCurrency(p.amount)}</td>
                   <td className="border dark:border-gray-700 px-4 py-2 dark:text-gray-200">{p.paymentMethod}</td>
                   <td className="border dark:border-gray-700 px-4 py-2 dark:text-gray-200">{p.referenceNo || '—'}</td>
                   <td className="border dark:border-gray-700 px-4 py-2">

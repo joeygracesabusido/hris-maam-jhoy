@@ -5,6 +5,7 @@ import {
   computeCusaAmount,
   generateCusaBillNo,
   getNextCusaBillSequence,
+  getQuarterDates,
 } from '@/lib/cusa-billing'
 
 export async function GET(request: Request) {
@@ -122,7 +123,22 @@ export async function POST(request: Request) {
       )
     }
 
-    // 3. Check which units already have bills for this quarter
+    // 3. Filter by lease dates — only bill units that were occupied during the quarter
+    const { start: quarterStart, end: quarterEnd } = getQuarterDates(billingQuarter, billingYear)
+    const leasedUnits = units.filter((u) => {
+      if (u.leaseStart && u.leaseStart > quarterEnd) return false
+      if (u.leaseEnd && u.leaseEnd < quarterStart) return false
+      return true
+    })
+
+    if (leasedUnits.length === 0) {
+      return NextResponse.json(
+        { error: 'No occupied units with active leases found for this quarter' },
+        { status: 400 }
+      )
+    }
+
+    // 4. Check which units already have bills for this quarter
     const existingBills = await prisma.cusaBill.findMany({
       where: {
         billingQuarter,
@@ -135,7 +151,7 @@ export async function POST(request: Request) {
     const billedUnitIds = new Set(existingBills.map((b) => b.unitId))
 
     // 4. Pre-compute sequences for unbilled units (outside transaction to avoid race conditions)
-    const unbilledUnits = units.filter((u) => !billedUnitIds.has(u.id))
+    const unbilledUnits = leasedUnits.filter((u) => !billedUnitIds.has(u.id))
     const validUnits = unbilledUnits
       .map((u) => ({ unit: u, tier: findApplicableTier(u.areaSqm, rate.tiers) }))
       .filter((entry): entry is { unit: typeof units[number]; tier: NonNullable<ReturnType<typeof findApplicableTier>> } => entry.tier !== null)

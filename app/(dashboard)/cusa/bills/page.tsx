@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { FileText, CreditCard, Printer, XCircle } from 'lucide-react'
-import { useCusaBills, useGenerateCusaBills, useRecordCusaPayment } from '@/hooks/use-cusa'
+import { FileText, CreditCard, Printer, Pencil, Trash2, XCircle } from 'lucide-react'
+import { useCusaBills, useGenerateCusaBills, useUpdateCusaBill, useDeleteCusaBill, useRecordCusaPayment } from '@/hooks/use-cusa'
 import type { CusaBill } from '@/hooks/use-cusa'
 
 const STATUS_BADGE: Record<string, string> = {
@@ -21,7 +21,12 @@ export default function CusaBillsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [quarterFilter, setQuarterFilter] = useState('')
   const [yearFilter, setYearFilter] = useState('')
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editStatus, setEditStatus] = useState('')
   const [error, setError] = useState('')
+
+  const updateBill = useUpdateCusaBill()
+  const deleteBill = useDeleteCusaBill()
 
   const filters = useMemo(() => {
     const f: Record<string, string> = {}
@@ -102,6 +107,36 @@ export default function CusaBillsPage() {
       resetPaymentForm()
     } catch (err: unknown) {
       setError((err as { message?: string })?.message || 'Failed to record payment')
+    }
+  }
+
+  const openEditModal = (bill: CusaBill) => {
+    setSelectedBill(bill)
+    setEditStatus(bill.status)
+    setError('')
+    setShowEditModal(true)
+  }
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (!selectedBill) return
+
+    try {
+      await updateBill.mutateAsync({ id: selectedBill.id, status: editStatus })
+      setShowEditModal(false)
+      setSelectedBill(null)
+    } catch (err: unknown) {
+      setError((err as { message?: string })?.message || 'Failed to update bill')
+    }
+  }
+
+  const handleDelete = async (bill: CusaBill) => {
+    if (!confirm(`Delete bill ${bill.billNo}? This cannot be undone.`)) return
+    try {
+      await deleteBill.mutateAsync(bill.id)
+    } catch (err: unknown) {
+      alert((err as { message?: string })?.message || 'Failed to delete bill')
     }
   }
 
@@ -216,10 +251,17 @@ export default function CusaBillsPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{formatDate(bill.dueDate)}</td>
                   <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => openEditModal(bill)}
+                      className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
+                      title="Edit Status"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
                     {bill.status === 'UNPAID' && (
                       <button
                         onClick={() => openPaymentModal(bill)}
-                        className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg mr-2"
+                        className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg"
                         title="Record Payment"
                       >
                         <CreditCard className="w-4 h-4" />
@@ -233,6 +275,15 @@ export default function CusaBillsPage() {
                     >
                       <Printer className="w-4 h-4" />
                     </Link>
+                    {bill.status !== 'PAID' && (
+                      <button
+                        onClick={() => handleDelete(bill)}
+                        className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -311,6 +362,70 @@ export default function CusaBillsPage() {
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {generateBills.isPending ? 'Generating...' : 'Generate Bills'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && selectedBill && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
+            <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
+              <h2 className="text-xl font-bold">Edit Bill Status</h2>
+              <button onClick={() => { setShowEditModal(false); setSelectedBill(null) }}>
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+            <form onSubmit={handleEdit} className="p-6 space-y-4">
+              {error && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
+              <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Bill No:</span>
+                  <span className="font-medium dark:text-white">{selectedBill.billNo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Current Status:</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    STATUS_BADGE[selectedBill.status] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                  }`}>
+                    {selectedBill.status}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">New Status *</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                  required
+                >
+                  <option value="UNPAID">Unpaid</option>
+                  <option value="PAID">Paid</option>
+                  <option value="OVERDUE">Overdue</option>
+                  <option value="VOID">Void</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditModal(false); setSelectedBill(null) }}
+                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-700 dark:text-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateBill.isPending}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {updateBill.isPending ? 'Updating...' : 'Update'}
                 </button>
               </div>
             </form>

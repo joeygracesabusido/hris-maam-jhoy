@@ -136,6 +136,15 @@ export default function BillsPage() {
   }
 
   const getStatusBadge = (status: string) => {
+    const darkStyles: Record<string, string> = {
+      DRAFT: 'dark:bg-gray-800 dark:text-gray-400',
+      UNPAID: 'dark:bg-yellow-900/30 dark:text-yellow-400',
+      PAID: 'dark:bg-green-900/30 dark:text-green-400',
+      PARTIAL: 'dark:bg-blue-900/30 dark:text-blue-400',
+      OVERDUE: 'dark:bg-red-900/30 dark:text-red-400',
+      VOID: 'dark:bg-gray-800 dark:text-gray-400',
+      WRITTEN_OFF: 'dark:bg-red-900/20 dark:text-red-400',
+    }
     const styles: Record<string, string> = {
       DRAFT: 'bg-gray-100 text-gray-600',
       UNPAID: 'bg-yellow-100 text-yellow-700',
@@ -145,7 +154,7 @@ export default function BillsPage() {
       VOID: 'bg-gray-100 text-gray-500',
       WRITTEN_OFF: 'bg-red-50 text-red-500',
     }
-    return styles[status] || 'bg-gray-100 text-gray-600'
+    return `${styles[status] || 'bg-gray-100 text-gray-600'} ${darkStyles[status] || 'dark:bg-gray-800 dark:text-gray-400'}`
   }
 
   const filteredBills = bills?.filter((b) => {
@@ -161,7 +170,7 @@ export default function BillsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Water Bills</h1>
+        <h1 className="text-2xl font-bold dark:text-white">Water Bills</h1>
         <div className="flex gap-2">
           <button
             onClick={() => {
@@ -182,26 +191,26 @@ export default function BillsPage() {
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
           <input
             type="text"
             placeholder="Search bills..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-lg"
+            className="w-full pl-10 pr-4 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
           />
         </div>
-        <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="px-3 py-2 border rounded-lg">
+        <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600">
           {MONTHS.map((m, i) => (
             <option key={i + 1} value={i + 1}>{m}</option>
           ))}
         </select>
-        <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="px-3 py-2 border rounded-lg">
+        <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600">
           {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
             <option key={y} value={y}>{y}</option>
           ))}
         </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border rounded-lg">
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600">
           <option value="">All Status</option>
           <option value="UNPAID">Unpaid</option>
           <option value="PAID">Paid</option>
@@ -210,7 +219,7 @@ export default function BillsPage() {
           <option value="DRAFT">Draft</option>
           <option value="VOID">Void</option>
         </select>
-        <select value={filterTenant} onChange={(e) => setFilterTenant(e.target.value)} className="px-3 py-2 border rounded-lg">
+        <select value={filterTenant} onChange={(e) => setFilterTenant(e.target.value)} className="px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600">
           <option value="">All Tenants</option>
           {(tenants || []).map((t) => (
             <option key={t.id} value={t.id}>{t.fullName}</option>
@@ -219,39 +228,39 @@ export default function BillsPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500 dark:text-gray-400">Loading...</p>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-gray-900 dark:border-gray-700">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50">
-                <th className="text-left px-4 py-3 font-medium text-sm">Bill No.</th>
-                <th className="text-left px-4 py-3 font-medium text-sm">Tenant</th>
-                <th className="text-center px-4 py-3 font-medium text-sm">Period</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Consumption</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Amount</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Paid</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Balance</th>
-                <th className="text-center px-4 py-3 font-medium text-sm">Status</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Actions</th>
+              <tr className="bg-gray-50 dark:bg-gray-800">
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Bill No.</th>
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Tenant</th>
+                <th className="text-center px-4 py-3 font-medium text-sm dark:text-gray-300">Period</th>
+                <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Consumption</th>
+                <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Amount</th>
+                <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Paid</th>
+                <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Balance</th>
+                <th className="text-center px-4 py-3 font-medium text-sm dark:text-gray-300">Status</th>
+                <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y dark:divide-gray-700">
               {(filteredBills || []).map((bill) => (
                 <tr
                   key={bill.id}
-                  className="hover:bg-gray-50 cursor-pointer"
+                  className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
                   onClick={() => setSelectedBill(bill)}
                 >
-                  <td className="px-4 py-3 font-mono text-sm font-medium">{bill.billNo}</td>
-                  <td className="px-4 py-3">{bill.tenant?.fullName || '—'}</td>
-                  <td className="px-4 py-3 text-center text-sm">
+                  <td className="px-4 py-3 font-mono text-sm font-medium dark:text-white">{bill.billNo}</td>
+                  <td className="px-4 py-3 dark:text-gray-300">{bill.tenant?.fullName || '—'}</td>
+                  <td className="px-4 py-3 text-center text-sm dark:text-gray-300">
                     {MONTHS[bill.billingMonth - 1]} {bill.billingYear}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono">{bill.consumption.toFixed(1)} m³</td>
-                  <td className="px-4 py-3 text-right font-mono font-medium">₱{bill.totalAmount.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-mono">₱{bill.amountPaid.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-mono font-bold">₱{bill.balance.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-mono dark:text-gray-300">{bill.consumption.toFixed(1)} m³</td>
+                  <td className="px-4 py-3 text-right font-mono font-medium dark:text-white">₱{bill.totalAmount.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-mono dark:text-gray-300">₱{bill.amountPaid.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-mono font-bold dark:text-white">₱{bill.balance.toFixed(2)}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(bill.status)}`}>
                       {bill.status}
@@ -261,14 +270,14 @@ export default function BillsPage() {
                     <button
                       onClick={(e) => { e.stopPropagation(); openPayment(bill) }}
                       disabled={bill.status === 'PAID' || bill.status === 'VOID'}
-                      className={`p-1.5 rounded-lg ${bill.status === 'PAID' || bill.status === 'VOID' ? 'text-gray-300 cursor-not-allowed' : 'text-green-600 hover:bg-green-50'}`}
+                      className={`p-1.5 rounded-lg ${bill.status === 'PAID' || bill.status === 'VOID' ? 'text-gray-300 cursor-not-allowed dark:text-gray-600' : 'text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30'}`}
                       title="Record Payment"
                     >
                       <DollarSign className="w-4 h-4" />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); window.open(`/water/bills/${bill.id}/print`, '_blank') }}
-                      className="p-1.5 text-gray-600 hover:bg-gray-50 rounded-lg"
+                      className="p-1.5 text-gray-600 hover:bg-gray-50 rounded-lg dark:text-gray-400 dark:hover:bg-gray-800"
                       title="Print Bill"
                     >
                       <Printer className="w-4 h-4" />
@@ -276,7 +285,7 @@ export default function BillsPage() {
                     {(bill.status === 'DRAFT' || bill.status === 'UNPAID') && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(bill) }}
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg dark:text-red-400 dark:hover:bg-red-900/30"
                         title="Delete Bill"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -287,7 +296,7 @@ export default function BillsPage() {
               ))}
               {(!filteredBills || filteredBills.length === 0) && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">No bills found</td>
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No bills found</td>
                 </tr>
               )}
             </tbody>
@@ -298,26 +307,26 @@ export default function BillsPage() {
       {/* Generate Bills Modal */}
       {showGenerate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl w-full max-w-md shadow-xl my-8">
-            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-xl my-8 dark:bg-gray-900">
+            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl dark:border-gray-700">
               <h2 className="text-xl font-bold">Generate Water Bills</h2>
               <button onClick={() => setShowGenerate(false)}><XCircle className="w-6 h-6" /></button>
             </div>
             <div className="p-6 space-y-4">
-              {genError && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{genError}</div>}
-              {genSuccess && <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{genSuccess}</div>}
+              {genError && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm dark:bg-red-900/30 dark:border-red-800 dark:text-red-400">{genError}</div>}
+              {genSuccess && <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm dark:bg-green-900/30 dark:border-green-800 dark:text-green-400">{genSuccess}</div>}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Month</label>
-                  <select value={genMonth} onChange={(e) => setGenMonth(parseInt(e.target.value))} className="w-full px-3 py-2 border rounded-lg">
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Month</label>
+                  <select value={genMonth} onChange={(e) => setGenMonth(parseInt(e.target.value))} className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600">
                     {MONTHS.map((m, i) => (
                       <option key={i + 1} value={i + 1}>{m}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Year</label>
-                  <select value={genYear} onChange={(e) => setGenYear(parseInt(e.target.value))} className="w-full px-3 py-2 border rounded-lg">
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Year</label>
+                  <select value={genYear} onChange={(e) => setGenYear(parseInt(e.target.value))} className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600">
                     {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
                       <option key={y} value={y}>{y}</option>
                     ))}
@@ -325,8 +334,8 @@ export default function BillsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Rate *</label>
-                <select value={genRateId} onChange={(e) => setGenRateId(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Rate *</label>
+                <select value={genRateId} onChange={(e) => setGenRateId(e.target.value)} className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600">
                   <option value="">Select rate...</option>
                   {(rates || []).map((r) => (
                     <option key={r.id} value={r.id}>{r.name} ({r.rateType})</option>
@@ -334,14 +343,14 @@ export default function BillsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Due Date *</label>
-                <input type="date" value={genDueDate} onChange={(e) => setGenDueDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Due Date *</label>
+                <input type="date" value={genDueDate} onChange={(e) => setGenDueDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600" />
               </div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 Bills will be generated for all active meters with readings in the selected period. Already-billed meters will be skipped.
               </p>
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowGenerate(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="button" onClick={() => setShowGenerate(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">Cancel</button>
                 <button onClick={handleGenerate} disabled={generateBills.isPending} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                   {generateBills.isPending ? 'Generating...' : 'Generate'}
                 </button>
@@ -354,70 +363,70 @@ export default function BillsPage() {
       {/* Bill Detail Modal */}
       {selectedBill && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl w-full max-w-2xl shadow-xl my-8">
-            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
+          <div className="bg-white rounded-xl w-full max-w-2xl shadow-xl my-8 dark:bg-gray-900">
+            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl dark:border-gray-700">
               <h2 className="text-xl font-bold">Bill {selectedBill.billNo}</h2>
               <button onClick={() => setSelectedBill(null)}><XCircle className="w-6 h-6" /></button>
             </div>
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-1">Tenant</h3>
-                  <p className="font-medium">{selectedBill.tenant?.fullName || '—'}</p>
-                  <p className="text-sm text-gray-500">{selectedBill.tenant?.unitNo || ''}</p>
+                  <h3 className="text-sm font-medium text-gray-500 mb-1 dark:text-gray-400">Tenant</h3>
+                  <p className="font-medium dark:text-white">{selectedBill.tenant?.fullName || '—'}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{selectedBill.tenant?.unitNo || ''}</p>
                 </div>
                 <div className="text-right">
-                  <h3 className="text-sm font-medium text-gray-500 mb-1">Status</h3>
+                  <h3 className="text-sm font-medium text-gray-500 mb-1 dark:text-gray-400">Status</h3>
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(selectedBill.status)}`}>
                     {selectedBill.status}
                   </span>
                 </div>
               </div>
 
-              <div className="border-t pt-4">
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Reading Details</h3>
+              <div className="border-t pt-4 dark:border-gray-700">
+                <h3 className="text-sm font-medium text-gray-500 mb-2 dark:text-gray-400">Reading Details</h3>
                 <div className="grid grid-cols-4 gap-4 text-center">
                   <div>
-                    <p className="text-xs text-gray-500">Previous</p>
-                    <p className="font-mono font-bold">{selectedBill.previousReading.toFixed(1)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Previous</p>
+                    <p className="font-mono font-bold dark:text-white">{selectedBill.previousReading.toFixed(1)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Current</p>
-                    <p className="font-mono font-bold">{selectedBill.currentReading.toFixed(1)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Current</p>
+                    <p className="font-mono font-bold dark:text-white">{selectedBill.currentReading.toFixed(1)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Consumption</p>
-                    <p className="font-mono font-bold text-blue-600">{selectedBill.consumption.toFixed(1)} m³</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Consumption</p>
+                    <p className="font-mono font-bold text-blue-600 dark:text-blue-400">{selectedBill.consumption.toFixed(1)} m³</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Meter</p>
-                    <p className="font-mono">{selectedBill.meter?.meterNo || '—'}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Meter</p>
+                    <p className="font-mono dark:text-gray-300">{selectedBill.meter?.meterNo || '—'}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="border-t pt-4">
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Bill Summary</h3>
+              <div className="border-t pt-4 dark:border-gray-700">
+                <h3 className="text-sm font-medium text-gray-500 mb-2 dark:text-gray-400">Bill Summary</h3>
                 <div className="space-y-2">
-                  <div className="flex justify-between">
+                  <div className="flex justify-between dark:text-gray-300">
                     <span>Billing Period</span>
                     <span>{MONTHS[selectedBill.billingMonth - 1]} {selectedBill.billingYear}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between dark:text-gray-300">
                     <span>Due Date</span>
                     <span>{format(new Date(selectedBill.dueDate), 'MMM dd, yyyy')}</span>
                   </div>
-                  <div className="border-t pt-2 flex justify-between text-lg font-bold">
+                  <div className="border-t pt-2 flex justify-between text-lg font-bold dark:border-gray-700 dark:text-white">
                     <span>Total Amount</span>
                     <span>₱{selectedBill.totalAmount.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-green-600">
+                  <div className="flex justify-between text-green-600 dark:text-green-400">
                     <span>Paid</span>
                     <span>₱{selectedBill.amountPaid.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-xl font-bold">
+                  <div className="flex justify-between text-xl font-bold dark:text-white">
                     <span>Balance</span>
-                    <span className={selectedBill.balance > 0 ? 'text-red-600' : 'text-green-600'}>
+                    <span className={selectedBill.balance > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
                       ₱{selectedBill.balance.toFixed(2)}
                     </span>
                   </div>
@@ -425,24 +434,24 @@ export default function BillsPage() {
               </div>
 
               {selectedBill.payments && selectedBill.payments.length > 0 && (
-                <div className="border-t pt-4">
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Payment History</h3>
+                <div className="border-t pt-4 dark:border-gray-700">
+                  <h3 className="text-sm font-medium text-gray-500 mb-2 dark:text-gray-400">Payment History</h3>
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50">
-                        <th className="text-left px-2 py-1">Date</th>
-                        <th className="text-right px-2 py-1">Amount</th>
-                        <th className="text-left px-2 py-1">Method</th>
-                        <th className="text-left px-2 py-1">Reference</th>
+                      <tr className="bg-gray-50 dark:bg-gray-800">
+                        <th className="text-left px-2 py-1 dark:text-gray-300">Date</th>
+                        <th className="text-right px-2 py-1 dark:text-gray-300">Amount</th>
+                        <th className="text-left px-2 py-1 dark:text-gray-300">Method</th>
+                        <th className="text-left px-2 py-1 dark:text-gray-300">Reference</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedBill.payments.map((p) => (
                         <tr key={p.id}>
-                          <td className="px-2 py-1">{format(new Date(p.paymentDate), 'MMM dd, yyyy')}</td>
-                          <td className="px-2 py-1 text-right font-mono">₱{p.amount.toFixed(2)}</td>
-                          <td className="px-2 py-1">{p.paymentMethod}</td>
-                          <td className="px-2 py-1">{p.referenceNo || '—'}</td>
+                          <td className="px-2 py-1 dark:text-gray-300">{format(new Date(p.paymentDate), 'MMM dd, yyyy')}</td>
+                          <td className="px-2 py-1 text-right font-mono dark:text-gray-300">₱{p.amount.toFixed(2)}</td>
+                          <td className="px-2 py-1 dark:text-gray-300">{p.paymentMethod}</td>
+                          <td className="px-2 py-1 dark:text-gray-300">{p.referenceNo || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -450,7 +459,7 @@ export default function BillsPage() {
                 </div>
               )}
 
-              <div className="flex gap-3 pt-4 border-t">
+              <div className="flex gap-3 pt-4 border-t dark:border-gray-700">
                 {selectedBill.status !== 'PAID' && selectedBill.status !== 'VOID' && (
                   <button
                     onClick={() => { setSelectedBill(null); openPayment(selectedBill) }}
@@ -461,17 +470,17 @@ export default function BillsPage() {
                 )}
                 <button
                   onClick={() => { window.open(`/water/bills/${selectedBill.id}/print`, '_blank') }}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   <Printer className="w-4 h-4" /> Print
                 </button>
                 {(selectedBill.status === 'DRAFT' || selectedBill.status === 'UNPAID') && (
-                  <button onClick={() => handleVoid(selectedBill.id)} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                  <button onClick={() => handleVoid(selectedBill.id)} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30">
                     Void
                   </button>
                 )}
                 {(selectedBill.status === 'DRAFT' || selectedBill.status === 'UNPAID') && (
-                  <button onClick={() => handleDelete(selectedBill)} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                  <button onClick={() => handleDelete(selectedBill)} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30">
                     Delete
                   </button>
                 )}
@@ -484,54 +493,54 @@ export default function BillsPage() {
       {/* Payment Modal */}
       {showPayment && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl w-full max-w-md shadow-xl my-8">
-            <div className="p-6 border-b flex justify-between items-center bg-green-600 text-white rounded-t-xl">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-xl my-8 dark:bg-gray-900">
+            <div className="p-6 border-b flex justify-between items-center bg-green-600 text-white rounded-t-xl dark:border-gray-700">
               <h2 className="text-xl font-bold">Record Payment</h2>
               <button onClick={() => setShowPayment(false)}><XCircle className="w-6 h-6" /></button>
             </div>
             <form onSubmit={handlePayment} className="p-6 space-y-4">
-              {payError && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{payError}</div>}
+              {payError && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm dark:bg-red-900/30 dark:border-red-800 dark:text-red-400">{payError}</div>}
               <div>
-                <label className="block text-sm font-medium mb-1">Amount *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Amount *</label>
                 <input
                   type="number"
                   step="0.01"
                   value={payAmount}
                   onChange={(e) => setPayAmount(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg text-lg font-bold"
+                  className="w-full px-3 py-2 border rounded-lg text-lg font-bold dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Payment Date *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Payment Date *</label>
                 <input
                   type="date"
                   value={payDate}
                   onChange={(e) => setPayDate(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Payment Method</label>
-                <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Payment Method</label>
+                <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600">
                   <option value="CASH">Cash</option>
                   <option value="CHECK">Check</option>
                   <option value="BANK_TRANSFER">Bank Transfer</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Reference No.</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Reference No.</label>
                 <input
                   type="text"
                   value={payRef}
                   onChange={(e) => setPayRef(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   placeholder="Check #, OR #, etc."
                 />
               </div>
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowPayment(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">
+                <button type="button" onClick={() => setShowPayment(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
                   Cancel
                 </button>
                 <button type="submit" disabled={createPayment.isPending} className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">

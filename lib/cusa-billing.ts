@@ -25,7 +25,8 @@ export function findApplicableTier(areaSqm: number, tiers: CusaRateTier[]): Cusa
 export function computeCusaAmount(areaSqm: number, pricePerSqm: number): number {
   if (areaSqm < 0) throw new Error('Area must be non-negative')
   if (pricePerSqm < 0) throw new Error('Price per sq.m. must be non-negative')
-  return Math.round(areaSqm * pricePerSqm * 100) / 100
+  // Multiply by 3 for quarterly billing
+  return Math.round(areaSqm * pricePerSqm * 3 * 100) / 100
 }
 
 export function generateCusaBillNo(year: number, quarter: number, sequence: number): string {

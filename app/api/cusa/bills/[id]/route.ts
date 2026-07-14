@@ -70,3 +70,25 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: 'Failed to update CUSA bill' }, { status: 500 })
   }
 }
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  try {
+    const existing = await prisma.cusaBill.findUnique({ where: { id: params.id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'CUSA bill not found' }, { status: 404 })
+    }
+
+    if (existing.status === 'PAID') {
+      return NextResponse.json(
+        { error: 'Cannot delete a paid bill' },
+        { status: 400 }
+      )
+    }
+
+    await prisma.cusaBill.delete({ where: { id: params.id } })
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting CUSA bill:', error)
+    return NextResponse.json({ error: 'Failed to delete CUSA bill' }, { status: 500 })
+  }
+}

@@ -94,58 +94,58 @@ export default function MetersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Water Meters</h1>
+        <h1 className="text-2xl font-bold dark:text-white">Water Meters</h1>
         <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <Plus className="w-4 h-4" /> Add Meter
         </button>
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
         <input
           type="text"
           placeholder="Search by meter number, tenant, or unit..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border rounded-lg"
+          className="w-full pl-10 pr-4 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
         />
       </div>
 
       {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500 dark:text-gray-400">Loading...</p>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-gray-900 dark:border-gray-700">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50">
-                <th className="text-left px-4 py-3 font-medium text-sm">Meter No.</th>
-                <th className="text-left px-4 py-3 font-medium text-sm">Tenant</th>
-                <th className="text-left px-4 py-3 font-medium text-sm">Unit</th>
-                <th className="text-left px-4 py-3 font-medium text-sm">Location</th>
-                <th className="text-center px-4 py-3 font-medium text-sm">Status</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Actions</th>
+              <tr className="bg-gray-50 dark:bg-gray-800">
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Meter No.</th>
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Tenant</th>
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Unit</th>
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Location</th>
+                <th className="text-center px-4 py-3 font-medium text-sm dark:text-gray-300">Status</th>
+                <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y dark:divide-gray-700">
               {(filteredMeters || []).map((meter) => (
-                <tr key={meter.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono font-medium">{meter.meterNo}</td>
-                  <td className="px-4 py-3">{meter.tenant?.fullName || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{meter.unitNo || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{meter.location || '—'}</td>
+                <tr key={meter.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <td className="px-4 py-3 font-mono font-medium dark:text-white">{meter.meterNo}</td>
+                  <td className="px-4 py-3 dark:text-gray-300">{meter.tenant?.fullName || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{meter.unitNo || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{meter.location || '—'}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      meter.status === 'ACTIVE' ? 'bg-green-100 text-green-700' :
-                      meter.status === 'DAMAGED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                      meter.status === 'ACTIVE' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                      meter.status === 'DAMAGED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                     }`}>
                       {meter.status}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => openEdit(meter)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit">
+                    <button onClick={() => openEdit(meter)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-400 dark:hover:bg-blue-900/30" title="Edit">
                       <Pencil className="w-4 h-4" />
                     </button>
-                    <button onClick={() => handleDelete(meter.id, meter.meterNo)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Delete">
+                    <button onClick={() => handleDelete(meter.id, meter.meterNo)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg dark:text-red-400 dark:hover:bg-red-900/30" title="Delete">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -153,7 +153,7 @@ export default function MetersPage() {
               ))}
               {(!filteredMeters || filteredMeters.length === 0) && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No meters found</td>
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No meters found</td>
                 </tr>
               )}
             </tbody>
@@ -163,29 +163,29 @@ export default function MetersPage() {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl w-full max-w-md shadow-xl my-8">
-            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-xl my-8 dark:bg-gray-900">
+            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl dark:border-gray-700">
               <h2 className="text-xl font-bold">{editingMeter ? 'Edit Meter' : 'Add Meter'}</h2>
               <button onClick={() => { setShowModal(false); resetForm() }}><XCircle className="w-6 h-6" /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+              {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm dark:bg-red-900/30 dark:border-red-800 dark:text-red-400">{error}</div>}
               <div>
-                <label className="block text-sm font-medium mb-1">Meter Number *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Meter Number *</label>
                 <input
                   type="text"
                   value={formData.meterNo}
                   onChange={(e) => setFormData({ ...formData, meterNo: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Tenant</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Tenant</label>
                 <select
                   value={formData.tenantId}
                   onChange={(e) => setFormData({ ...formData, tenantId: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                 >
                   <option value="">Unassigned</option>
                   {(tenants || []).map((t) => (
@@ -195,20 +195,20 @@ export default function MetersPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Unit No.</label>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Unit No.</label>
                   <input
                     type="text"
                     value={formData.unitNo}
                     onChange={(e) => setFormData({ ...formData, unitNo: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Status</label>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Status</label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   >
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
@@ -217,25 +217,25 @@ export default function MetersPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Location</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Location</label>
                 <input
                   type="text"
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Installation Date</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Installation Date</label>
                 <input
                   type="date"
                   value={formData.installationDate}
                   onChange={(e) => setFormData({ ...formData, installationDate: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                 />
               </div>
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => { setShowModal(false); resetForm() }} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">
+                <button type="button" onClick={() => { setShowModal(false); resetForm() }} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
                   Cancel
                 </button>
                 <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">

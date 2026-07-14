@@ -169,6 +169,23 @@ export function useGenerateCusaBills() {
   })
 }
 
+export function useUpdateCusaBill() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { id: string; status: string }) =>
+      api.patch<CusaBill>(`/api/cusa/bills/${data.id}`, { status: data.status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.bills.lists() }),
+  })
+}
+
+export function useDeleteCusaBill() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/api/cusa/bills/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.bills.lists() }),
+  })
+}
+
 // Payments
 export function useCusaPayments(filters?: Record<string, unknown>) {
   return useQuery({

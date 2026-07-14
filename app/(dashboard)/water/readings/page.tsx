@@ -149,66 +149,66 @@ export default function ReadingsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Meter Readings</h1>
+        <h1 className="text-2xl font-bold dark:text-white">Meter Readings</h1>
         <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <Plus className="w-4 h-4" /> Add Reading
         </button>
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
         <input
           type="text"
           placeholder="Search by meter or tenant..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border rounded-lg"
+          className="w-full pl-10 pr-4 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
         />
       </div>
 
       {isLoading ? (
         <p className="text-gray-500">Loading...</p>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-gray-900 dark:border-gray-700">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50">
-                <th className="text-left px-4 py-3 font-medium text-sm">Date</th>
-                <th className="text-left px-4 py-3 font-medium text-sm">Meter No.</th>
-                <th className="text-left px-4 py-3 font-medium text-sm">Tenant</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Previous</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Current</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Consumption</th>
-                <th className="text-center px-4 py-3 font-medium text-sm">Source</th>
-                <th className="text-right px-4 py-3 font-medium text-sm">Actions</th>
+              <tr className="bg-gray-50 dark:bg-gray-800">
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Date</th>
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Meter No.</th>
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Tenant</th>
+                <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Previous</th>
+                <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Current</th>
+                <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Consumption</th>
+                <th className="text-center px-4 py-3 font-medium text-sm dark:text-gray-300">Source</th>
+                <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y dark:divide-gray-700">
               {(filteredReadings || []).map((reading) => (
-                <tr key={reading.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">{format(new Date(reading.readingDate), 'MMM dd, yyyy')}</td>
-                  <td className="px-4 py-3 font-mono">{reading.meter?.meterNo || '—'}</td>
-                  <td className="px-4 py-3">{reading.meter?.tenant?.fullName || '—'}</td>
-                  <td className="px-4 py-3 text-right">{reading.previousReading.toFixed(1)}</td>
-                  <td className="px-4 py-3 text-right font-medium">{reading.currentReading.toFixed(1)}</td>
-                  <td className="px-4 py-3 text-right font-mono font-bold">{reading.consumption.toFixed(1)}</td>
+                <tr key={reading.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <td className="px-4 py-3 dark:text-gray-300">{format(new Date(reading.readingDate), 'MMM dd, yyyy')}</td>
+                  <td className="px-4 py-3 font-mono dark:text-gray-300">{reading.meter?.meterNo || '—'}</td>
+                  <td className="px-4 py-3 dark:text-gray-300">{reading.meter?.tenant?.fullName || '—'}</td>
+                  <td className="px-4 py-3 text-right dark:text-gray-300">{reading.previousReading.toFixed(1)}</td>
+                  <td className="px-4 py-3 text-right font-medium dark:text-white">{reading.currentReading.toFixed(1)}</td>
+                  <td className="px-4 py-3 text-right font-mono font-bold dark:text-white">{reading.consumption.toFixed(1)}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      reading.source === 'MANUAL' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                      reading.source === 'MANUAL' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                     }`}>
                       {reading.source}
                     </span>
                     {reading.isEstimated && (
-                      <span className="ml-1 inline-flex items-center text-yellow-600" title="Estimated">
+                      <span className="ml-1 inline-flex items-center text-yellow-600 dark:text-yellow-400" title="Estimated">
                         <AlertTriangle className="w-3 h-3" />
                       </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => openEdit(reading)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit">
+                    <button onClick={() => openEdit(reading)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-400 dark:hover:bg-blue-900/30" title="Edit">
                       <Pencil className="w-4 h-4" />
                     </button>
-                    <button onClick={() => handleDelete(reading.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Delete">
+                    <button onClick={() => handleDelete(reading.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg dark:text-red-400 dark:hover:bg-red-900/30" title="Delete">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -216,7 +216,7 @@ export default function ReadingsPage() {
               ))}
               {(!filteredReadings || filteredReadings.length === 0) && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">No readings found</td>
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No readings found</td>
                 </tr>
               )}
             </tbody>
@@ -226,24 +226,24 @@ export default function ReadingsPage() {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl w-full max-w-md shadow-xl my-8">
-            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-xl my-8 dark:bg-gray-900">
+            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl dark:border-gray-700">
               <h2 className="text-xl font-bold">{editingReading ? 'Edit Reading' : 'Add Reading'}</h2>
               <button onClick={() => { setShowModal(false); resetForm() }}><XCircle className="w-6 h-6" /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+              {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm dark:bg-red-900/30 dark:border-red-800 dark:text-red-400">{error}</div>}
               {showSpikeWarning && (
-                <div className="p-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg text-sm">
+                <div className="p-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg text-sm dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-400">
                   <strong>Spike detected!</strong> This reading is significantly higher than the previous one. Click Save again to confirm.
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium mb-1">Meter *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Meter *</label>
                 <select
                   value={formData.meterId}
                   onChange={(e) => handleMeterChange(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   required
                 >
                   <option value="">Select meter...</option>
@@ -255,46 +255,46 @@ export default function ReadingsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Reading Date *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Reading Date *</label>
                 <input
                   type="date"
                   value={formData.readingDate}
                   onChange={(e) => setFormData({ ...formData, readingDate: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   required
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Previous Reading</label>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Previous Reading</label>
                   <input
                     type="number"
                     step="0.1"
                     value={formData.previousReading}
                     onChange={(e) => setFormData({ ...formData, previousReading: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Current Reading *</label>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Current Reading *</label>
                   <input
                     type="number"
                     step="0.1"
                     value={formData.currentReading}
                     onChange={(e) => setFormData({ ...formData, currentReading: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                     required
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Consumption (auto-computed)</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Consumption (auto-computed)</label>
                 <input
                   type="text"
                   value={formData.currentReading && formData.previousReading
                     ? (parseFloat(formData.currentReading) - parseFloat(formData.previousReading)).toFixed(1)
                     : '0.0'}
-                  className="w-full px-3 py-2 border rounded-lg bg-gray-50 text-gray-500"
+                  className="w-full px-3 py-2 border rounded-lg bg-gray-50 text-gray-500 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600"
                   readOnly
                 />
               </div>
@@ -304,21 +304,21 @@ export default function ReadingsPage() {
                   id="isEstimated"
                   checked={formData.isEstimated}
                   onChange={(e) => setFormData({ ...formData, isEstimated: e.target.checked })}
-                  className="rounded border-gray-300"
+                  className="rounded border-gray-300 dark:border-gray-600"
                 />
-                <label htmlFor="isEstimated" className="text-sm">Estimated reading</label>
+                <label htmlFor="isEstimated" className="text-sm dark:text-gray-300">Estimated reading</label>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Notes</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Notes</label>
                 <textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   rows={2}
                 />
               </div>
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => { setShowModal(false); resetForm() }} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">
+                <button type="button" onClick={() => { setShowModal(false); resetForm() }} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
                   Cancel
                 </button>
                 <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">

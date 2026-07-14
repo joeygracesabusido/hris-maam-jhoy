@@ -147,56 +147,56 @@ export default function RatesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Rate Setup</h1>
+        <h1 className="text-2xl font-bold dark:text-white">Rate Setup</h1>
         <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <Plus className="w-4 h-4" /> Add Rate
         </button>
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
         <input
           type="text"
           placeholder="Search rates..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border rounded-lg"
+          className="w-full pl-10 pr-4 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
         />
       </div>
 
       {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500 dark:text-gray-400">Loading...</p>
       ) : (
         <div className="grid gap-4">
           {(filteredRates || []).map((rate) => (
-            <div key={rate.id} className="bg-white rounded-xl shadow-sm border p-6">
+            <div key={rate.id} className="bg-white rounded-xl shadow-sm border p-6 dark:bg-gray-900 dark:border-gray-700">
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="font-bold text-lg">{rate.name}</h3>
-                  <p className="text-sm text-gray-500">
+                  <h3 className="font-bold text-lg dark:text-white">{rate.name}</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     {rate.rateType} • Effective {format(new Date(rate.effectiveFrom), 'MMM dd, yyyy')}
                     {rate.effectiveTo ? ` to ${format(new Date(rate.effectiveTo), 'MMM dd, yyyy')}` : ' (ongoing)'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                    rate.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                    rate.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                   }`}>
                     {rate.isActive ? 'Active' : 'Inactive'}
                   </span>
-                  <button onClick={() => openEdit(rate)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit">
+                  <button onClick={() => openEdit(rate)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-400 dark:hover:bg-blue-900/30" title="Edit">
                     <Pencil className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleDelete(rate.id, rate.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Deactivate">
+                  <button onClick={() => handleDelete(rate.id, rate.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg dark:text-red-400 dark:hover:bg-red-900/30" title="Deactivate">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
               {rate.rateType === 'TIERED' && rate.tiers.length > 0 && (
-                <div className="mt-4 border-t pt-4">
+                <div className="mt-4 border-t pt-4 dark:border-gray-700">
                   <table className="w-full max-w-md">
                     <thead>
-                      <tr className="text-xs text-gray-500">
+                      <tr className="text-xs text-gray-500 dark:text-gray-400">
                         <th className="text-left py-1">From</th>
                         <th className="text-left py-1">To</th>
                         <th className="text-right py-1">Rate/m³</th>
@@ -205,9 +205,9 @@ export default function RatesPage() {
                     <tbody>
                       {rate.tiers.map((tier) => (
                         <tr key={tier.id || tier.sequence}>
-                          <td className="py-1">{tier.fromUnit} m³</td>
-                          <td className="py-1">{tier.toUnit ? `${tier.toUnit} m³` : 'Above'}</td>
-                          <td className="py-1 text-right font-mono">₱{tier.pricePerUnit.toFixed(2)}</td>
+                          <td className="py-1 dark:text-gray-300">{tier.fromUnit} m³</td>
+                          <td className="py-1 dark:text-gray-300">{tier.toUnit ? `${tier.toUnit} m³` : 'Above'}</td>
+                          <td className="py-1 text-right font-mono dark:text-white">₱{tier.pricePerUnit.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -215,56 +215,56 @@ export default function RatesPage() {
                 </div>
               )}
               {rate.rateType === 'FLAT' && rate.tiers[0] && (
-                <div className="mt-4 border-t pt-4">
-                  <p className="font-mono text-lg font-bold">₱{rate.tiers[0].pricePerUnit.toFixed(2)} / month</p>
+                <div className="mt-4 border-t pt-4 dark:border-gray-700">
+                  <p className="font-mono text-lg font-bold dark:text-white">₱{rate.tiers[0].pricePerUnit.toFixed(2)} / month</p>
                 </div>
               )}
             </div>
           ))}
           {(!filteredRates || filteredRates.length === 0) && (
-            <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">No rates found</div>
+            <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-400">No rates found</div>
           )}
         </div>
       )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl my-8">
-            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
+          <div className="bg-white rounded-xl w-full max-w-lg shadow-xl my-8 dark:bg-gray-900">
+            <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white rounded-t-xl dark:border-gray-700">
               <h2 className="text-xl font-bold">{editingRate ? 'Edit Rate' : 'Add Rate'}</h2>
               <button onClick={() => { setShowModal(false); resetForm() }}><XCircle className="w-6 h-6" /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+              {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm dark:bg-red-900/30 dark:border-red-800 dark:text-red-400">{error}</div>}
               <div>
-                <label className="block text-sm font-medium mb-1">Rate Name *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Rate Name *</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   placeholder="e.g., Residential Tiered Rate 2026"
                   required
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Rate Type</label>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Rate Type</label>
                   <select
                     value={formData.rateType}
                     onChange={(e) => setFormData({ ...formData, rateType: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   >
                     <option value="TIERED">Tiered</option>
                     <option value="FLAT">Flat Rate</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Active</label>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Active</label>
                   <select
                     value={formData.isActive ? 'true' : 'false'}
                     onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'true' })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   >
                     <option value="true">Active</option>
                     <option value="false">Inactive</option>
@@ -273,22 +273,22 @@ export default function RatesPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Effective From *</label>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Effective From *</label>
                   <input
                     type="date"
                     value={formData.effectiveFrom}
                     onChange={(e) => setFormData({ ...formData, effectiveFrom: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Effective To (optional)</label>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Effective To (optional)</label>
                   <input
                     type="date"
                     value={formData.effectiveTo}
                     onChange={(e) => setFormData({ ...formData, effectiveTo: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                   />
                 </div>
               </div>
@@ -296,8 +296,8 @@ export default function RatesPage() {
               {formData.rateType === 'TIERED' ? (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium">Tiers</label>
-                    <button type="button" onClick={addTier} className="text-blue-600 hover:text-blue-800">
+                    <label className="block text-sm font-medium dark:text-gray-300">Tiers</label>
+                    <button type="button" onClick={addTier} className="text-blue-600 hover:text-blue-800 dark:text-blue-400">
                       <PlusCircle className="w-5 h-5" />
                     </button>
                   </div>
@@ -308,27 +308,27 @@ export default function RatesPage() {
                         placeholder="From"
                         value={tier.fromUnit}
                         onChange={(e) => updateTier(index, 'fromUnit', parseFloat(e.target.value) || 0)}
-                        className="w-20 px-2 py-1.5 border rounded text-sm"
+                        className="w-20 px-2 py-1.5 border rounded text-sm dark:bg-gray-800 dark:text-white dark:border-gray-600"
                       />
-                      <span className="text-gray-400">—</span>
+                      <span className="text-gray-400 dark:text-gray-500">—</span>
                       <input
                         type="number"
                         placeholder="To"
                         value={tier.toUnit ?? ''}
                         onChange={(e) => updateTier(index, 'toUnit', e.target.value ? parseFloat(e.target.value) : null)}
-                        className="w-20 px-2 py-1.5 border rounded text-sm"
+                        className="w-20 px-2 py-1.5 border rounded text-sm dark:bg-gray-800 dark:text-white dark:border-gray-600"
                       />
-                      <span className="text-gray-400">m³ @ ₱</span>
+                      <span className="text-gray-400 dark:text-gray-500">m³ @ ₱</span>
                       <input
                         type="number"
                         step="0.01"
                         placeholder="Rate"
                         value={tier.pricePerUnit}
                         onChange={(e) => updateTier(index, 'pricePerUnit', parseFloat(e.target.value) || 0)}
-                        className="w-24 px-2 py-1.5 border rounded text-sm"
+                        className="w-24 px-2 py-1.5 border rounded text-sm dark:bg-gray-800 dark:text-white dark:border-gray-600"
                       />
                       {formData.tiers.length > 1 && (
-                        <button type="button" onClick={() => removeTier(index)} className="text-red-500 hover:text-red-700">
+                        <button type="button" onClick={() => removeTier(index)} className="text-red-500 hover:text-red-700 dark:text-red-400">
                           <MinusCircle className="w-5 h-5" />
                         </button>
                       )}
@@ -337,7 +337,7 @@ export default function RatesPage() {
                 </div>
               ) : (
                 <div>
-                  <label className="block text-sm font-medium mb-1">Flat Rate (₱ per month)</label>
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Flat Rate (₱ per month)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -346,14 +346,14 @@ export default function RatesPage() {
                       const tiers = [{ fromUnit: 0, toUnit: null, pricePerUnit: parseFloat(e.target.value) || 0, sequence: 1 }]
                       setFormData({ ...formData, tiers })
                     }}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
                     placeholder="e.g., 500.00"
                   />
                 </div>
               )}
 
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => { setShowModal(false); resetForm() }} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">
+                <button type="button" onClick={() => { setShowModal(false); resetForm() }} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
                   Cancel
                 </button>
                 <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
