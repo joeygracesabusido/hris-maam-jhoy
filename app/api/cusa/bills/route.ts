@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { billingQuarter, billingYear, dueDate, branchId } = body
+    const { billingQuarter, billingYear, dueDate, billingMonths, branchId } = body
 
     if (!billingQuarter || !billingYear || !dueDate) {
       return NextResponse.json(
@@ -68,6 +68,11 @@ export async function POST(request: Request) {
 
     if (billingYear < 2000 || billingYear > 2100) {
       return NextResponse.json({ error: 'billingYear must be between 2000 and 2100' }, { status: 400 })
+    }
+
+    const months = billingMonths || 3
+    if (months < 1 || months > 3) {
+      return NextResponse.json({ error: 'billingMonths must be 1-3' }, { status: 400 })
     }
 
     // Validate dueDate is a valid date
@@ -168,7 +173,7 @@ export async function POST(request: Request) {
     const createdBills = await prisma.$transaction(async (tx) => {
       const bills = []
       for (const { unit, tier } of validUnits) {
-        const totalAmount = computeCusaAmount(unit.areaSqm, tier.pricePerSqm)
+        const totalAmount = computeCusaAmount(unit.areaSqm, tier.pricePerSqm, months)
         const sequence = currentSequence++
         const billNo = generateCusaBillNo(billingYear, billingQuarter, sequence)
 
@@ -180,6 +185,7 @@ export async function POST(request: Request) {
             rateId: rate.id,
             billingQuarter,
             billingYear,
+            billingMonths: months,
             areaSqm: unit.areaSqm,
             ratePerSqm: tier.pricePerSqm,
             totalAmount,

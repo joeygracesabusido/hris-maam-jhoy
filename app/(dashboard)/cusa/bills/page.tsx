@@ -43,6 +43,7 @@ export default function CusaBillsPage() {
   const [generateForm, setGenerateForm] = useState({
     billingQuarter: 1,
     billingYear: new Date().getFullYear(),
+    billingMonths: 3,
     dueDate: '',
   })
 
@@ -56,6 +57,7 @@ export default function CusaBillsPage() {
     setGenerateForm({
       billingQuarter: 1,
       billingYear: new Date().getFullYear(),
+      billingMonths: 3,
       dueDate: '',
     })
     setError('')
@@ -337,6 +339,18 @@ export default function CusaBillsPage() {
                   max="2100"
                   required
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Billing Months</label>
+                <select
+                  value={generateForm.billingMonths}
+                  onChange={(e) => setGenerateForm({ ...generateForm, billingMonths: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                >
+                  <option value={1}>1 Month</option>
+                  <option value={2}>2 Months</option>
+                  <option value={3}>3 Months (Full Quarter)</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">Due Date *</label>

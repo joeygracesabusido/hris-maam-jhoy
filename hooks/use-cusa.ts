@@ -43,6 +43,7 @@ export interface CusaBill {
   rateId: string
   billingQuarter: number
   billingYear: number
+  billingMonths?: number
   areaSqm: number
   ratePerSqm: number
   totalAmount: number
@@ -163,7 +164,7 @@ export function useCusaBill(id: string) {
 export function useGenerateCusaBills() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: { billingQuarter: number; billingYear: number; dueDate: string }) =>
+    mutationFn: (data: { billingQuarter: number; billingYear: number; dueDate: string; billingMonths?: number }) =>
       api.post<CusaBill[]>('/api/cusa/bills', data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.cusa.bills.lists() }),
   })
