@@ -61,6 +61,13 @@ export interface WaterRate {
   tiers: WaterRateTier[]
 }
 
+export interface TierBreakdown {
+  label: string
+  units: number
+  rate: number
+  amount: number
+}
+
 export interface WaterBill {
   id: string
   billNo: string
@@ -83,6 +90,8 @@ export interface WaterBill {
   journalEntryId?: string
   branchId?: string
   payments?: WaterPayment[]
+  rate?: WaterRate | null
+  tierBreakdown?: TierBreakdown[] | null
 }
 
 export interface WaterPayment {

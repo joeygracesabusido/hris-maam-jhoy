@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { computeTieredAmount } from '@/lib/water-billing'
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -34,7 +35,52 @@ export async function GET(request: Request, { params }: { params: { id: string }
       previousReadingDate = prevReading?.readingDate || null
     }
 
-    return NextResponse.json({ ...bill, previousReadingDate })
+    // Find rate active during billing period
+    const billingStart = new Date(bill.billingYear, bill.billingMonth - 1, 1)
+    const billingEnd = new Date(bill.billingYear, bill.billingMonth, 0, 23, 59, 59)
+    const rate = await prisma.waterRate.findFirst({
+      where: {
+        effectiveFrom: { lte: billingEnd },
+        OR: [
+          { effectiveTo: null },
+          { effectiveTo: { gte: billingStart } },
+        ],
+      },
+      include: { tiers: { orderBy: { sequence: 'asc' } } },
+      orderBy: { effectiveFrom: 'desc' },
+    })
+
+    // Compute rate breakdown
+    let tierBreakdown: { label: string; units: number; rate: number; amount: number }[] | null = null
+    if (rate) {
+      tierBreakdown = []
+      if (rate.rateType === 'TIERED' && rate.tiers.length > 0) {
+        let remaining = bill.consumption
+        for (const tier of rate.tiers) {
+          if (remaining <= 0) break
+          const tierMax = tier.toUnit ?? Infinity
+          const tierRange = tierMax - tier.fromUnit
+          const tierUnits = Math.min(remaining, tierRange)
+          tierBreakdown.push({
+            label: tier.toUnit ? `${tier.fromUnit}-${tier.toUnit} m³` : `${tier.fromUnit}+ m³`,
+            units: tierUnits,
+            rate: tier.pricePerUnit,
+            amount: tierUnits * tier.pricePerUnit,
+          })
+          remaining -= tierUnits
+        }
+      } else {
+        // FLAT rate
+        tierBreakdown.push({
+          label: 'Flat Rate',
+          units: bill.consumption,
+          rate: bill.totalAmount / (bill.consumption || 1),
+          amount: bill.totalAmount,
+        })
+      }
+    }
+
+    return NextResponse.json({ ...bill, previousReadingDate, rate, tierBreakdown })
   } catch (error) {
     console.error('Error fetching bill:', error)
     return NextResponse.json({ error: 'Failed to fetch bill' }, { status: 500 })
