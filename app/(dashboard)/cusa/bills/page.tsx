@@ -2,9 +2,9 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { FileText, CreditCard, Printer, Pencil, Trash2, XCircle } from 'lucide-react'
-import { useCusaBills, useGenerateCusaBills, useUpdateCusaBill, useDeleteCusaBill, useRecordCusaPayment } from '@/hooks/use-cusa'
-import type { CusaBill } from '@/hooks/use-cusa'
+import { FileText, CreditCard, Printer, Pencil, Trash2, XCircle, Building } from 'lucide-react'
+import { useCusaBills, useGenerateCusaBills, useUpdateCusaBill, useDeleteCusaBill, useRecordCusaPayment, useCusaUnits } from '@/hooks/use-cusa'
+import type { CusaBill, CusaUnit } from '@/hooks/use-cusa'
 
 const STATUS_BADGE: Record<string, string> = {
   PAID: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -41,11 +41,18 @@ export default function CusaBillsPage() {
   const recordPayment = useRecordCusaPayment()
 
   const [generateForm, setGenerateForm] = useState({
-    billingQuarter: 1,
+    billingMonth: new Date().getMonth() + 1, // 1-12
     billingYear: new Date().getFullYear(),
-    billingMonths: 3,
+    billingMonths: 1,
     dueDate: '',
   })
+
+  const getQuarterFromMonth = (month: number): number => Math.ceil(month / 3)
+
+  const getEndMonth = (startMonth: number, count: number): number => {
+    const end = startMonth + count - 1
+    return end > 12 ? 12 : end
+  }
 
   const [paymentForm, setPaymentForm] = useState({
     paymentDate: new Date().toISOString().split('T')[0],
@@ -53,13 +60,36 @@ export default function CusaBillsPage() {
     referenceNo: '',
   })
 
+  const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([])
+  const [selectAll, setSelectAll] = useState(true)
+  const { data: availableUnits, isLoading: unitsLoading } = useCusaUnits({ status: 'OCCUPIED' })
+
+  const toggleUnit = (id: string) => {
+    setSelectedUnitIds((prev) =>
+      prev.includes(id) ? prev.filter((uid) => uid !== id) : [...prev, id]
+    )
+    setSelectAll(false)
+  }
+
+  const toggleSelectAll = () => {
+    if (!availableUnits) return
+    if (selectAll) {
+      setSelectedUnitIds([])
+    } else {
+      setSelectedUnitIds(availableUnits.map((u) => u.id))
+    }
+    setSelectAll(!selectAll)
+  }
+
   const resetGenerateForm = () => {
     setGenerateForm({
-      billingQuarter: 1,
+      billingMonth: new Date().getMonth() + 1,
       billingYear: new Date().getFullYear(),
-      billingMonths: 3,
+      billingMonths: 1,
       dueDate: '',
     })
+    setSelectedUnitIds([])
+    setSelectAll(true)
     setError('')
   }
 
@@ -83,7 +113,13 @@ export default function CusaBillsPage() {
     }
 
     try {
-      await generateBills.mutateAsync(generateForm)
+      await generateBills.mutateAsync({
+        billingQuarter: getQuarterFromMonth(generateForm.billingMonth),
+        billingYear: generateForm.billingYear,
+        dueDate: generateForm.dueDate,
+        billingMonths: generateForm.billingMonths,
+        unitIds: selectedUnitIds.length > 0 && !selectAll ? selectedUnitIds : undefined,
+      })
       setShowGenerateModal(false)
       resetGenerateForm()
     } catch (err: unknown) {
@@ -315,18 +351,29 @@ export default function CusaBillsPage() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Quarter *</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Month *</label>
                 <select
-                  value={generateForm.billingQuarter}
-                  onChange={(e) => setGenerateForm({ ...generateForm, billingQuarter: parseInt(e.target.value) })}
+                  value={generateForm.billingMonth}
+                  onChange={(e) => setGenerateForm({ ...generateForm, billingMonth: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                   required
                 >
-                  <option value={1}>Q1</option>
-                  <option value={2}>Q2</option>
-                  <option value={3}>Q3</option>
-                  <option value={4}>Q4</option>
+                  <option value={1}>January</option>
+                  <option value={2}>February</option>
+                  <option value={3}>March</option>
+                  <option value={4}>April</option>
+                  <option value={5}>May</option>
+                  <option value={6}>June</option>
+                  <option value={7}>July</option>
+                  <option value={8}>August</option>
+                  <option value={9}>September</option>
+                  <option value={10}>October</option>
+                  <option value={11}>November</option>
+                  <option value={12}>December</option>
                 </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Quarter {getQuarterFromMonth(generateForm.billingMonth)} · {generateForm.billingYear}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">Year *</label>
@@ -341,7 +388,7 @@ export default function CusaBillsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Billing Months</label>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Billing Period</label>
                 <select
                   value={generateForm.billingMonths}
                   onChange={(e) => setGenerateForm({ ...generateForm, billingMonths: parseInt(e.target.value) })}
@@ -349,8 +396,14 @@ export default function CusaBillsPage() {
                 >
                   <option value={1}>1 Month</option>
                   <option value={2}>2 Months</option>
-                  <option value={3}>3 Months (Full Quarter)</option>
+                  <option value={3}>3 Months</option>
                 </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  {new Date(generateForm.billingYear, generateForm.billingMonth - 1, 1).toLocaleDateString('en-US', { month: 'long' })}
+                  {generateForm.billingMonths > 1 && ` – ${new Date(generateForm.billingYear, getEndMonth(generateForm.billingMonth, generateForm.billingMonths) - 1, 1).toLocaleDateString('en-US', { month: 'long' })}`}
+                  {' · '}
+                  {generateForm.billingMonths} month{generateForm.billingMonths > 1 ? 's' : ''}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">Due Date *</label>
@@ -361,6 +414,55 @@ export default function CusaBillsPage() {
                   className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                   required
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 flex items-center gap-2 dark:text-gray-300">
+                  <Building className="w-4 h-4" /> Units / Tenants
+                </label>
+                <div className="max-h-48 overflow-y-auto border rounded-lg p-2 space-y-1 dark:border-gray-700 dark:bg-gray-900">
+                  {unitsLoading ? (
+                    <p className="text-sm text-gray-400 p-2">Loading units...</p>
+                  ) : !availableUnits || availableUnits.length === 0 ? (
+                    <p className="text-sm text-gray-400 p-2">No occupied units found</p>
+                  ) : (
+                    <>
+                      <label className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium cursor-pointer border-b dark:border-gray-700 pb-2 mb-1">
+                        <input
+                          type="checkbox"
+                          checked={selectAll}
+                          onChange={toggleSelectAll}
+                          className="rounded"
+                        />
+                        {selectAll ? 'All Units Selected' : 'Select All'}
+                      </label>
+                      {availableUnits.map((unit: CusaUnit) => (
+                        <label
+                          key={unit.id}
+                          className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 dark:hover:bg-gray-800 text-sm cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectAll || selectedUnitIds.includes(unit.id)}
+                            onChange={() => toggleUnit(unit.id)}
+                            className="rounded"
+                          />
+                          <span className="font-medium dark:text-white">{unit.unitNo}</span>
+                          <span className="text-gray-500 dark:text-gray-400 truncate">
+                            — {unit.tenant?.fullName || 'No tenant'}
+                          </span>
+                          <span className="text-gray-400 dark:text-gray-500 text-xs ml-auto">
+                            {unit.areaSqm}m²
+                          </span>
+                        </label>
+                      ))}
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {selectAll
+                    ? `Generating bills for all ${availableUnits?.length || 0} occupied units`
+                    : `Selected ${selectedUnitIds.length} of ${availableUnits?.length || 0} units`}
+                </p>
               </div>
               <div className="flex gap-3 pt-4">
                 <button

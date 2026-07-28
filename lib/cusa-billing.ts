@@ -9,6 +9,7 @@ export interface CusaRateTier {
 
 export function findApplicableTier(areaSqm: number, tiers: CusaRateTier[]): CusaRateTier | null {
   if (areaSqm < 0) throw new Error('Area must be non-negative')
+  if (tiers.length === 0) return null
   
   const sorted = [...tiers].sort((a, b) => a.sequence - b.sequence)
   
@@ -17,6 +18,12 @@ export function findApplicableTier(areaSqm: number, tiers: CusaRateTier[]): Cusa
     if (areaSqm >= tier.fromArea && areaSqm <= tierMax) {
       return tier
     }
+  }
+  
+  // Fallback: if area is below the lowest tier's fromArea, use the lowest tier
+  const lowestTier = sorted[0]
+  if (areaSqm < lowestTier.fromArea) {
+    return lowestTier
   }
   
   return null

@@ -174,12 +174,14 @@ export default function EmployeesPage() {
 
   const handleDelete = async () => {
     if (!selectedEmployee) return;
+    setError('');
     try {
       await deleteEmployee.mutateAsync(selectedEmployee.id as never);
       setShowDeleteModal(false);
       setSelectedEmployee(null);
     } catch (err) {
-      alert('Something went wrong');
+      const msg = err instanceof Error ? err.message : 'Something went wrong';
+      setError(msg);
     }
   };
 
@@ -593,8 +595,11 @@ export default function EmployeesPage() {
               <div className="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 className="w-10 h-10" /></div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Delete Profile?</h2>
               <p className="text-gray-500 mb-8 text-sm leading-relaxed">This will permanently remove <strong>{selectedEmployee?.fullName}</strong> from the system. This action cannot be reversed.</p>
+              {error && (
+                <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-lg">{error}</div>
+              )}
               <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setShowDeleteModal(false)} className="flex-1 h-11">No, Keep it</Button>
+                <Button variant="outline" onClick={() => { setShowDeleteModal(false); setError(''); }} className="flex-1 h-11">No, Keep it</Button>
                 <Button onClick={handleDelete} className="flex-1 h-11 bg-red-600 hover:bg-red-700">Yes, Delete</Button>
               </div>
             </div>

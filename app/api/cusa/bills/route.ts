@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { billingQuarter, billingYear, dueDate, billingMonths, branchId } = body
+    const { billingQuarter, billingYear, dueDate, billingMonths, branchId, unitIds } = body
 
     if (!billingQuarter || !billingYear || !dueDate) {
       return NextResponse.json(
@@ -115,6 +115,9 @@ export async function POST(request: Request) {
     // 2. Fetch occupied units for branch
     const unitWhere: Record<string, unknown> = { status: 'OCCUPIED' }
     if (branchId) unitWhere.branchId = branchId
+    if (unitIds && Array.isArray(unitIds) && unitIds.length > 0) {
+      unitWhere.id = { in: unitIds }
+    }
 
     const units = await prisma.cusaUnit.findMany({
       where: unitWhere,
@@ -123,7 +126,7 @@ export async function POST(request: Request) {
 
     if (units.length === 0) {
       return NextResponse.json(
-        { error: 'No occupied units found for the specified branch' },
+        { error: 'No occupied units found for the specified selection' },
         { status: 400 }
       )
     }
