@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 
+export const dynamic = 'force-dynamic';
+
 interface FundTransaction {
   id: string;
   date: string;

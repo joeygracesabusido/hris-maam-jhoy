@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 
+export const dynamic = 'force-dynamic';
+
 async function getUserRole() {
   const cookieStore = await cookies();
   return cookieStore.get('userRole')?.value || '';
