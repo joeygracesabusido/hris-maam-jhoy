@@ -123,9 +123,11 @@ export default function PettyCashPage() {
     notes: '',
   });
 
-  const pcParams: Record<string, string> = {};
-  if (selectedBranch) pcParams.branchId = selectedBranch.id;
-  const { data: funds = [], isLoading: fundsLoading, refetch: refetchFunds } = usePettyCash(pcParams) as { data: PettyCashFund[]; isLoading: boolean; refetch: () => void };
+  // Always fetch all petty cash funds; the BranchSelector only affects where
+  // NEW funds are assigned (form default) and where DISBURSEMENT/LIQUIDATION
+  // POSTs are routed — not what's listed. This prevents the page from going
+  // blank when the user's selected branch has no funds.
+  const { data: funds = [], isLoading: fundsLoading, refetch: refetchFunds } = usePettyCash({}) as { data: PettyCashFund[]; isLoading: boolean; refetch: () => void };
   const { data: allAccounts = [] } = useAccounts();
   const expenseAccounts = allAccounts.filter((a: Account) => a.type === 'EXPENSE' || a.code.startsWith('5'));
   const cashAccounts = allAccounts.filter((a: Account) => a.code.startsWith('11') || a.code.startsWith('10'));
@@ -541,7 +543,12 @@ export default function PettyCashPage() {
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <Receipt className="w-12 h-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No petty cash funds yet.</p>
+                  <p className="text-muted-foreground">No petty cash funds found.</p>
+                  {selectedBranch && (
+                    <p className="text-sm text-muted-foreground mt-1 text-center max-w-md">
+                      Tip: switch the branch selector above to <span className="font-medium">All Branches</span> to see funds from other branches.
+                    </p>
+                  )}
                   <Button onClick={() => setCreateDialogOpen(true)} className="mt-4">
                     Create First Fund
                   </Button>
