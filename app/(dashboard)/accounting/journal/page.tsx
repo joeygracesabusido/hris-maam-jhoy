@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2, Scale, FileText, Search, Edit, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Plus, Trash2, Scale, FileText, Search, Edit, Download, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { api } from '@/lib/api-client';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
@@ -47,6 +48,19 @@ const journalKeys = {
   subsidiaries: (branchId: string | null) => ['journal', 'subsidiaries', branchId] as const,
 };
 
+// Stored timestamps represent Manila wall time in UTC. Format in the Manila
+// timezone so the date never shifts by a day in non-Philippine browser timezones.
+function formatManilaDate(iso: string | Date): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export default function JournalPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -56,6 +70,7 @@ export default function JournalPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -122,6 +137,124 @@ export default function JournalPage() {
   const accounts: any[] = accountsQuery.data ?? [];
   const subsidiaryLedgers: any[] = subsidiariesQuery.data ?? [];
   const loading = entriesQuery.isPending || accountsQuery.isPending || subsidiariesQuery.isPending;
+
+  // --- Row selection & Excel export ---
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectPage = () => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      const allSelectedOnPage = entries.length > 0 && entries.every(e => next.has(e.id));
+      if (allSelectedOnPage) {
+        entries.forEach(e => next.delete(e.id));
+      } else {
+        entries.forEach(e => next.add(e.id));
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  // Fetch every journal entry matching the current filters (branch + search) across all pages.
+  async function fetchAllMatching(): Promise<JournalEntry[]> {
+    const all: JournalEntry[] = [];
+    const exportPageSize = 100;
+    const baseParams: Record<string, string> = {};
+    if (branchId) baseParams.branchId = branchId;
+    if (debouncedSearch) baseParams.search = debouncedSearch;
+    baseParams.pageSize = exportPageSize.toString();
+
+    const firstPage = await api.get<JournalListResponse>('/api/accounting/journal', {
+      params: { ...baseParams, page: '1' },
+    });
+    all.push(...firstPage.entries);
+    for (let p = 2; p <= firstPage.pagination.totalPages; p++) {
+      const pageRes = await api.get<JournalListResponse>('/api/accounting/journal', {
+        params: { ...baseParams, page: p.toString() },
+      });
+      all.push(...pageRes.entries);
+    }
+    return all;
+  }
+
+  // Select every entry matching the current filters (across all pages).
+  const selectAllMatching = async () => {
+    try {
+      const all = await fetchAllMatching();
+      setSelectedIds(new Set(all.map(e => e.id)));
+      toast.success(`Selected ${all.length} journal entries`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to select all records');
+    }
+  };
+
+  async function exportToExcel() {
+    try {
+      // If rows are selected, export exactly those; otherwise export everything matching the filters.
+      let rowsToExport: JournalEntry[];
+      if (selectedIds.size > 0) {
+        const all = await fetchAllMatching();
+        rowsToExport = all.filter(e => selectedIds.has(e.id));
+      } else {
+        rowsToExport = await fetchAllMatching();
+      }
+
+      if (rowsToExport.length === 0) {
+        toast.error('No journal entries to export');
+        return;
+      }
+
+      // General Journal format: one row per journal line.
+      const data: Record<string, string | number>[] = [];
+      for (const entry of rowsToExport) {
+        const entryLines = (entry.lines || []) as any[];
+        const lines = entryLines.length > 0
+          ? entryLines
+          : [{ account: null, subsidiaryLedger: null, debit: 0, credit: 0, memo: '' }];
+        for (const line of lines) {
+          data.push({
+            Date: formatManilaDate(entry.date),
+            Reference: entry.reference || '',
+            Description: entry.description,
+            Account: line.account ? `${line.account.code} - ${line.account.name}` : 'Unknown Account',
+            Subsidiary: line.subsidiaryLedger ? line.subsidiaryLedger.entityName : '',
+            Memo: line.memo || '',
+            Debit: line.debit || 0,
+            Credit: line.credit || 0,
+          });
+        }
+      }
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      ws['!cols'] = [
+        { wch: 12 }, // Date
+        { wch: 18 }, // Reference
+        { wch: 40 }, // Description
+        { wch: 40 }, // Account
+        { wch: 24 }, // Subsidiary
+        { wch: 24 }, // Memo
+        { wch: 16 }, // Debit
+        { wch: 16 }, // Credit
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'General Journal');
+      XLSX.writeFile(wb, `journal_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success(`Exported ${rowsToExport.length} journal entr${rowsToExport.length === 1 ? 'y' : 'ies'} to Excel`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to export journal');
+    }
+  }
 
   // --- Mutations ---
   const saveEntry = useMutation({
@@ -408,7 +541,7 @@ export default function JournalPage() {
               <div className="grid grid-cols-3 gap-6 bg-muted/50 p-6 rounded-lg">
                 <div>
                   <p className="text-base text-muted-foreground mb-1">Date</p>
-                  <p className="text-lg font-bold">{new Date(viewEntry.date).toLocaleDateString()}</p>
+                  <p className="text-lg font-bold">{formatManilaDate(viewEntry.date)}</p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-base text-muted-foreground mb-1">Description</p>
@@ -469,20 +602,35 @@ export default function JournalPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle>Journal History</CardTitle>
-          <div className="relative w-72">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by description or ref..."
-              className="pl-8"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+          <div className="flex items-center gap-3">
+            <div className="relative w-72">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by description or ref..."
+                className="pl-8"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+            <Button variant="outline" className="flex items-center gap-2" onClick={exportToExcel}>
+              <Download className="w-4 h-4" />
+              Export Excel
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 cursor-pointer"
+                    checked={entries.length > 0 && entries.every(e => selectedIds.has(e.id))}
+                    onChange={toggleSelectPage}
+                    title="Select all on this page"
+                  />
+                </TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Reference</TableHead>
                 <TableHead>Description</TableHead>
@@ -493,20 +641,29 @@ export default function JournalPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">Loading entries...</TableCell>
+                  <TableCell colSpan={6} className="text-center py-8">Loading entries...</TableCell>
                 </TableRow>
               ) : entries.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     No journal entries found.
                   </TableCell>
                 </TableRow>
               ) : (
                 entries.map(entry => {
                   const total = (entry.lines || []).reduce((sum: number, l: any) => sum + (l.debit || 0), 0);
+                  const isSelected = selectedIds.has(entry.id);
                   return (
-                    <TableRow key={entry.id}>
-                      <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
+                    <TableRow key={entry.id} className={isSelected ? 'bg-muted/50' : ''}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300 cursor-pointer"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(entry.id)}
+                        />
+                      </TableCell>
+                      <TableCell>{formatManilaDate(entry.date)}</TableCell>
                       <TableCell className="font-mono text-sm">{entry.reference || '-'}</TableCell>
                       <TableCell>{entry.description}</TableCell>
                       <TableCell className="text-right font-medium">₱{total.toLocaleString()}</TableCell>
@@ -543,66 +700,86 @@ export default function JournalPage() {
       </Card>
 
       {!loading && total > 0 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total} entries
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setPage(1)}
-              disabled={page === 1}
-            >
-              <ChevronsLeft className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setPage(p => p - 1)}
-              disabled={page === 1}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum: number;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (page <= 3) {
-                pageNum = i + 1;
-              } else if (page >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = page - 2 + i;
-              }
-              return (
-                <Button
-                  key={pageNum}
-                  variant={page === pageNum ? 'default' : 'outline'}
-                  size="icon"
-                  onClick={() => setPage(pageNum)}
-                  className={page === pageNum ? 'bg-primary text-primary-foreground' : ''}
-                >
-                  {pageNum}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between rounded-md border bg-muted/30 px-4 py-2">
+            <div className="flex items-center gap-3 text-sm">
+              <span className={selectedIds.size > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground'}>
+                {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'No rows selected'}
+              </span>
+              <Button variant="link" size="sm" className="px-0" onClick={selectAllMatching}>
+                Select all {total} records
+              </Button>
+              {selectedIds.size > 0 && (
+                <Button variant="link" size="sm" className="px-0 text-destructive" onClick={clearSelection}>
+                  Clear selection
                 </Button>
-              );
-            })}
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setPage(p => p + 1)}
-              disabled={page === totalPages}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setPage(totalPages)}
-              disabled={page === totalPages}
-            >
-              <ChevronsRight className="w-4 h-4" />
-            </Button>
+              )}
+            </div>
+            <span className="text-xs text-muted-foreground">
+              Export exports {selectedIds.size > 0 ? 'only the selected rows' : 'all records matching the current filters'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total} entries
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setPage(1)}
+                disabled={page === 1}
+              >
+                <ChevronsLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setPage(p => p - 1)}
+                disabled={page === 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (page <= 3) {
+                  pageNum = i + 1;
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = page - 2 + i;
+                }
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={page === pageNum ? 'default' : 'outline'}
+                    size="icon"
+                    onClick={() => setPage(pageNum)}
+                    className={page === pageNum ? 'bg-primary text-primary-foreground' : ''}
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setPage(p => p + 1)}
+                disabled={page === totalPages}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setPage(totalPages)}
+                disabled={page === totalPages}
+              >
+                <ChevronsRight className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       )}

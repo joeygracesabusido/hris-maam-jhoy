@@ -97,6 +97,7 @@ export async function POST(request: Request) {
             reference: `PCF-${Date.now()}`,
             description: `Petty Cash Fund - ${name}`,
             status: 'POSTED',
+            branchId: branchId || undefined,
             lines: {
               create: [
                 {
@@ -182,6 +183,7 @@ export async function PATCH(request: Request) {
             reference: `REP-${Date.now()}`,
             description: `Petty Cash Replenishment - ${pettyCash.name}`,
             status: 'POSTED',
+            branchId: pettyCash.branchId || branchId || undefined,
             lines: {
               create: [
                 {

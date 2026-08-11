@@ -95,7 +95,9 @@ export async function POST(request: Request) {
         status: 'PENDING',
         createdById: user?.id,
         employeeId: userEmployee?.id,
-        branchId: branchId || undefined,
+        // Inherit the fund's branch when the caller doesn't specify one, so the
+        // disbursement is not hidden by branch filtering on the UI.
+        branchId: branchId || pettyCash.branchId || undefined,
       },
     });
 

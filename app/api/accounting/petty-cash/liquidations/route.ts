@@ -98,7 +98,9 @@ export async function POST(request: Request) {
         expenseAccountId: expenseAccountId || disbursement.expenseAccountId,
         status: 'PENDING',
         submittedById: user?.id,
-        branchId: branchId || undefined,
+        // Inherit the branch from the disbursement (which inherits from the
+        // fund), so pending liquidations are not hidden by branch filtering.
+        branchId: branchId || disbursement.branchId || undefined,
       },
     });
 
@@ -185,10 +187,12 @@ export async function PATCH(request: Request) {
       if (expenseAccountId && cashAccountId) {
         await prisma.journalEntry.create({
           data: {
-            date: new Date(),
+            // Record at the disbursement date (when the money was spent), not the approval date.
+            date: disbursement?.date || liquidation.date || new Date(),
             reference: `LIQ-${Date.now()}`,
             description: `Petty Cash Liquidation - ${disbursement?.description || 'Disbursement'}`,
             status: 'POSTED',
+            branchId: liquidation.branchId || disbursement?.branchId || branchId || undefined,
             lines: {
               create: [
                 {

@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Search, Filter, Trash2, Save, Edit, XCircle,
   Calendar as CalendarIcon,
-  User, FileText, Eye
+  User, FileText, Eye, Download
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
   Table, TableHeader, TableRow, TableHead, TableBody, TableCell
 } from '@/components/ui/table';
@@ -325,6 +326,36 @@ export default function ExpensesPage() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'An error occurred while deleting the expense');
     }
+  }
+
+  function exportToExcel() {
+    if (expenses.length === 0) {
+      toast.error('No expenses to export');
+      return;
+    }
+
+    const data = expenses.map(exp => ({
+      'Expense #': exp.expenseNumber,
+      'Date': new Date(exp.date).toLocaleDateString(),
+      'Payee': exp.payee,
+      'Description': exp.description || '',
+      'Amount': exp.totalAmount || 0,
+      'Status': exp.status,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [
+      { wch: 18 }, // Expense #
+      { wch: 12 }, // Date
+      { wch: 30 }, // Payee
+      { wch: 40 }, // Description
+      { wch: 14 }, // Amount
+      { wch: 12 }, // Status
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+    XLSX.writeFile(wb, `expenses_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success(`Exported ${expenses.length} expense(s) to Excel`);
   }
 
   return (
@@ -777,6 +808,10 @@ export default function ExpensesPage() {
                 <SelectItem value="VOID">Void</SelectItem>
               </SelectContent>
             </Select>
+            <Button variant="outline" className="flex items-center gap-2" onClick={exportToExcel}>
+              <Download className="w-4 h-4" />
+              Export Excel
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
