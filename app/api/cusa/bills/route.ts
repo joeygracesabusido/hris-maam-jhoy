@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { billingQuarter, billingYear, dueDate, billingMonths, branchId, unitIds } = body
+    const { billingQuarter, billingYear, billingMonth, dueDate, billingMonths, branchId, unitIds } = body
 
     if (!billingQuarter || !billingYear || !dueDate) {
       return NextResponse.json(
@@ -64,6 +64,13 @@ export async function POST(request: Request) {
 
     if (billingQuarter < 1 || billingQuarter > 4) {
       return NextResponse.json({ error: 'billingQuarter must be 1-4' }, { status: 400 })
+    }
+
+    // Starting month must be 1-12 when provided; fall back to the quarter's first month
+    // for requests that don't send it (backward compatibility).
+    const startMonth = billingMonth ?? (billingQuarter - 1) * 3 + 1
+    if (startMonth < 1 || startMonth > 12) {
+      return NextResponse.json({ error: 'billingMonth must be 1-12' }, { status: 400 })
     }
 
     if (billingYear < 2000 || billingYear > 2100) {
@@ -89,13 +96,24 @@ export async function POST(request: Request) {
       }
     }
 
-    // 1. Find active rate for the billing period
-    const rateWhere: Record<string, unknown> = { isActive: true }
+    // 1. Find active rate for the billing period (validate effective dates)
+    const { start: quarterStart, end: quarterEnd } = getQuarterDates(billingQuarter, billingYear)
+
+    const rateWhere: Record<string, unknown> = {
+      isActive: true,
+      effectiveFrom: { lte: quarterEnd },
+    }
     if (branchId) rateWhere.branchId = branchId
 
-    const rate = await prisma.cusaRate.findFirst({
+    // Fetch all candidate rates and filter in-memory for effectiveTo (supports null and date range)
+    const candidateRates = await prisma.cusaRate.findMany({
       where: rateWhere,
       include: { tiers: { orderBy: { sequence: 'asc' } } },
+    })
+
+    const rate = candidateRates.find((r) => {
+      if (!r.effectiveTo) return true // No end date = forever active
+      return r.effectiveTo >= quarterStart
     })
 
     if (!rate) {
@@ -119,10 +137,12 @@ export async function POST(request: Request) {
       unitWhere.id = { in: unitIds }
     }
 
+    console.log('[CUSA Bills] unitWhere:', JSON.stringify(unitWhere))
     const units = await prisma.cusaUnit.findMany({
       where: unitWhere,
       include: { tenant: true },
     })
+    console.log('[CUSA Bills] fetched units:', units.length, units.map(u => `${u.unitNo}(${u.id}) area=${u.areaSqm} lease=${u.leaseStart}-${u.leaseEnd}`))
 
     if (units.length === 0) {
       return NextResponse.json(
@@ -132,12 +152,13 @@ export async function POST(request: Request) {
     }
 
     // 3. Filter by lease dates — only bill units that were occupied during the quarter
-    const { start: quarterStart, end: quarterEnd } = getQuarterDates(billingQuarter, billingYear)
+    console.log('[CUSA Bills] quarterStart:', quarterStart, 'quarterEnd:', quarterEnd)
     const leasedUnits = units.filter((u) => {
       if (u.leaseStart && u.leaseStart > quarterEnd) return false
       if (u.leaseEnd && u.leaseEnd < quarterStart) return false
       return true
     })
+    console.log('[CUSA Bills] leasedUnits:', leasedUnits.length, leasedUnits.map(u => u.unitNo))
 
     if (leasedUnits.length === 0) {
       return NextResponse.json(
@@ -153,20 +174,38 @@ export async function POST(request: Request) {
         billingYear,
         ...(branchId ? { branchId } : {}),
       },
-      select: { unitId: true },
+      select: { unitId: true, billNo: true },
     })
+    console.log('[CUSA Bills] existing bills:', existingBills.length, existingBills.map(b => `${b.billNo}(${b.unitId})`))
 
     const billedUnitIds = new Set(existingBills.map((b) => b.unitId))
 
-    // 4. Pre-compute sequences for unbilled units (outside transaction to avoid race conditions)
+    // Pre-compute sequences for unbilled units (outside transaction to avoid race conditions)
     const unbilledUnits = leasedUnits.filter((u) => !billedUnitIds.has(u.id))
+    console.log('[CUSA Bills] unbilledUnits:', unbilledUnits.length, unbilledUnits.map(u => `${u.unitNo}(${u.id}) area=${u.areaSqm}`))
+
+    if (unbilledUnits.length === 0) {
+      return NextResponse.json({
+        generated: 0,
+        skipped: billedUnitIds.size,
+        bills: [],
+        message: `All ${billedUnitIds.size} unit(s) already have bills for Q${billingQuarter} ${billingYear}`,
+      }, { status: 200 })
+    }
+
     const validUnits = unbilledUnits
       .map((u) => ({ unit: u, tier: findApplicableTier(u.areaSqm, rate.tiers) }))
       .filter((entry): entry is { unit: typeof units[number]; tier: NonNullable<ReturnType<typeof findApplicableTier>> } => entry.tier !== null)
+    console.log('[CUSA Bills] validUnits:', validUnits.length, validUnits.map(v => `${v.unit.unitNo} tier=${v.tier.fromArea}-${v.tier.toArea}`))
 
     if (validUnits.length === 0) {
+      const tierInfo = rate.tiers.map((t) => `${t.fromArea}-${t.toArea ?? '∞'} sqm`).join(', ')
+      const unitAreas = unbilledUnits.map((u) => `${u.unitNo}: ${u.areaSqm} sqm`).join(', ')
       return NextResponse.json(
-        { error: 'No units match the rate tiers for billing' },
+        {
+          error: 'No units match the rate tiers for billing',
+          details: `Rate tiers: [${tierInfo}] | Unit areas: [${unitAreas}]`,
+        },
         { status: 400 }
       )
     }
@@ -188,6 +227,7 @@ export async function POST(request: Request) {
             rateId: rate.id,
             billingQuarter,
             billingYear,
+            billingMonth: startMonth,
             billingMonths: months,
             areaSqm: unit.areaSqm,
             ratePerSqm: tier.pricePerSqm,

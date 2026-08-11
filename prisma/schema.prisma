@@ -1255,6 +1255,7 @@ model CusaBill {
   rate           CusaRate @relation(fields: [rateId], references: [id])
   billingQuarter Int
   billingYear    Int
+  billingMonth   Int? // actual starting month (1-12); null for legacy bills
   billingMonths  Int      @default(3)
   areaSqm        Float
   ratePerSqm     Float

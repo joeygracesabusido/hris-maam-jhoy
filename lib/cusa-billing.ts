@@ -26,6 +26,12 @@ export function findApplicableTier(areaSqm: number, tiers: CusaRateTier[]): Cusa
     return lowestTier
   }
   
+  // Fallback: if area is above the highest tier's toArea, use the highest tier
+  const highestTier = sorted[sorted.length - 1]
+  if (highestTier.toArea !== null && areaSqm > highestTier.toArea) {
+    return highestTier
+  }
+  
   return null
 }
 

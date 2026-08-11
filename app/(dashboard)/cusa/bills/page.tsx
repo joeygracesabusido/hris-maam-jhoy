@@ -116,6 +116,7 @@ export default function CusaBillsPage() {
       await generateBills.mutateAsync({
         billingQuarter: getQuarterFromMonth(generateForm.billingMonth),
         billingYear: generateForm.billingYear,
+        billingMonth: generateForm.billingMonth,
         dueDate: generateForm.dueDate,
         billingMonths: generateForm.billingMonths,
         unitIds: selectedUnitIds.length > 0 && !selectAll ? selectedUnitIds : undefined,

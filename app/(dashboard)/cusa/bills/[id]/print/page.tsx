@@ -5,13 +5,6 @@ import { useParams } from 'next/navigation'
 import type { CusaBill } from '@/hooks/use-cusa'
 import { format } from 'date-fns'
 
-const QUARTER_LABELS: Record<number, string> = {
-  1: 'Q1 (Jan-Mar)',
-  2: 'Q2 (Apr-Jun)',
-  3: 'Q3 (Jul-Sep)',
-  4: 'Q4 (Oct-Dec)',
-}
-
 const STATUS_COLORS: Record<string, string> = {
   PAID: 'text-green-700 dark:text-green-400',
   UNPAID: 'text-yellow-700 dark:text-yellow-400',
@@ -20,6 +13,24 @@ const STATUS_COLORS: Record<string, string> = {
 
 function formatCurrency(amount: number): string {
   return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+// Shows the actual billing month range from the stored starting month + month count.
+// e.g. June + 1 month -> "June 2026", June + 3 months -> "June - August 2026"
+// Legacy bills (generated before billingMonth was stored) fall back to the
+// quarter's first month so they still display a sensible range.
+function getBillingPeriodLabel(bill: CusaBill): string {
+  const startMonth = bill.billingMonth ?? (bill.billingQuarter - 1) * 3 + 1
+  const monthCount = bill.billingMonths ?? 3 // legacy bills defaulted to 3
+  const endMonth = Math.min(startMonth + monthCount - 1, 12)
+  const year = bill.billingYear
+
+  const startLabel = format(new Date(year, startMonth - 1, 1), 'MMMM')
+  if (endMonth === startMonth) {
+    return `${startLabel} ${year}`
+  }
+  const endLabel = format(new Date(year, endMonth - 1, 1), 'MMMM')
+  return `${startLabel} - ${endLabel} ${year}`
 }
 
 function getCookies() {
@@ -119,7 +130,7 @@ export default function PrintCusaBillPage() {
           </div>
           <div>
             <p className="text-xs text-gray-500 dark:text-gray-400">Billing Period:</p>
-            <p className="font-medium dark:text-white text-sm">{QUARTER_LABELS[bill.billingQuarter] || `Q${bill.billingQuarter}`} - {bill.billingYear}</p>
+            <p className="font-medium dark:text-white text-sm">{getBillingPeriodLabel(bill)}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 dark:text-gray-400">Due Date:</p>
