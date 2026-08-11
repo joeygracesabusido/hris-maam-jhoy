@@ -158,7 +158,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+async function handleUpdate(request: Request) {
   try {
     const body = await request.json();
     const { id, date, description, reference, lines, branchId } = body;
@@ -265,6 +265,14 @@ export async function PUT(request: Request) {
     console.error('Error updating journal entry:', error);
     return NextResponse.json({ error: 'Failed to update journal entry' }, { status: 500 });
   }
+}
+
+export async function PATCH(request: Request) {
+  return handleUpdate(request);
+}
+
+export async function PUT(request: Request) {
+  return handleUpdate(request);
 }
 
 export async function DELETE(request: Request) {
