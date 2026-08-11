@@ -37,11 +37,22 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const refreshBranches = useCallback(async () => {
     try {
       const res = await fetch('/api/branches');
+      if (!res.ok) {
+        console.error('Failed to fetch branches:', res.status);
+        setBranches([]);
+        return [];
+      }
       const data = await res.json() as Branch[];
+      if (!Array.isArray(data)) {
+        console.error('Invalid branches response:', data);
+        setBranches([]);
+        return [];
+      }
       setBranches(data);
       return data;
     } catch (err) {
       console.error('Failed to fetch branches:', err);
+      setBranches([]);
       return [];
     }
   }, []);

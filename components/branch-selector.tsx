@@ -12,12 +12,13 @@ import {
 
 export function BranchSelector({ showAllOption = true }: { showAllOption?: boolean }) {
   const { selectedBranch, branches, setBranch } = useBranch();
+  const safeBranches = Array.isArray(branches) ? branches : [];
 
   const handleChange = (value: string) => {
     if (value === '__all__') {
       setBranch(null);
     } else {
-      const branch = branches.find((b) => b.id === value);
+      const branch = safeBranches.find((b) => b.id === value);
       if (branch) setBranch(branch);
     }
   };
@@ -35,12 +36,12 @@ export function BranchSelector({ showAllOption = true }: { showAllOption?: boole
         {showAllOption && (
           <SelectItem value="__all__">All Branches</SelectItem>
         )}
-        {branches.map((branch) => (
+        {safeBranches.map((branch) => (
           <SelectItem key={branch.id} value={branch.id}>
             {branch.name}
           </SelectItem>
         ))}
-        {branches.length === 0 && (
+        {safeBranches.length === 0 && (
           <SelectItem value="__empty__" disabled>
             No branches available
           </SelectItem>
