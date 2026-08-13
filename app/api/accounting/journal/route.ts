@@ -306,6 +306,9 @@ export async function DELETE(request: Request) {
 
       // Delete subsidiary transactions (cascade might not be enough if we need balance revert)
       await tx.subsidiaryTransaction.deleteMany({ where: { journalEntryId: id } });
+      // Explicitly delete lines first: MongoDB does not reliably honor onDelete: Cascade,
+      // leaving orphaned lines that crash journal-line includes (Inconsistent query result).
+      await tx.journalLine.deleteMany({ where: { entryId: id } });
       await tx.journalEntry.delete({ where: { id } });
     });
 

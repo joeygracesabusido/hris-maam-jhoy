@@ -218,8 +218,11 @@ export async function PATCH(request: Request) {
         throw new Error('Total amount does not match sum of items');
       }
 
-      // Delete old journal entry (cascades to lines via onDelete: Cascade)
+      // Delete old journal entry (explicitly delete lines first - MongoDB cascade is unreliable)
       if (existingExpense.journalEntryId) {
+        await tx.journalLine.deleteMany({
+          where: { entryId: existingExpense.journalEntryId },
+        });
         await tx.journalEntry.delete({
           where: { id: existingExpense.journalEntryId },
         });
@@ -328,9 +331,12 @@ export async function DELETE(request: Request) {
         throw new Error('Expense not found');
       }
 
-      // Delete the linked journal entry first (cascades to journal lines via onDelete: Cascade).
+      // Delete the linked journal entry first (explicitly delete lines first - MongoDB cascade is unreliable).
       // ExpenseItem is also deleted automatically via onDelete: Cascade.
       if (expense.journalEntryId) {
+        await tx.journalLine.deleteMany({
+          where: { entryId: expense.journalEntryId },
+        });
         await tx.journalEntry.delete({
           where: { id: expense.journalEntryId },
         });

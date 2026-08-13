@@ -39,15 +39,21 @@ export async function GET(request: Request) {
       type: 'EXPENSE',
     };
 
+    // NOTE: The entry filter MUST contain at least one condition so Prisma performs
+    // an inner join on the relation. An empty `{}` filter returns lines whose linked
+    // JournalEntry has been deleted (orphaned lines) and Prisma then throws
+    // "Inconsistent query result: Field entry is required to return data, got `null`".
+    // Excluding VOID entries also matches the other GAAP reports.
+    const entryFilter: Record<string, unknown> = { status: { not: 'VOID' } };
+    if (branchId) entryFilter.branchId = branchId;
+    if (Object.keys(dateFilter).length > 0) entryFilter.date = dateFilter;
+
     const accounts = await prisma.account.findMany({
       where,
       include: {
         lines: {
           where: {
-            entry: {
-              ...(branchId ? { branchId } : {}),
-              ...(Object.keys(dateFilter).length > 0 ? { date: dateFilter } : {}),
-            },
+            entry: entryFilter,
           },
           include: {
             entry: {

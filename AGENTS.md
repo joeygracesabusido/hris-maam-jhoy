@@ -226,6 +226,53 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### Expenses Report 500 Error Fix — Orphaned Journal Lines (2026-08-13)
+
+**Issue:** `GET /api/accounting/reports/expenses-report` returned `{"error":"Failed to generate expenses report"}` (HTTP 500) on Vercel, while appearing to work locally.
+
+**Root Cause:** The database contained **orphaned `JournalLine` documents** — 2 journal lines (`69ef09cfad68e6164692a3cd`, `69ef09cfad68e6164692a3ce`) whose `entryId` referenced a `JournalEntry` that had been deleted (entry `69ef09cf...a3cc`, from "Bill BILL-2026-9734"). Prisma's `include: { entry: ... }` on these lines returned `null` for the **required** relation and threw:
+
+```
+PrismaClientUnknownRequestError: Inconsistent query result:
+Field entry is required to return data, got `null` instead.
+```
+
+The route's include filter used `where: { entry: {} }` (an **empty relation filter** when no branch/date param was passed). An empty relation filter does NOT inner-join — it does not exclude orphaned lines. The working report routes (trial-balance, income-statement) never hit this because they always filter `entry: { status: { not: 'VOID' } }` (non-empty → excludes orphans).
+
+**Why "works locally, fails on prod":** The page only sends `branchId` when a branch is selected in the BranchSelector. With a branch selected the filter is non-empty (orphans hidden → success); with no `activeBranchId` cookie (fresh session on Vercel) the filter is `entry: {}` → crash. Same code, different cookie state.
+
+**MongoDB quirk discovered:** `onDelete: Cascade` on `JournalLine.entry` does **NOT reliably fire** in Prisma's MongoDB connector. Delete handlers relied on it ("cascade will handle lines") so deleted entries left orphaned lines behind.
+
+**Files Updated:**
+- `app/api/accounting/reports/expenses-report/route.ts` — Always builds a **non-empty** `entry` filter: base `{ status: { not: 'VOID' } }` merged with optional `branchId`/date filters (mirrors trial-balance/income-statement). Excludes orphaned lines AND VOID entries (GAAP-consistent).
+- `app/api/accounting/journal/route.ts` — DELETE handler now runs `tx.journalLine.deleteMany({ where: { entryId } })` before `journalEntry.delete()`.
+- `app/api/accounting/purchases/route.ts` — PATCH handler explicitly deletes lines before deleting the old journal entry.
+- `app/api/accounting/payments/route.ts` — PATCH and DELETE handlers explicitly delete lines before deleting the old journal entry.
+- `app/api/accounting/expenses/route.ts` — PATCH and DELETE handlers explicitly delete lines before deleting the old journal entry.
+
+**Data Fix Applied (live DB):** Deleted the 2 orphaned journal lines. This also fixed the account-transactions view for 5240/2340 and removed phantom amounts from COA balances (calculated by `calculateAccountBalance`, which sums all lines without an entry filter).
+
+**Key Pattern — ALWAYS use a non-empty relation filter for required `include` relations:**
+```typescript
+// ❌ BAD — empty relation filter returns orphaned lines → "Inconsistent query result"
+lines: { where: { entry: {} } }
+
+// ✅ GOOD — non-empty filter inner-joins and excludes orphans/VOID entries
+const entryFilter: Record<string, unknown> = { status: { not: 'VOID' } };
+if (branchId) entryFilter.branchId = branchId;
+lines: { where: { entry: entryFilter } }
+```
+
+**Key Pattern — never rely on MongoDB cascade for deletes:**
+```typescript
+// Always delete children explicitly before deleting the parent (MongoDB does NOT reliably cascade)
+await tx.journalLine.deleteMany({ where: { entryId } });
+await tx.journalEntry.delete({ where: { id } });
+```
+Reference: `app/api/water/bills/[id]/route.ts` already followed this pattern.
+
+---
+
 ### Expenses Report Module (2026-08-13)
 
 **New Feature:** Added Expenses Report module ported from 3drops water refilling station codebase. Provides a detailed breakdown of all general ledger expense accounts, date range filtering, branch filtering, expandable account transaction details, grand totals computation, and Excel export.
