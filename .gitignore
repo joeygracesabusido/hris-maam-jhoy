@@ -2,3 +2,7 @@ node_modules/
 .next/
 tsconfig.tsbuildinfo
 
+# Flutter/Dart build artifacts
+flutter_app/.dart_tool/
+flutter_app/build/
+
