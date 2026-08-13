@@ -118,7 +118,7 @@ export function useUpdateExpense() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: unknown }) =>
-      api.patch(`/api/accounting/expenses/${id}`, data),
+      api.patch('/api/accounting/expenses', { id, ...(data as Record<string, unknown>) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.accounting.expenses.lists() })
     },

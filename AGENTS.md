@@ -226,6 +226,19 @@ REDIS_URL=redis://localhost:6379  # Optional
 
 ## Recent Updates
 
+### Expenses Report Module (2026-08-13)
+
+**New Feature:** Added Expenses Report module ported from 3drops water refilling station codebase. Provides a detailed breakdown of all general ledger expense accounts, date range filtering, branch filtering, expandable account transaction details, grand totals computation, and Excel export.
+
+**Files Created:**
+- `app/api/accounting/reports/expenses-report/route.ts` — API endpoint fetching all `EXPENSE` type accounts with matching journal lines, calculating debit/credit totals and balance per account.
+- `app/(dashboard)/accounting/expenses-report/page.tsx` — Interactive UI page with date range filters, branch selector, collapsible account accordions for detailed journal entry lines, and Excel sheet exporter.
+
+**Files Updated:**
+- `app/(dashboard)/layout.tsx` — Added "Expenses Report" item under Accounting sidebar section (`/accounting/expenses-report`).
+
+---
+
 ### Water Billing Module (2026-07-08)
 
 **New Feature:** Complete water billing module for external tenant management — submeters, tiered rate computation, bill generation, payment collection, and accounting integration.

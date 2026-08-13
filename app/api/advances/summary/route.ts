@@ -38,12 +38,58 @@ export async function GET(request: Request) {
     if (!hasAdminAccess(userRole || '')) {
       // EMPLOYEE role: only their own advances
       targetEmployeeId = (await getEmployeeIdForUser(userEmail, userRole || '')) || null;
-    } else if (!targetEmployeeId) {
-      return NextResponse.json({ error: 'employeeId query parameter is required' }, { status: 400 });
+      if (!targetEmployeeId) {
+        return NextResponse.json({ error: 'Employee not found for user' }, { status: 404 });
+      }
     }
 
-    if (!targetEmployeeId) {
-      return NextResponse.json({ error: 'Employee not found for user' }, { status: 404 });
+    // If targetEmployeeId is 'all' or not provided (for Admin/HR), return all employees' summaries
+    if (!targetEmployeeId || targetEmployeeId === 'all') {
+      const employees = await localPrisma.employee.findMany({
+        select: { id: true, fullName: true, employeeId: true },
+        orderBy: { fullName: 'asc' },
+      });
+
+      const advances = (await localPrisma.advance.findMany({
+        where: { type: 'CASH_ADVANCE' },
+        include: {
+          payments: {
+            where: { payrollId: { not: null } },
+          },
+        },
+      })) as (Awaited<ReturnType<typeof localPrisma.advance.findMany>>[number] & {
+        payments: Array<{
+          id: string;
+          amount: number;
+          paymentDate: Date;
+          payrollId: string | null;
+        }>;
+      })[];
+
+      const summaries = employees
+        .map((emp) => {
+          const empAdvances = advances.filter((a) => a.employeeId === emp.id);
+          let totalDebits = 0;
+          let totalCredits = 0;
+
+          for (const adv of empAdvances) {
+            totalDebits += adv.totalAmount;
+            for (const p of adv.payments) {
+              totalCredits += p.amount;
+            }
+          }
+
+          return {
+            employee: emp,
+            totalDebits,
+            totalCredits,
+            currentBalance: totalDebits - totalCredits,
+            advanceCount: empAdvances.length,
+          };
+        })
+        .filter((s) => s.advanceCount > 0 || s.currentBalance !== 0);
+
+      return NextResponse.json(summaries);
     }
 
     // Fetch employee info

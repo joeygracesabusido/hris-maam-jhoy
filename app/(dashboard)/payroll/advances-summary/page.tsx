@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Search, ArrowLeft, DollarSign } from 'lucide-react'
+import { Search, ArrowLeft, DollarSign, Download, FileSpreadsheet, Loader2 } from 'lucide-react'
 import { format } from 'date-fns/format'
 import Link from 'next/link'
+import * as XLSX from 'xlsx'
 import { useEmployees } from '@/hooks/use-employees'
 import { useAdvanceSummary } from '@/hooks/use-advances'
 
@@ -43,6 +44,7 @@ export default function AdvancesSummaryPage() {
   const summaryData = (summaryQuery.data ?? null) as unknown as SummaryData | null;
   const loading = summaryQuery.isLoading;
   const [error, setError] = useState('')
+  const [exportingAll, setExportingAll] = useState(false)
 
   const [searchText, setSearchText] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
@@ -98,22 +100,254 @@ export default function AdvancesSummaryPage() {
     }).format(amount)
   }
 
+  const handleExportAllExcel = async () => {
+    try {
+      setExportingAll(true)
+      const res = await fetch('/api/advances/summary?employeeId=all')
+      if (!res.ok) throw new Error('Failed to fetch summary data')
+      const data = await res.json()
+
+      const rows: (string | number)[][] = [
+        ['EMPLOYEE CASH ADVANCES SUMMARY REPORT'],
+        [`Generated: ${format(new Date(), 'MMM dd, yyyy HH:mm')}`],
+        [],
+        [
+          'Employee ID',
+          'Employee Name',
+          'Total Cash Advances (Debit)',
+          'Total Deductions (Credit)',
+          'Total Balance',
+        ],
+      ]
+
+      let totalDebitsSum = 0
+      let totalCreditsSum = 0
+      let totalBalanceSum = 0
+
+      data.forEach(
+        (item: {
+          employee: { employeeId: string; fullName: string }
+          totalDebits: number
+          totalCredits: number
+          currentBalance: number
+        }) => {
+          rows.push([
+            item.employee.employeeId || '',
+            item.employee.fullName || '',
+            item.totalDebits,
+            item.totalCredits,
+            item.currentBalance,
+          ])
+          totalDebitsSum += item.totalDebits
+          totalCreditsSum += item.totalCredits
+          totalBalanceSum += item.currentBalance
+        }
+      )
+
+      rows.push([])
+      rows.push([
+        'TOTAL',
+        `${data.length} Employee(s)`,
+        totalDebitsSum,
+        totalCreditsSum,
+        totalBalanceSum,
+      ])
+
+      const worksheet = XLSX.utils.aoa_to_sheet(rows)
+      worksheet['!cols'] = [
+        { wch: 15 },
+        { wch: 32 },
+        { wch: 28 },
+        { wch: 28 },
+        { wch: 20 },
+      ]
+
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'All Balances Summary')
+
+      // If an employee is currently selected, also append their detailed ledger as a second sheet
+      if (summaryData) {
+        const ledgerRows: (string | number)[][] = [
+          [`CASH ADVANCE LEDGER - ${summaryData.employee.fullName.toUpperCase()}`],
+          [
+            `Employee ID: ${summaryData.employee.employeeId}`,
+            `Generated: ${format(new Date(), 'MMM dd, yyyy')}`,
+          ],
+          [
+            `Total Advances: ${formatCurrency(summaryData.summary.totalDebits)}`,
+            `Total Deductions: ${formatCurrency(summaryData.summary.totalCredits)}`,
+            `Current Balance: ${formatCurrency(summaryData.summary.currentBalance)}`,
+          ],
+          [],
+          [
+            'Date',
+            'Description',
+            'Type',
+            'Debit (Advance)',
+            'Credit (Deduction)',
+            'Running Balance',
+          ],
+        ]
+
+        summaryData.entries.forEach((entry) => {
+          ledgerRows.push([
+            format(new Date(entry.date), 'yyyy-MM-dd'),
+            entry.description,
+            entry.type,
+            entry.type === 'DEBIT' ? entry.amount : 0,
+            entry.type === 'CREDIT' ? entry.amount : 0,
+            entry.runningBalance,
+          ])
+        })
+
+        ledgerRows.push([])
+        ledgerRows.push([
+          'TOTAL',
+          '',
+          '',
+          summaryData.summary.totalDebits,
+          summaryData.summary.totalCredits,
+          summaryData.summary.currentBalance,
+        ])
+
+        const ledgerWs = XLSX.utils.aoa_to_sheet(ledgerRows)
+        ledgerWs['!cols'] = [
+          { wch: 14 },
+          { wch: 42 },
+          { wch: 12 },
+          { wch: 22 },
+          { wch: 22 },
+          { wch: 22 },
+        ]
+        const safeName = summaryData.employee.fullName
+          .replace(/[^a-zA-Z0-9]/g, '_')
+          .substring(0, 20)
+        XLSX.utils.book_append_sheet(workbook, ledgerWs, `${safeName} Ledger`)
+      }
+
+      XLSX.writeFile(
+        workbook,
+        `Cash_Advances_Summary_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+      )
+    } catch (err) {
+      console.error('Error exporting excel:', err)
+      alert('Failed to export Excel report.')
+    } finally {
+      setExportingAll(false)
+    }
+  }
+
+  const handleExportSingleExcel = () => {
+    if (!summaryData) return
+    try {
+      const rows: (string | number)[][] = [
+        [`CASH ADVANCE LEDGER - ${summaryData.employee.fullName.toUpperCase()}`],
+        [
+          `Employee ID: ${summaryData.employee.employeeId}`,
+          `Generated: ${format(new Date(), 'MMM dd, yyyy')}`,
+        ],
+        [
+          `Total Advances: ${formatCurrency(summaryData.summary.totalDebits)}`,
+          `Total Deductions: ${formatCurrency(summaryData.summary.totalCredits)}`,
+          `Current Balance: ${formatCurrency(summaryData.summary.currentBalance)}`,
+        ],
+        [],
+        [
+          'Date',
+          'Description',
+          'Type',
+          'Debit (Advance)',
+          'Credit (Deduction)',
+          'Running Balance',
+        ],
+      ]
+
+      summaryData.entries.forEach((entry) => {
+        rows.push([
+          format(new Date(entry.date), 'yyyy-MM-dd'),
+          entry.description,
+          entry.type,
+          entry.type === 'DEBIT' ? entry.amount : 0,
+          entry.type === 'CREDIT' ? entry.amount : 0,
+          entry.runningBalance,
+        ])
+      })
+
+      rows.push([])
+      rows.push([
+        'TOTAL',
+        '',
+        '',
+        summaryData.summary.totalDebits,
+        summaryData.summary.totalCredits,
+        summaryData.summary.currentBalance,
+      ])
+
+      const worksheet = XLSX.utils.aoa_to_sheet(rows)
+      worksheet['!cols'] = [
+        { wch: 14 },
+        { wch: 42 },
+        { wch: 12 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 22 },
+      ]
+
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Ledger')
+      const fileName = `Cash_Advance_Ledger_${summaryData.employee.fullName.replace(/[^a-zA-Z0-9]/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+      XLSX.writeFile(workbook, fileName)
+    } catch (err) {
+      console.error('Error exporting single ledger:', err)
+      alert('Failed to export employee ledger.')
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link
-          href="/payroll"
-          className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Advances Summary
-          </h1>
-          <p className="text-gray-500">
-            View cash advance ledger by employee
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/payroll"
+            className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Advances Summary
+            </h1>
+            <p className="text-gray-500">
+              View cash advance ledger by employee
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleExportAllExcel}
+            disabled={exportingAll}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shadow-sm"
+            title="Export summary report of all employees' total balances to Excel"
+          >
+            {exportingAll ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="w-4 h-4" />
+            )}
+            <span>Export All Balances (Excel)</span>
+          </button>
+
+          {selectedEmployee && summaryData && (
+            <button
+              onClick={handleExportSingleExcel}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+              title="Export detailed ledger of selected employee to Excel"
+            >
+              <Download className="w-4 h-4" />
+              <span>Export Employee Ledger</span>
+            </button>
+          )}
         </div>
       </div>
 

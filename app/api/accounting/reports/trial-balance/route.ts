@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     let entryIds: string[] | undefined;
     if (branchId) {
       const entries = await prisma.journalEntry.findMany({
-        where: { branchId },
+        where: { branchId, status: { not: 'VOID' } },
         select: { id: true },
       });
       entryIds = entries.map(e => e.id);
@@ -24,7 +24,9 @@ export async function GET(request: Request) {
       include: {
         lines: entryIds ? {
           where: { entryId: { in: entryIds } }
-        } : true,
+        } : {
+          where: { entry: { status: { not: 'VOID' } } }
+        },
       },
       orderBy: { code: 'asc' },
     });
