@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer, Package, Database, CheckCircle2, Building, Gauge, Droplets, CreditCard, Building2, Home, AlertTriangle } from 'lucide-react';
+import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer, Package, Database, CheckCircle2, Building, Gauge, Droplets, CreditCard, Building2, Home, AlertTriangle, ClipboardCheck } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -30,6 +30,7 @@ const navItems = [
       { href: '/leaves', label: 'Leaves', icon: CalendarDays },
       { href: '/overtime', label: 'Overtime', icon: Timer },
       { href: '/time-logs', label: 'Time Logs', icon: Clock },
+      { href: '/attendance', label: 'Attendance', icon: ClipboardCheck },
       { href: '/holidays', label: 'Holidays', icon: Calendar, adminOnly: true },
     ],
   },
@@ -197,7 +198,7 @@ export default function DashboardLayout({
             const Icon = item.icon;
 
             if (item.subItems) {
-              const isHrisActive = pathname.startsWith('/users') || pathname.startsWith('/employees') || pathname.startsWith('/schedules') || pathname.startsWith('/leave-credits') || pathname.startsWith('/leaves') || pathname.startsWith('/overtime') || pathname.startsWith('/time-logs') || pathname.startsWith('/holidays');
+              const isHrisActive = pathname.startsWith('/users') || pathname.startsWith('/employees') || pathname.startsWith('/schedules') || pathname.startsWith('/leave-credits') || pathname.startsWith('/leaves') || pathname.startsWith('/overtime') || pathname.startsWith('/time-logs') || pathname.startsWith('/attendance') || pathname.startsWith('/holidays');
               const isPayrollActive = pathname.startsWith('/payroll');
               const isReportsActive = pathname.startsWith('/reports');
               const isAssetInventoryActive = pathname.startsWith('/asset-inventory');
