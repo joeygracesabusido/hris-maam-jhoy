@@ -134,7 +134,7 @@ export default function JournalPage() {
   const entries = entriesQuery.data?.entries ?? [];
   const total = entriesQuery.data?.pagination?.total ?? 0;
   const totalPages = entriesQuery.data?.pagination?.totalPages ?? 1;
-  const accounts: any[] = accountsQuery.data ?? [];
+  const accounts: any[] = [...(accountsQuery.data ?? [])].sort((a, b) => a.name.localeCompare(b.name));
   const subsidiaryLedgers: any[] = subsidiariesQuery.data ?? [];
   const loading = entriesQuery.isPending || accountsQuery.isPending || subsidiariesQuery.isPending;
 

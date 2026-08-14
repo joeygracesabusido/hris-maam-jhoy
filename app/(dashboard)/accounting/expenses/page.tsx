@@ -103,7 +103,9 @@ export default function ExpensesPage() {
   const createExpense = useCreateExpense();
   const updateExpense = useUpdateExpense();
 
-  const accounts = allAccounts.filter((a: Account) => a.type === 'EXPENSE');
+  const accounts = allAccounts
+    .filter((a: Account) => a.type === 'EXPENSE')
+    .sort((a, b) => a.name.localeCompare(b.name));
   const cashAccounts = allAccounts.filter((a: Account) => a.type === 'ASSET' && (a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('bank')));
 
   useEffect(() => {
