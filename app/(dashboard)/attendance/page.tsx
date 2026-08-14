@@ -219,6 +219,16 @@ export default function AttendancePage() {
     return { onTime, late, absent, total: filteredLogs.length };
   }, [filteredLogs]);
 
+  const formatTime = (dateStr: string | null) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    const hours = date.getUTCHours();
+    const minutes = date.getUTCMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  };
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', {
       weekday: 'short',
@@ -350,8 +360,10 @@ export default function AttendancePage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Employee</th>
                   )}
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Schedule</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock In</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clock Out</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hours</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
@@ -385,14 +397,14 @@ export default function AttendancePage() {
                           <span className="text-gray-400 text-xs italic">No Schedule</span>
                         )}
                       </td>
+                      <td className="px-6 py-4 text-sm whitespace-nowrap">{formatTime(log.clockIn)}</td>
+                      <td className="px-6 py-4 text-sm whitespace-nowrap">{formatTime(log.clockOut)}</td>
+                      <td className="px-6 py-4 text-sm">{log.clockIn ? `${log.workHours.toFixed(2)}h` : '-'}</td>
                       <td className="px-6 py-4 text-sm whitespace-nowrap">
                         <Badge variant="outline" className={`${status.color} border flex items-center w-fit`}>
                           {status.icon}
                           {status.label}
                         </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        {log.clockIn ? `${log.workHours.toFixed(2)}h` : '-'}
                       </td>
                     </tr>
                   );
