@@ -17,7 +17,7 @@ export function BranchSelector({ showAllOption = true }: { showAllOption?: boole
   const handleChange = (value: string) => {
     if (value === '__all__') {
       setBranch(null);
-    } else {
+    } else {  
       const branch = safeBranches.find((b) => b.id === value);
       if (branch) setBranch(branch);
     }

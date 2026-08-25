@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useTimeLogs, useOfficeLocations, useClockIn, useClockOut, useEmployeeFaceDescriptor } from '@/hooks/use-time-logs';
+import { useTimeLogs, useOfficeLocations, useClockIn, useClockOut, useEmployeeFaceDescriptor, useTodayTimeLog } from '@/hooks/use-time-logs';
 import { useEmployees, Employee as EmployeeBase } from '@/hooks/use-employees';
 import { queryKeys } from '@/lib/query-keys';
 import { ApiError, api } from '@/lib/api-client';
@@ -76,7 +76,6 @@ export default function TimeLogsPage() {
   const [userRole, setUserRole] = useState('');
   const [storedDescriptor, setStoredDescriptor] = useState<number[] | undefined>(undefined);
   const [employeeId, setEmployeeId] = useState('');
-  const [todayLog, setTodayLog] = useState<TimeLog | null>(null);
   const [clockingIn, setClockingIn] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -116,6 +115,7 @@ export default function TimeLogsPage() {
   const clockInMutation = useClockIn();
   const clockOutMutation = useClockOut();
   const faceDescriptorQuery = useEmployeeFaceDescriptor(employeeId || '');
+  const { data: todayLogData } = useTodayTimeLog(employeeId || null);
 
   useEffect(() => {
     const { loggedIn, role } = getCookies();
@@ -167,15 +167,11 @@ export default function TimeLogsPage() {
     }
   }, [employeesData]);
 
-useEffect(() => {
-    if (timeLogs.length > 0 && employeeId) {
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
-      const todayEntry = timeLogs.find((log: TimeLog) => 
-        log.date.startsWith(today) && log.employeeId === employeeId
-      );
-      setTodayLog(todayEntry || null);
-    }
-  }, [timeLogs, employeeId]);
+  // Derive today's log from the dedicated /api/time-logs/today endpoint
+  // instead of string-comparing dates on the time-logs list. That previous
+  // approach was fragile and could leave `todayLog` stale after a clock-in,
+  // which kept the Clock Out button disabled.
+  const todayLog: TimeLog | null = todayLogData?.todayLog ?? null;
 
   useEffect(() => {
     if (showFaceModal) {

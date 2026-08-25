@@ -32,6 +32,29 @@ export function useTimeLogs(filters?: Record<string, string>) {
   })
 }
 
+/**
+ * Fetch the current employee's time log for today (Manila day).
+ * Used to reliably determine whether Clock In / Clock Out should be enabled,
+ * since deriving "today" from the time-logs list via client-side date string
+ * comparison is fragile (timezone edge cases, stale list during refetch, etc.).
+ */
+export function useTodayTimeLog(employeeId: string | null | undefined) {
+  return useQuery({
+    queryKey: [...queryKeys.timeLogs.all, 'today', employeeId ?? ''] as const,
+    queryFn: ({ signal }) => {
+      const params: Record<string, string> = {}
+      if (employeeId) params.employeeId = employeeId
+      return api.get<{ todayLog: TimeLog | null }>(`/api/time-logs/today`, {
+        params,
+        signal,
+      })
+    },
+    enabled: !!employeeId,
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+  })
+}
+
 export function useOfficeLocations() {
   return useQuery({
     queryKey: queryKeys.officeLocations.list(),
@@ -47,8 +70,23 @@ export function useClockIn() {
   return useMutation({
     mutationFn: (data: { employeeId: string; date: string; clockIn: string; location?: { lat: number; lon: number } }) =>
       api.post<TimeLog>('/api/time-logs', data),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.timeLogs.lists() })
+      queryClient.setQueryData(
+        [...queryKeys.timeLogs.all, 'today', variables.employeeId],
+        {
+          todayLog: {
+            id: `optimistic-${Date.now()}`,
+            employeeId: variables.employeeId,
+            date: variables.date,
+            clockIn: variables.clockIn,
+            clockOut: null,
+            workHours: 0,
+            shift: null,
+            employee: { fullName: '', employeeId: '' },
+          },
+        }
+      )
     },
   })
 }
@@ -58,8 +96,25 @@ export function useClockOut() {
   return useMutation({
     mutationFn: (data: { employeeId: string; date: string; clockOut: string; location?: { lat: number; lon: number } }) =>
       api.post<TimeLog>('/api/time-logs', data),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.timeLogs.lists() })
+      queryClient.setQueryData(
+        [...queryKeys.timeLogs.all, 'today', variables.employeeId],
+        (old: { todayLog: TimeLog | null } | undefined) => ({
+          todayLog: old?.todayLog
+            ? { ...old.todayLog, clockOut: variables.clockOut }
+            : {
+                id: `optimistic-${Date.now()}`,
+                employeeId: variables.employeeId,
+                date: variables.date,
+                clockIn: null,
+                clockOut: variables.clockOut,
+                workHours: 0,
+                shift: null,
+                employee: { fullName: '', employeeId: '' },
+              },
+        })
+      )
     },
   })
 }

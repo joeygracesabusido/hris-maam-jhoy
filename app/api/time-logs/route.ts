@@ -20,8 +20,13 @@ function getManilaNow(): Date {
 }
 
 /**
- * Return the start/end of today's Manila day in UTC terms.
- * Example: Jun 18 in Manila → [Jun 17 16:00 UTC, Jun 18 15:59 UTC]
+ * Return the start/end of today's Manila day as fake-UTC timestamps.
+ * Since dates are stored via getManilaNow() (Date.now() + 8h), the query
+ * range must also use the same fake-UTC space to match correctly.
+ * 
+ * Previously this subtracted MANILA_OFFSET_MS which converted to real-UTC,
+ * causing a mismatch after 4 PM Manila time (the fake-UTC stored timestamps
+ * exceeded the real-UTC range end).
  */
 function getManilaToday(): { start: Date; end: Date } {
   const now = getManilaNow();
@@ -29,24 +34,24 @@ function getManilaToday(): { start: Date; end: Date } {
   const m = now.getUTCMonth();
   const d = now.getUTCDate();
   return {
-    start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - MANILA_OFFSET_MS),
-    end: new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - MANILA_OFFSET_MS),
+    start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0)),
+    end: new Date(Date.UTC(y, m, d, 23, 59, 59, 999)),
   };
 }
 
 /**
- * Convert a UTC-timestamp Date to a Manila-day date range for Prisma queries.
- * Accepts any Date (the stored TimeLog.date) and returns the Manila day range.
+ * Convert a stored fake-UTC Date to a Manila-day date range for Prisma queries.
+ * Uses the same fake-UTC convention as getManilaNow() (no offset subtraction).
  */
 function getManilaDayRange(utcDate: Date): { start: Date; end: Date } {
-  const manilaTime = utcDate.getTime() + MANILA_OFFSET_MS;
-  const manilaDate = new Date(manilaTime);
-  const y = manilaDate.getUTCFullYear();
-  const m = manilaDate.getUTCMonth();
-  const d = manilaDate.getUTCDate();
+  // The stored date already uses fake-UTC (actual UTC + 8h), so getUTCDate()
+  // already gives the Manila day-of-month. No additional offset needed.
+  const y = utcDate.getUTCFullYear();
+  const m = utcDate.getUTCMonth();
+  const d = utcDate.getUTCDate();
   return {
-    start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - MANILA_OFFSET_MS),
-    end: new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - MANILA_OFFSET_MS),
+    start: new Date(Date.UTC(y, m, d, 0, 0, 0, 0)),
+    end: new Date(Date.UTC(y, m, d, 23, 59, 59, 999)),
   };
 }
 
