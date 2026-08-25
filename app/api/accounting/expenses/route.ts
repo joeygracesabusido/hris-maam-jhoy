@@ -286,7 +286,7 @@ export async function PATCH(request: Request) {
           ...(date && { date: new Date(date) }),
           ...(payee && { payee }),
           ...(description !== undefined && { description }),
-          ...(branchId !== undefined && { branchId }),
+          ...(branchId !== undefined && { branchId: branchId || null }),
           totalAmount: finalTotal,
           journalEntryId: journalEntry.id,
           items: {
