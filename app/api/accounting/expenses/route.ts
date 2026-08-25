@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { payee, date, description, items, totalAmount, cashAccountId, isVatInclusive, noInputVat, ewtAccountId, ewtPercentage, netAmount, vatAmount, ewtAmount, branchId } = body;
+    const { payee, date, description, items, totalAmount, cashAccountId, subsidiaryLedgerId, isVatInclusive, noInputVat, ewtAccountId, ewtPercentage, netAmount, vatAmount, ewtAmount, branchId } = body;
 
     if (!payee || !items || items.length === 0 || !cashAccountId) {
       return NextResponse.json({ error: 'Missing required fields: payee, items, or cash account' }, { status: 400 });
@@ -43,7 +43,6 @@ export async function POST(request: Request) {
       // Collect all journal lines upfront
       const journalLinesData = items.map((item: any) => ({
         accountId: item.accountId,
-        subsidiaryLedgerId: item.subsidiaryLedgerId || undefined,
         debit: item.amount,
         credit: 0,
         memo: `Expense ${expenseNumber}: ${item.description}`,
@@ -74,6 +73,7 @@ export async function POST(request: Request) {
 
       journalLinesData.push({
         accountId: cashAccountId,
+        subsidiaryLedgerId: subsidiaryLedgerId || undefined,
         debit: 0,
         credit: finalTotal - computedEwt,
         memo: `Payment for ${expenseNumber}`,
@@ -153,7 +153,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { id, status, payee, date, description, items, totalAmount, cashAccountId, isVatInclusive, noInputVat, ewtAccountId, ewtPercentage, netAmount, vatAmount, ewtAmount, branchId } = body;
+    const { id, status, payee, date, description, items, totalAmount, cashAccountId, subsidiaryLedgerId, isVatInclusive, noInputVat, ewtAccountId, ewtPercentage, netAmount, vatAmount, ewtAmount, branchId } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Expense ID is required' }, { status: 400 });
@@ -232,7 +232,6 @@ export async function PATCH(request: Request) {
       // Collect all journal lines upfront to create in a single nested operation
       const journalLinesData = items.map((item: any) => ({
         accountId: item.accountId,
-        subsidiaryLedgerId: item.subsidiaryLedgerId || undefined,
         debit: item.amount,
         credit: 0,
         memo: `Expense ${existingExpense.expenseNumber}: ${item.description}`,
@@ -263,6 +262,7 @@ export async function PATCH(request: Request) {
 
       journalLinesData.push({
         accountId: cashAccountId,
+        subsidiaryLedgerId: subsidiaryLedgerId || undefined,
         debit: 0,
         credit: finalTotal - computedEwt,
         memo: `Payment for ${existingExpense.expenseNumber}`,

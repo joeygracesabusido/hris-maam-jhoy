@@ -31,7 +31,6 @@ interface ExpenseItem {
   description: string;
   amount: number;
   accountId: string;
-  subsidiaryLedgerId: string;
 }
 
 interface Expense {
@@ -82,12 +81,13 @@ export default function ExpensesPage() {
     date: new Date().toISOString().split('T')[0],
     description: '',
     cashAccountId: '',
+    subsidiaryLedgerId: '',
     isVatInclusive: false,
     noInputVat: false,
     ewtAccountId: '',
     ewtPercentage: '',
     branchId: '',
-      items: [{ description: '', amount: 0, accountId: '', subsidiaryLedgerId: '' }]
+    items: [{ description: '', amount: 0, accountId: '' }]
   });
 
   // Edit Mode State
@@ -139,7 +139,7 @@ export default function ExpensesPage() {
   const addItem = () => {
     setFormData(prev => ({
       ...prev,
-      items: [...prev.items, { description: '', amount: 0, accountId: '', subsidiaryLedgerId: '' }]
+      items: [...prev.items, { description: '', amount: 0, accountId: '' }]
     }));
   };
 
@@ -155,13 +155,6 @@ export default function ExpensesPage() {
     setFormData(prev => {
       const newItems = [...prev.items];
       newItems[index] = { ...newItems[index], [field]: value };
-      // Clear subsidiary if account changed and new account doesn't have subsidiary ledger
-      if (field === 'accountId') {
-        const account = allAccounts.find((a: Account) => a.id === value);
-        if (!account?.hasSubsidiaryLedger) {
-          newItems[index].subsidiaryLedgerId = '';
-        }
-      }
       return { ...prev, items: newItems };
     });
   };
@@ -184,6 +177,7 @@ export default function ExpensesPage() {
     let ewtPercentage = ''
     let isVatInclusive = false
     let noInputVat = true
+    let subsidiaryLedgerId = ''
     const itemSum = expense.items.reduce((s, i) => s + i.amount, 0)
 
     if (expense.journalEntry?.lines) {
@@ -198,10 +192,12 @@ export default function ExpensesPage() {
         ewtPercentage = ewtRate > 0 ? ewtRate.toFixed(2) : ''
       }
 
-      // Find cash account (the largest non-EWT credit line)
+      // Find cash account (the largest non-EWT credit line) and get its subsidiary
       const nonEwtCredit = creditLines.find(l => !l.account?.code?.startsWith('234'))
       if (nonEwtCredit) {
         cashAccountId = nonEwtCredit.accountId
+        // Get subsidiary from the credit line (Payment Account)
+        subsidiaryLedgerId = nonEwtCredit.subsidiaryLedgerId || ''
       }
 
       // Check if Input VAT line exists
@@ -221,23 +217,17 @@ export default function ExpensesPage() {
       date: new Date(expense.date).toISOString().split('T')[0],
       description: expense.description || '',
       cashAccountId,
+      subsidiaryLedgerId,
       isVatInclusive,
       noInputVat,
       ewtAccountId,
       ewtPercentage,
       branchId: expense.branchId || selectedBranch?.id || '',
-      items: expense.items.map(item => {
-        // Find matching journal line to get subsidiaryLedgerId
-        const matchingLine = expense.journalEntry?.lines?.find(
-          (l: any) => l.accountId === item.accountId && Math.abs(l.debit - item.amount) < 0.01
-        );
-        return {
-          description: item.description,
-          amount: item.amount,
-          accountId: item.accountId,
-          subsidiaryLedgerId: matchingLine?.subsidiaryLedgerId || '',
-        };
-      })
+      items: expense.items.map(item => ({
+        description: item.description,
+        amount: item.amount,
+        accountId: item.accountId,
+      }))
     });
     setIsEditDialogOpen(true);
   };
@@ -248,12 +238,13 @@ export default function ExpensesPage() {
       date: new Date().toISOString().split('T')[0],
       description: '',
       cashAccountId: cashAccounts[0]?.id || '',
+      subsidiaryLedgerId: '',
       isVatInclusive: false,
       noInputVat: false,
       ewtAccountId: '',
       ewtPercentage: '',
       branchId: selectedBranch?.id || '',
-    items: [{ description: '', amount: 0, accountId: '', subsidiaryLedgerId: '' }]
+      items: [{ description: '', amount: 0, accountId: '' }]
     });
   }
 
@@ -469,6 +460,32 @@ export default function ExpensesPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="col-span-2 space-y-2">
+                <Label>Subsidiary (Payee/Vendor)</Label>
+                {(() => {
+                  const selectedCashAccount = allAccounts.find((a: Account) => a.id === formData.cashAccountId);
+                  const filteredSubsidiaries = subsidiaryLedgers.filter((sl: any) =>
+                    sl.accountId === formData.cashAccountId || (selectedCashAccount?.subsidiaryType && sl.entityType === selectedCashAccount.subsidiaryType)
+                  );
+                  return filteredSubsidiaries.length > 0 ? (
+                    <Select
+                      value={formData.subsidiaryLedgerId}
+                      onValueChange={val => setFormData({...formData, subsidiaryLedgerId: val})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Subsidiary..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredSubsidiaries.map((sl: any) => (
+                          <SelectItem key={sl.id} value={sl.id}>{sl.entityCode} - {sl.entityName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="text-sm text-muted-foreground px-3 py-2 border rounded-md italic">No subsidiaries available for this account</div>
+                  );
+                })()}
+              </div>
               <div className="space-y-2">
                 <Label>Input VAT Account</Label>
                 <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -540,18 +557,12 @@ export default function ExpensesPage() {
                     <TableRow>
                       <TableHead>Description</TableHead>
                       <TableHead className="w-64">Category (COA)</TableHead>
-                      <TableHead className="w-64">Subsidiary</TableHead>
                       <TableHead className="w-32 text-right">Amount</TableHead>
                       <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {formData.items.map((item, index) => {
-                      const selectedAccount = allAccounts.find((a: Account) => a.id === item.accountId);
-                      const filteredSubsidiaries = subsidiaryLedgers.filter((sl: any) =>
-                        sl.accountId === item.accountId || (selectedAccount?.subsidiaryType && sl.entityType === selectedAccount.subsidiaryType)
-                      );
-
                       return (
                       <TableRow key={index}>
                         <TableCell>
@@ -575,25 +586,6 @@ export default function ExpensesPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                        </TableCell>
-                        <TableCell>
-                          {selectedAccount?.hasSubsidiaryLedger ? (
-                            <Select
-                              value={item.subsidiaryLedgerId}
-                              onValueChange={val => updateItem(index, 'subsidiaryLedgerId', val)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Subsidiary..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {filteredSubsidiaries.map((sl: any) => (
-                                  <SelectItem key={sl.id} value={sl.id}>{sl.entityCode} - {sl.entityName}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <div className="text-sm text-muted-foreground px-2 italic">Not required</div>
-                          )}
                         </TableCell>
                         <TableCell>
                           <Input
@@ -700,6 +692,32 @@ export default function ExpensesPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="col-span-2 space-y-2">
+                <Label>Subsidiary (Payee/Vendor)</Label>
+                {(() => {
+                  const selectedCashAccount = allAccounts.find((a: Account) => a.id === formData.cashAccountId);
+                  const filteredSubsidiaries = subsidiaryLedgers.filter((sl: any) =>
+                    sl.accountId === formData.cashAccountId || (selectedCashAccount?.subsidiaryType && sl.entityType === selectedCashAccount.subsidiaryType)
+                  );
+                  return filteredSubsidiaries.length > 0 ? (
+                    <Select
+                      value={formData.subsidiaryLedgerId}
+                      onValueChange={val => setFormData({...formData, subsidiaryLedgerId: val})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Subsidiary..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredSubsidiaries.map((sl: any) => (
+                          <SelectItem key={sl.id} value={sl.id}>{sl.entityCode} - {sl.entityName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="text-sm text-muted-foreground px-3 py-2 border rounded-md italic">No subsidiaries available for this account</div>
+                  );
+                })()}
+              </div>
               <div className="space-y-2">
                 <Label>Input VAT Account</Label>
                 <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -771,18 +789,12 @@ export default function ExpensesPage() {
                     <TableRow>
                       <TableHead>Description</TableHead>
                       <TableHead className="w-64">Category (COA)</TableHead>
-                      <TableHead className="w-64">Subsidiary</TableHead>
                       <TableHead className="w-32 text-right">Amount</TableHead>
                       <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {formData.items.map((item, index) => {
-                      const selectedAccount = allAccounts.find((a: Account) => a.id === item.accountId);
-                      const filteredSubsidiaries = subsidiaryLedgers.filter((sl: any) =>
-                        sl.accountId === item.accountId || (selectedAccount?.subsidiaryType && sl.entityType === selectedAccount.subsidiaryType)
-                      );
-
                       return (
                       <TableRow key={index}>
                         <TableCell>
@@ -806,25 +818,6 @@ export default function ExpensesPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                        </TableCell>
-                        <TableCell>
-                          {selectedAccount?.hasSubsidiaryLedger ? (
-                            <Select
-                              value={item.subsidiaryLedgerId}
-                              onValueChange={val => updateItem(index, 'subsidiaryLedgerId', val)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Subsidiary..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {filteredSubsidiaries.map((sl: any) => (
-                                  <SelectItem key={sl.id} value={sl.id}>{sl.entityCode} - {sl.entityName}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <div className="text-sm text-muted-foreground px-2 italic">Not required</div>
-                          )}
                         </TableCell>
                         <TableCell>
                           <Input
