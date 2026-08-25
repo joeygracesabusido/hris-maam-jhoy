@@ -117,7 +117,12 @@ export default function ExpensesPage() {
   const accounts = allAccounts
     .filter((a: Account) => a.type === 'EXPENSE' || a.code === '2100' || a.code === '1200')
     .sort((a, b) => a.name.localeCompare(b.name));
-  const cashAccounts = allAccounts.filter((a: Account) => a.type === 'ASSET' && (a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('bank')));
+  const cashAccounts = allAccounts
+    .filter((a: Account) =>
+      (a.type === 'ASSET' && (a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('bank'))) ||
+      (a.type === 'LIABILITY' && a.code.startsWith('21'))
+    )
+    .sort((a, b) => a.code.localeCompare(b.code));
 
   useEffect(() => {
     if (cashAccounts.length > 0 && !formData.cashAccountId) {
@@ -455,7 +460,7 @@ export default function ExpensesPage() {
                   onValueChange={val => setFormData({...formData, cashAccountId: val})}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select Cash/Bank account" />
+                    <SelectValue placeholder="Select Cash/Bank or Accounts Payable account" />
                   </SelectTrigger>
                   <SelectContent>
                     {cashAccounts.map(acc => (
@@ -686,7 +691,7 @@ export default function ExpensesPage() {
                   onValueChange={val => setFormData({...formData, cashAccountId: val})}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select Cash/Bank account" />
+                    <SelectValue placeholder="Select Cash/Bank or Accounts Payable account" />
                   </SelectTrigger>
                   <SelectContent>
                     {cashAccounts.map(acc => (
