@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Plus, Search, Filter, Trash2, Save, Edit, XCircle,
   Calendar as CalendarIcon,
@@ -30,6 +31,7 @@ interface ExpenseItem {
   description: string;
   amount: number;
   accountId: string;
+  subsidiaryLedgerId: string;
 }
 
 interface Expense {
@@ -51,6 +53,7 @@ interface Expense {
       debit: number;
       credit: number;
       memo?: string;
+      subsidiaryLedgerId?: string;
       account?: { id: string; code: string; name: string };
     }>;
   };
@@ -84,7 +87,7 @@ export default function ExpensesPage() {
     ewtAccountId: '',
     ewtPercentage: '',
     branchId: '',
-    items: [{ description: '', amount: 0, accountId: '' }]
+      items: [{ description: '', amount: 0, accountId: '', subsidiaryLedgerId: '' }]
   });
 
   // Edit Mode State
@@ -100,11 +103,19 @@ export default function ExpensesPage() {
   const { data: allAccounts = [] } = useAccounts();
   const { data: _vendors } = useVendors();
   const vendors = (_vendors as { id: string; entityName: string }[]) || [];
+  const { data: subsidiaryLedgers = [] } = useQuery<any[]>({
+    queryKey: ['subsidiary-ledgers', selectedBranch?.id],
+    queryFn: async ({ signal }) => {
+      const params: Record<string, string> = {};
+      if (selectedBranch) params.branchId = selectedBranch.id;
+      return api.get<any[]>('/api/accounting/subsidiary-ledgers', { params, signal });
+    },
+  });
   const createExpense = useCreateExpense();
   const updateExpense = useUpdateExpense();
 
   const accounts = allAccounts
-    .filter((a: Account) => a.type === 'EXPENSE')
+    .filter((a: Account) => a.type === 'EXPENSE' || a.code === '2100' || a.code === '1200')
     .sort((a, b) => a.name.localeCompare(b.name));
   const cashAccounts = allAccounts.filter((a: Account) => a.type === 'ASSET' && (a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('bank')));
 
@@ -123,7 +134,7 @@ export default function ExpensesPage() {
   const addItem = () => {
     setFormData(prev => ({
       ...prev,
-      items: [...prev.items, { description: '', amount: 0, accountId: '' }]
+      items: [...prev.items, { description: '', amount: 0, accountId: '', subsidiaryLedgerId: '' }]
     }));
   };
 
@@ -139,6 +150,13 @@ export default function ExpensesPage() {
     setFormData(prev => {
       const newItems = [...prev.items];
       newItems[index] = { ...newItems[index], [field]: value };
+      // Clear subsidiary if account changed and new account doesn't have subsidiary ledger
+      if (field === 'accountId') {
+        const account = allAccounts.find((a: Account) => a.id === value);
+        if (!account?.hasSubsidiaryLedger) {
+          newItems[index].subsidiaryLedgerId = '';
+        }
+      }
       return { ...prev, items: newItems };
     });
   };
@@ -203,11 +221,18 @@ export default function ExpensesPage() {
       ewtAccountId,
       ewtPercentage,
       branchId: expense.branchId || selectedBranch?.id || '',
-      items: expense.items.map(item => ({
-        description: item.description,
-        amount: item.amount,
-        accountId: item.accountId
-      }))
+      items: expense.items.map(item => {
+        // Find matching journal line to get subsidiaryLedgerId
+        const matchingLine = expense.journalEntry?.lines?.find(
+          (l: any) => l.accountId === item.accountId && Math.abs(l.debit - item.amount) < 0.01
+        );
+        return {
+          description: item.description,
+          amount: item.amount,
+          accountId: item.accountId,
+          subsidiaryLedgerId: matchingLine?.subsidiaryLedgerId || '',
+        };
+      })
     });
     setIsEditDialogOpen(true);
   };
@@ -223,7 +248,7 @@ export default function ExpensesPage() {
       ewtAccountId: '',
       ewtPercentage: '',
       branchId: selectedBranch?.id || '',
-      items: [{ description: '', amount: 0, accountId: '' }]
+    items: [{ description: '', amount: 0, accountId: '', subsidiaryLedgerId: '' }]
     });
   }
 
@@ -510,12 +535,19 @@ export default function ExpensesPage() {
                     <TableRow>
                       <TableHead>Description</TableHead>
                       <TableHead className="w-64">Category (COA)</TableHead>
+                      <TableHead className="w-64">Subsidiary</TableHead>
                       <TableHead className="w-32 text-right">Amount</TableHead>
                       <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {formData.items.map((item, index) => (
+                    {formData.items.map((item, index) => {
+                      const selectedAccount = allAccounts.find((a: Account) => a.id === item.accountId);
+                      const filteredSubsidiaries = subsidiaryLedgers.filter((sl: any) =>
+                        sl.accountId === item.accountId || (selectedAccount?.subsidiaryType && sl.entityType === selectedAccount.subsidiaryType)
+                      );
+
+                      return (
                       <TableRow key={index}>
                         <TableCell>
                           <Input
@@ -540,6 +572,25 @@ export default function ExpensesPage() {
                           </Select>
                         </TableCell>
                         <TableCell>
+                          {selectedAccount?.hasSubsidiaryLedger ? (
+                            <Select
+                              value={item.subsidiaryLedgerId}
+                              onValueChange={val => updateItem(index, 'subsidiaryLedgerId', val)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Subsidiary..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {filteredSubsidiaries.map((sl: any) => (
+                                  <SelectItem key={sl.id} value={sl.id}>{sl.entityCode} - {sl.entityName}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="text-sm text-muted-foreground px-2 italic">Not required</div>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           <Input
                             type="number"
                             className="text-right"
@@ -558,7 +609,8 @@ export default function ExpensesPage() {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -714,12 +766,19 @@ export default function ExpensesPage() {
                     <TableRow>
                       <TableHead>Description</TableHead>
                       <TableHead className="w-64">Category (COA)</TableHead>
+                      <TableHead className="w-64">Subsidiary</TableHead>
                       <TableHead className="w-32 text-right">Amount</TableHead>
                       <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {formData.items.map((item, index) => (
+                    {formData.items.map((item, index) => {
+                      const selectedAccount = allAccounts.find((a: Account) => a.id === item.accountId);
+                      const filteredSubsidiaries = subsidiaryLedgers.filter((sl: any) =>
+                        sl.accountId === item.accountId || (selectedAccount?.subsidiaryType && sl.entityType === selectedAccount.subsidiaryType)
+                      );
+
+                      return (
                       <TableRow key={index}>
                         <TableCell>
                           <Input
@@ -744,6 +803,25 @@ export default function ExpensesPage() {
                           </Select>
                         </TableCell>
                         <TableCell>
+                          {selectedAccount?.hasSubsidiaryLedger ? (
+                            <Select
+                              value={item.subsidiaryLedgerId}
+                              onValueChange={val => updateItem(index, 'subsidiaryLedgerId', val)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Subsidiary..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {filteredSubsidiaries.map((sl: any) => (
+                                  <SelectItem key={sl.id} value={sl.id}>{sl.entityCode} - {sl.entityName}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="text-sm text-muted-foreground px-2 italic">Not required</div>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           <Input
                             type="number"
                             className="text-right"
@@ -762,7 +840,8 @@ export default function ExpensesPage() {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

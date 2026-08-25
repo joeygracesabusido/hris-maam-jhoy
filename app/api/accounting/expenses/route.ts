@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       // Collect all journal lines upfront
       const journalLinesData = items.map((item: any) => ({
         accountId: item.accountId,
+        subsidiaryLedgerId: item.subsidiaryLedgerId || undefined,
         debit: item.amount,
         credit: 0,
         memo: `Expense ${expenseNumber}: ${item.description}`,
@@ -134,7 +135,7 @@ export async function GET(request: Request) {
         journalEntry: {
           include: {
             lines: {
-              include: { account: true },
+              include: { account: true, subsidiaryLedger: true },
               orderBy: { createdAt: 'asc' },
             },
           },
@@ -231,6 +232,7 @@ export async function PATCH(request: Request) {
       // Collect all journal lines upfront to create in a single nested operation
       const journalLinesData = items.map((item: any) => ({
         accountId: item.accountId,
+        subsidiaryLedgerId: item.subsidiaryLedgerId || undefined,
         debit: item.amount,
         credit: 0,
         memo: `Expense ${existingExpense.expenseNumber}: ${item.description}`,
