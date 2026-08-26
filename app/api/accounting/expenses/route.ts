@@ -96,6 +96,32 @@ export async function POST(request: Request) {
         data: { journalEntryId: journalEntry.id }
       });
 
+      // Create SubsidiaryTransaction if vendor/subsidiary is linked (mirrors purchases pattern)
+      if (subsidiaryLedgerId) {
+        const ledger = await tx.subsidiaryLedger.findUnique({ where: { id: subsidiaryLedgerId } });
+        if (ledger) {
+          await tx.subsidiaryTransaction.create({
+            data: {
+              ledgerId: subsidiaryLedgerId,
+              date: new Date(date),
+              referenceNo: expenseNumber,
+              description: `Expense ${expenseNumber} - ${payee}`,
+              debit: 0,
+              credit: finalTotal - computedEwt,
+              journalEntryId: journalEntry.id,
+            },
+          });
+          // Recalculate vendor totals
+          const ledgerTxs = await tx.subsidiaryTransaction.findMany({ where: { ledgerId: subsidiaryLedgerId } });
+          const debitTotal = ledgerTxs.reduce((sum: number, t: any) => sum + t.debit, 0);
+          const creditTotal = ledgerTxs.reduce((sum: number, t: any) => sum + t.credit, 0);
+          await tx.subsidiaryLedger.update({
+            where: { id: subsidiaryLedgerId },
+            data: { debitTotal, creditTotal, balance: debitTotal - creditTotal },
+          });
+        }
+      }
+
       return { expense, journalEntry };
     });
 
@@ -219,8 +245,23 @@ export async function PATCH(request: Request) {
         throw new Error('Total amount does not match sum of items');
       }
 
-      // Delete old journal entry (explicitly delete lines first - MongoDB cascade is unreliable)
+      // Find old subsidiary ledger ID before deleting (for recalculation)
+      let oldSubsidiaryLedgerId: string | null = null;
       if (existingExpense.journalEntryId) {
+        const oldApLine = await tx.journalLine.findFirst({
+          where: { entryId: existingExpense.journalEntryId, subsidiaryLedgerId: { not: null } },
+          select: { subsidiaryLedgerId: true },
+        });
+        oldSubsidiaryLedgerId = oldApLine?.subsidiaryLedgerId || null;
+
+        // Delete old subsidiary transactions
+        if (oldSubsidiaryLedgerId) {
+          await tx.subsidiaryTransaction.deleteMany({
+            where: { journalEntryId: existingExpense.journalEntryId },
+          });
+        }
+
+        // Delete old journal entry (explicitly delete lines first - MongoDB cascade is unreliable)
         await tx.journalLine.deleteMany({
           where: { entryId: existingExpense.journalEntryId },
         });
@@ -281,6 +322,43 @@ export async function PATCH(request: Request) {
         },
       });
 
+      // Create SubsidiaryTransaction if vendor/subsidiary is linked (mirrors purchases pattern)
+      if (subsidiaryLedgerId) {
+        const ledger = await tx.subsidiaryLedger.findUnique({ where: { id: subsidiaryLedgerId } });
+        if (ledger) {
+          await tx.subsidiaryTransaction.create({
+            data: {
+              ledgerId: subsidiaryLedgerId,
+              date: new Date(date || existingExpense.date),
+              referenceNo: existingExpense.expenseNumber,
+              description: `Expense ${existingExpense.expenseNumber} - ${payee || existingExpense.payee}`,
+              debit: 0,
+              credit: finalTotal - computedEwt,
+              journalEntryId: journalEntry.id,
+            },
+          });
+          // Recalculate new vendor totals
+          const ledgerTxs = await tx.subsidiaryTransaction.findMany({ where: { ledgerId: subsidiaryLedgerId } });
+          const debitTotal = ledgerTxs.reduce((sum: number, t: any) => sum + t.debit, 0);
+          const creditTotal = ledgerTxs.reduce((sum: number, t: any) => sum + t.credit, 0);
+          await tx.subsidiaryLedger.update({
+            where: { id: subsidiaryLedgerId },
+            data: { debitTotal, creditTotal, balance: debitTotal - creditTotal },
+          });
+        }
+      }
+
+      // Recalculate old vendor balance if vendor changed
+      if (oldSubsidiaryLedgerId && oldSubsidiaryLedgerId !== subsidiaryLedgerId) {
+        const oldLedgerTxs = await tx.subsidiaryTransaction.findMany({ where: { ledgerId: oldSubsidiaryLedgerId } });
+        const debitTotal = oldLedgerTxs.reduce((sum: number, t: any) => sum + t.debit, 0);
+        const creditTotal = oldLedgerTxs.reduce((sum: number, t: any) => sum + t.credit, 0);
+        await tx.subsidiaryLedger.update({
+          where: { id: oldSubsidiaryLedgerId },
+          data: { debitTotal, creditTotal, balance: debitTotal - creditTotal },
+        });
+      }
+
       // Update expense with journal entry link and items in one query
       const updatedExpense = await tx.expense.update({
         where: { id },
@@ -336,12 +414,37 @@ export async function DELETE(request: Request) {
       // Delete the linked journal entry first (explicitly delete lines first - MongoDB cascade is unreliable).
       // ExpenseItem is also deleted automatically via onDelete: Cascade.
       if (expense.journalEntryId) {
+        // Find subsidiary ledger before deleting transactions (for recalculation)
+        const apLine = await tx.journalLine.findFirst({
+          where: { entryId: expense.journalEntryId, subsidiaryLedgerId: { not: null } },
+          select: { subsidiaryLedgerId: true },
+        });
+        const linkedLedgerId = apLine?.subsidiaryLedgerId || null;
+
+        // Delete subsidiary transactions
+        if (linkedLedgerId) {
+          await tx.subsidiaryTransaction.deleteMany({
+            where: { journalEntryId: expense.journalEntryId },
+          });
+        }
+
         await tx.journalLine.deleteMany({
           where: { entryId: expense.journalEntryId },
         });
         await tx.journalEntry.delete({
           where: { id: expense.journalEntryId },
         });
+
+        // Recalculate vendor balance after deletion
+        if (linkedLedgerId) {
+          const ledgerTxs = await tx.subsidiaryTransaction.findMany({ where: { ledgerId: linkedLedgerId } });
+          const debitTotal = ledgerTxs.reduce((sum: number, t: any) => sum + t.debit, 0);
+          const creditTotal = ledgerTxs.reduce((sum: number, t: any) => sum + t.credit, 0);
+          await tx.subsidiaryLedger.update({
+            where: { id: linkedLedgerId },
+            data: { debitTotal, creditTotal, balance: debitTotal - creditTotal },
+          });
+        }
       }
 
       // Delete the expense (cascades to ExpenseItem)
