@@ -1043,18 +1043,16 @@ export default function ExpensesPage() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>Close</Button>
-            {selectedExpense?.status === 'PENDING' && (
-              <Button
-                variant="destructive"
-                className="gap-2"
-                onClick={() => {
-                  handleDelete(selectedExpense.id, selectedExpense.expenseNumber);
-                  setIsDetailsOpen(false);
-                }}
-              >
-                <Trash2 className="w-4 h-4" /> Delete Expense
-              </Button>
-            )}
+            <Button
+              variant="destructive"
+              className="gap-2"
+              onClick={() => {
+                handleDelete(selectedExpense.id, selectedExpense.expenseNumber);
+                setIsDetailsOpen(false);
+              }}
+            >
+              <Trash2 className="w-4 h-4" /> Delete Expense
+            </Button>
             {selectedExpense?.status === 'PENDING' && (
               <Button onClick={() => {
                 handleStatusChange(selectedExpense.id, 'APPROVED');
