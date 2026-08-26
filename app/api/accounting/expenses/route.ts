@@ -97,12 +97,52 @@ export async function POST(request: Request) {
       });
 
       // Create SubsidiaryTransaction if vendor/subsidiary is linked (mirrors purchases pattern)
-      if (subsidiaryLedgerId) {
-        const ledger = await tx.subsidiaryLedger.findUnique({ where: { id: subsidiaryLedgerId } });
+      // If AP account selected but no subsidiary picked, auto-create vendor from payee name
+      let resolvedSubsidiaryLedgerId = subsidiaryLedgerId || undefined;
+      if (!resolvedSubsidiaryLedgerId && payee) {
+        const selectedAccount = await tx.account.findUnique({ where: { id: cashAccountId } });
+        const isAPAccount = selectedAccount?.type === 'LIABILITY' && selectedAccount?.code.startsWith('21');
+        if (isAPAccount) {
+          // Find or auto-create vendor
+          let vendor = await tx.subsidiaryLedger.findFirst({
+            where: { entityType: 'SUPPLIER', entityName: payee, accountId: cashAccountId },
+          });
+          if (!vendor) {
+            // Auto-generate vendor code
+            const existingVendors = await tx.subsidiaryLedger.findMany({
+              where: { entityType: 'SUPPLIER', entityCode: { startsWith: 'SUP-' } },
+              select: { entityCode: true },
+              orderBy: { entityCode: 'desc' },
+            });
+            let maxNum = 0;
+            for (const v of existingVendors) {
+              const match = v.entityCode?.match(/^SUP-(\d+)$/);
+              if (match) {
+                const num = parseInt(match[1], 10);
+                if (num > maxNum) maxNum = num;
+              }
+            }
+            vendor = await tx.subsidiaryLedger.create({
+              data: {
+                accountId: cashAccountId,
+                entityCode: `SUP-${String(maxNum + 1).padStart(4, '0')}`,
+                entityName: payee,
+                entityType: 'SUPPLIER',
+                description: `Auto-created from Expense ${expenseNumber}`,
+                branchId: branchId || undefined,
+              },
+            });
+          }
+          resolvedSubsidiaryLedgerId = vendor.id;
+        }
+      }
+
+      if (resolvedSubsidiaryLedgerId) {
+        const ledger = await tx.subsidiaryLedger.findUnique({ where: { id: resolvedSubsidiaryLedgerId } });
         if (ledger) {
           await tx.subsidiaryTransaction.create({
             data: {
-              ledgerId: subsidiaryLedgerId,
+              ledgerId: resolvedSubsidiaryLedgerId,
               date: new Date(date),
               referenceNo: expenseNumber,
               description: `Expense ${expenseNumber} - ${payee}`,
@@ -112,11 +152,11 @@ export async function POST(request: Request) {
             },
           });
           // Recalculate vendor totals
-          const ledgerTxs = await tx.subsidiaryTransaction.findMany({ where: { ledgerId: subsidiaryLedgerId } });
+          const ledgerTxs = await tx.subsidiaryTransaction.findMany({ where: { ledgerId: resolvedSubsidiaryLedgerId } });
           const debitTotal = ledgerTxs.reduce((sum: number, t: any) => sum + t.debit, 0);
           const creditTotal = ledgerTxs.reduce((sum: number, t: any) => sum + t.credit, 0);
           await tx.subsidiaryLedger.update({
-            where: { id: subsidiaryLedgerId },
+            where: { id: resolvedSubsidiaryLedgerId },
             data: { debitTotal, creditTotal, balance: debitTotal - creditTotal },
           });
         }
@@ -323,33 +363,72 @@ export async function PATCH(request: Request) {
       });
 
       // Create SubsidiaryTransaction if vendor/subsidiary is linked (mirrors purchases pattern)
-      if (subsidiaryLedgerId) {
-        const ledger = await tx.subsidiaryLedger.findUnique({ where: { id: subsidiaryLedgerId } });
+      // If AP account selected but no subsidiary picked, auto-create vendor from payee name
+      const payeeName = payee || existingExpense.payee;
+      let resolvedSubsidiaryLedgerId = subsidiaryLedgerId || undefined;
+      if (!resolvedSubsidiaryLedgerId && payeeName) {
+        const selectedAccount = await tx.account.findUnique({ where: { id: cashAccountId } });
+        const isAPAccount = selectedAccount?.type === 'LIABILITY' && selectedAccount?.code.startsWith('21');
+        if (isAPAccount) {
+          let vendor = await tx.subsidiaryLedger.findFirst({
+            where: { entityType: 'SUPPLIER', entityName: payeeName, accountId: cashAccountId },
+          });
+          if (!vendor) {
+            const existingVendors = await tx.subsidiaryLedger.findMany({
+              where: { entityType: 'SUPPLIER', entityCode: { startsWith: 'SUP-' } },
+              select: { entityCode: true },
+              orderBy: { entityCode: 'desc' },
+            });
+            let maxNum = 0;
+            for (const v of existingVendors) {
+              const match = v.entityCode?.match(/^SUP-(\d+)$/);
+              if (match) {
+                const num = parseInt(match[1], 10);
+                if (num > maxNum) maxNum = num;
+              }
+            }
+            vendor = await tx.subsidiaryLedger.create({
+              data: {
+                accountId: cashAccountId,
+                entityCode: `SUP-${String(maxNum + 1).padStart(4, '0')}`,
+                entityName: payeeName,
+                entityType: 'SUPPLIER',
+                description: `Auto-created from Expense ${existingExpense.expenseNumber}`,
+                branchId: branchId || undefined,
+              },
+            });
+          }
+          resolvedSubsidiaryLedgerId = vendor.id;
+        }
+      }
+
+      if (resolvedSubsidiaryLedgerId) {
+        const ledger = await tx.subsidiaryLedger.findUnique({ where: { id: resolvedSubsidiaryLedgerId } });
         if (ledger) {
           await tx.subsidiaryTransaction.create({
             data: {
-              ledgerId: subsidiaryLedgerId,
+              ledgerId: resolvedSubsidiaryLedgerId,
               date: new Date(date || existingExpense.date),
               referenceNo: existingExpense.expenseNumber,
-              description: `Expense ${existingExpense.expenseNumber} - ${payee || existingExpense.payee}`,
+              description: `Expense ${existingExpense.expenseNumber} - ${payeeName}`,
               debit: 0,
               credit: finalTotal - computedEwt,
               journalEntryId: journalEntry.id,
             },
           });
           // Recalculate new vendor totals
-          const ledgerTxs = await tx.subsidiaryTransaction.findMany({ where: { ledgerId: subsidiaryLedgerId } });
+          const ledgerTxs = await tx.subsidiaryTransaction.findMany({ where: { ledgerId: resolvedSubsidiaryLedgerId } });
           const debitTotal = ledgerTxs.reduce((sum: number, t: any) => sum + t.debit, 0);
           const creditTotal = ledgerTxs.reduce((sum: number, t: any) => sum + t.credit, 0);
           await tx.subsidiaryLedger.update({
-            where: { id: subsidiaryLedgerId },
+            where: { id: resolvedSubsidiaryLedgerId },
             data: { debitTotal, creditTotal, balance: debitTotal - creditTotal },
           });
         }
       }
 
       // Recalculate old vendor balance if vendor changed
-      if (oldSubsidiaryLedgerId && oldSubsidiaryLedgerId !== subsidiaryLedgerId) {
+      if (oldSubsidiaryLedgerId && oldSubsidiaryLedgerId !== resolvedSubsidiaryLedgerId) {
         const oldLedgerTxs = await tx.subsidiaryTransaction.findMany({ where: { ledgerId: oldSubsidiaryLedgerId } });
         const debitTotal = oldLedgerTxs.reduce((sum: number, t: any) => sum + t.debit, 0);
         const creditTotal = oldLedgerTxs.reduce((sum: number, t: any) => sum + t.credit, 0);
