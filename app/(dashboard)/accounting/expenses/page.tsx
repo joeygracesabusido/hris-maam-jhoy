@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Search, Filter, Trash2, Save, Edit, XCircle,
   Calendar as CalendarIcon,
@@ -66,6 +66,7 @@ interface Account {
 }
 
 export default function ExpensesPage() {
+  const queryClient = useQueryClient();
   const { selectedBranch, branches } = useBranch();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -346,6 +347,8 @@ export default function ExpensesPage() {
     try {
       await api.delete(`/api/accounting/expenses?id=${id}`);
       toast.success(`Expense ${expenseNumber} deleted successfully`);
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['accounting'] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'An error occurred while deleting the expense');
     }
@@ -1047,8 +1050,10 @@ export default function ExpensesPage() {
               variant="destructive"
               className="gap-2"
               onClick={() => {
-                handleDelete(selectedExpense.id, selectedExpense.expenseNumber);
-                setIsDetailsOpen(false);
+                if (selectedExpense) {
+                  handleDelete(selectedExpense.id, selectedExpense.expenseNumber);
+                  setIsDetailsOpen(false);
+                }
               }}
             >
               <Trash2 className="w-4 h-4" /> Delete Expense
