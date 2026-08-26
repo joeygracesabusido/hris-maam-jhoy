@@ -82,7 +82,7 @@ export async function POST(request: Request) {
       const journalEntry = await tx.journalEntry.create({
         data: {
           date: new Date(date),
-          description: `Expense ${expenseNumber} - ${payee}`,
+          description: `Expense ${expenseNumber} - ${payee}${description ? ` - ${description}` : ''}`,
           reference: expenseNumber,
           branchId: branchId || undefined,
           lines: {
@@ -353,7 +353,7 @@ export async function PATCH(request: Request) {
       const journalEntry = await tx.journalEntry.create({
         data: {
           date: new Date(date || existingExpense.date),
-          description: `Expense ${existingExpense.expenseNumber} - ${payee || existingExpense.payee}`,
+          description: `Expense ${existingExpense.expenseNumber} - ${payee || existingExpense.payee}${description ? ` - ${description}` : existingExpense.description ? ` - ${existingExpense.description}` : ''}`,
           reference: existingExpense.expenseNumber,
           branchId: branchId || undefined,
           lines: {
