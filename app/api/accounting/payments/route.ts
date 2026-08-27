@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { retryableTransaction } from '@/lib/prisma-transaction';
 
 export async function POST(request: Request) {
   try {
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
     const newAmountPaid = bill.amountPaid + amount;
     const newStatus = newAmountPaid >= bill.totalAmount - 0.01 ? 'PAID' : 'PARTIALLY_PAID';
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       // 1. Create the payment record
       const payment = await tx.payment.create({
         data: {
@@ -206,7 +207,7 @@ export async function PATCH(request: Request) {
     const newAmountPaid = existingPayment.bill.amountPaid - oldAmount + amount;
     const newStatus = newAmountPaid >= existingPayment.bill.totalAmount - 0.01 ? 'PAID' : newAmountPaid > 0 ? 'PARTIALLY_PAID' : 'UNPAID';
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       // 1. Delete old subsidiary transaction
       await tx.subsidiaryTransaction.deleteMany({
         where: { journalEntryId: existingPayment.journalEntryId || undefined },
@@ -367,7 +368,7 @@ export async function DELETE(request: Request) {
     const newAmountPaid = existingPayment.bill.amountPaid - oldAmount;
     const newStatus = newAmountPaid >= existingPayment.bill.totalAmount - 0.01 ? 'PAID' : newAmountPaid > 0 ? 'PARTIALLY_PAID' : 'UNPAID';
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       // 1. Delete old subsidiary transaction
       await tx.subsidiaryTransaction.deleteMany({
         where: { journalEntryId: existingPayment.journalEntryId || undefined },
@@ -498,7 +499,7 @@ export async function PUT(request: Request) {
           continue;
         }
 
-        const result = await prisma.$transaction(async (tx) => {
+        const result = await retryableTransaction(async (tx) => {
           const payRef = referenceNumber ? `${referenceNumber}-${bill.billNumber}` : `PAYALL-${bill.billNumber}`;
 
           const payment = await tx.payment.create({

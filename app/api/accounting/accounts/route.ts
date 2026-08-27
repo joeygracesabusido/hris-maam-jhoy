@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { retryableTransaction } from '@/lib/prisma-transaction';
 
 async function calculateAccountBalance(accountId: string, normalBalance: string, branchId?: string | null) {
   const where: { accountId: string; entry?: { branchId: string } } = {
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
     }
 
     // Use a transaction to ensure both account and beginning balance entry are created
-    const account = await prisma.$transaction(async (tx) => {
+    const account = await retryableTransaction(async (tx) => {
       const newAccount = await tx.account.create({
         data: {
           code,

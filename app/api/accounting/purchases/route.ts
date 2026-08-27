@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { retryableTransaction } from '@/lib/prisma-transaction';
 
 export async function POST(request: Request) {
   try {
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     const ewtPercent = parseFloat(ewtPercentage) || 0;
     const ewtAmount = netAmount * (ewtPercent / 100);
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       // Find EWT account if not provided but percentage exists
       let effectiveEwtAccountId = ewtAccountId;
       if (ewtPercent > 0 && !effectiveEwtAccountId) {
@@ -214,7 +215,7 @@ export async function PATCH(request: Request) {
     const ewtPercent = parseFloat(ewtPercentage) || 0;
     const ewtAmount = netAmount * (ewtPercent / 100);
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       // Find EWT account if not provided but percentage exists
       let effectiveEwtAccountId = ewtAccountId;
       if (ewtPercent > 0 && !effectiveEwtAccountId) {

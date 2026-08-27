@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { retryableTransaction } from '@/lib/prisma-transaction'
 import {
   findApplicableTier,
   computeCusaAmount,
@@ -212,7 +213,7 @@ export async function POST(request: Request) {
 
     let currentSequence = await getNextCusaBillSequence(billingYear, billingQuarter)
 
-    const createdBills = await prisma.$transaction(async (tx) => {
+    const createdBills = await retryableTransaction(async (tx) => {
       const bills = []
       for (const { unit, tier } of validUnits) {
         const totalAmount = computeCusaAmount(unit.areaSqm, tier.pricePerSqm, months)

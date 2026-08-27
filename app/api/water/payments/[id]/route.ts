@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { retryableTransaction } from '@/lib/prisma-transaction'
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -34,7 +35,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
     }
 
-    await prisma.$transaction(async (tx) => {
+    await retryableTransaction(async (tx) => {
       // Void journal entry if exists
       if (payment.journalEntryId) {
         await tx.journalEntry.update({

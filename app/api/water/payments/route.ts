@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { retryableTransaction } from '@/lib/prisma-transaction'
 import { getCashAccount, getAccountsReceivableAccount } from '@/lib/water-billing'
 
 export async function GET(request: Request) {
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     const cashAccountId = await getCashAccount()
     const arAccountId = await getAccountsReceivableAccount()
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       const payment = await tx.waterPayment.create({
         data: {
           billId,

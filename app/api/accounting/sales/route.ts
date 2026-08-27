@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { retryableTransaction } from '@/lib/prisma-transaction';
 
 export async function POST(request: Request) {
   try {
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
 
     const invoiceNumber = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       // 1. Create the Sales Invoice
       const invoice = await tx.salesInvoice.create({
         data: {

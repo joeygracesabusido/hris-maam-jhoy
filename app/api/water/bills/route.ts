@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { retryableTransaction } from '@/lib/prisma-transaction'
 import { computeTieredAmount, generateBillNo, getNextBillSequence, getServiceIncomeAccount, getAccountsReceivableAccount } from '@/lib/water-billing'
 
 export async function GET(request: Request) {
@@ -87,6 +88,9 @@ export async function POST(request: Request) {
     let sequence = await getNextBillSequence(billingYear, billingMonth)
     const createdBills = []
 
+    // Pre-filter meters that need billing (outside transaction to reduce tx duration)
+    const metersToBill: Array<{ meter: typeof meters[number]; reading: { id: string; previousReading: number; currentReading: number; consumption: number } }> = []
+
     for (const meter of meters) {
       if (!meter.tenantId) continue
 
@@ -111,6 +115,11 @@ export async function POST(request: Request) {
 
       if (!reading || reading.consumption <= 0) continue
 
+      metersToBill.push({ meter, reading })
+    }
+
+    // Create each bill in its own retryable transaction
+    for (const { meter, reading } of metersToBill) {
       let totalAmount: number
       if (rate.rateType === 'FLAT') {
         const flatTier = rate.tiers[0]
@@ -130,7 +139,7 @@ export async function POST(request: Request) {
       const billNo = generateBillNo(billingYear, billingMonth, sequence)
       sequence++
 
-      const bill = await prisma.$transaction(async (tx) => {
+      const bill = await retryableTransaction(async (tx) => {
         const newBill = await tx.waterBill.create({
           data: {
             billNo,

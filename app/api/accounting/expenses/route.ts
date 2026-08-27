@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { retryableTransaction } from '@/lib/prisma-transaction';
 
 export async function POST(request: Request) {
   try {
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     const computedEwt = computedNet * (ewtPercent / 100);
     const finalTotal = computedNet + computedVat;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       const expense = await tx.expense.create({
         data: {
           expenseNumber,
@@ -227,7 +228,7 @@ export async function PATCH(request: Request) {
 
     // Only status update - simple case
     if (status && !payee && !date && !items && !cashAccountId) {
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await retryableTransaction(async (tx) => {
         const expense = await tx.expense.findUnique({
           where: { id },
           include: { items: true },
@@ -256,7 +257,7 @@ export async function PATCH(request: Request) {
     }
 
     // Full expense update - needs to cascade to Journal Entry
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       const existingExpense = await tx.expense.findUnique({
         where: { id },
         include: { items: true },
@@ -480,7 +481,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Expense ID is required' }, { status: 400 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       const expense = await tx.expense.findUnique({
         where: { id },
         include: { items: true },

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
+import { retryableTransaction } from '@/lib/prisma-transaction';
 
 export async function POST(request: Request) {
   try {
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     // Atomic transaction to ensure data integrity
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       // Create the journal entry first to get an ID for the auto-gen ref if needed
       const tempEntry = await tx.journalEntry.create({
         data: {
@@ -179,7 +180,7 @@ async function handleUpdate(request: Request) {
       return NextResponse.json({ error: 'Transaction is unbalanced' }, { status: 400 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       // 1. Get existing entry with lines and subsidiary transactions to revert balances
       const oldEntry = await tx.journalEntry.findUnique({
         where: { id },
@@ -282,7 +283,7 @@ export async function DELETE(request: Request) {
 
     if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
 
-    await prisma.$transaction(async (tx) => {
+    await retryableTransaction(async (tx) => {
       const entry = await tx.journalEntry.findUnique({
         where: { id },
         include: { lines: true }

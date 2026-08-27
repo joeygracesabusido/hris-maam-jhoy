@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { retryableTransaction } from '@/lib/prisma-transaction'
 import {
   generateCusaPaymentNo,
   getNextCusaPaymentSequence,
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
     const sequence = await getNextCusaPaymentSequence(manilaDate)
     const paymentNo = generateCusaPaymentNo(manilaDate, sequence)
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await retryableTransaction(async (tx) => {
       const payment = await tx.cusaPayment.create({
         data: {
           billId,
