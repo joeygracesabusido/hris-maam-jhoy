@@ -53,7 +53,7 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { userId, status, role } = body;
 
-    if (!userId && !role && !status) {
+    if (!userId || (!role && !status)) {
       return NextResponse.json(
         { error: 'User ID and at least one field (status or role) is required' },
         { status: 400 }
@@ -81,15 +81,21 @@ export async function PATCH(request: Request) {
     if (status) updateData.status = status;
     if (role) updateData.role = role;
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-    });
-
-    return NextResponse.json({
-      message: 'User updated successfully',
-      user,
-    });
+    try {
+      const user = await prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+      });
+      return NextResponse.json({
+        message: 'User updated successfully',
+        user,
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+      throw e;
+    }
   } catch (error) {
     console.error('Error updating user:', error);
     return NextResponse.json(
