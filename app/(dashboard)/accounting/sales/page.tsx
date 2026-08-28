@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { Plus, Search, Trash2, Printer, Receipt, FileText } from 'lucide-react';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
 import { useSales, useAccounts, useCreateSale } from '@/hooks/use-accounting';
@@ -231,24 +231,46 @@ export default function SalesPage() {
                 <TableHead>Due Date</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-center w-24">
+                  <span className="flex items-center justify-center gap-1.5"><Printer className="w-3.5 h-3.5" /> Print</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? <TableRow><TableCell colSpan={7} className="text-center py-8">Loading...</TableCell></TableRow> :
-                filteredInvoices.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No invoices found.</TableCell></TableRow> :
-                filteredInvoices.map(inv => (
+              {loading ? <TableRow><TableCell colSpan={8} className="text-center py-8">Loading...</TableCell></TableRow> :
+                filteredInvoices.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No invoices found.</TableCell></TableRow> :
+                filteredInvoices.map(inv => {
+                  const isAR = Boolean((inv as any).isAcknowledgementReceipt)
+                  return (
                   <TableRow key={inv.id}>
                     <TableCell className="font-mono">{inv.invoiceNumber}</TableCell>
-                    <TableCell>{(inv as any).isAcknowledgementReceipt ? <span className="px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-800 border border-amber-200">AR</span> : <span className="px-2 py-1 rounded-full text-xs bg-emerald-100 text-emerald-800">INV</span>}</TableCell>
+                    <TableCell>{isAR ? <span className="px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center gap-1"><Receipt className="w-3 h-3" /> AR</span> : <span className="px-2 py-1 rounded-full text-xs bg-emerald-100 text-emerald-800 inline-flex items-center gap-1"><FileText className="w-3 h-3" /> INV</span>}</TableCell>
                     <TableCell>{inv.customerName}</TableCell>
                     <TableCell>{new Date(inv.date).toLocaleDateString()}</TableCell>
                     <TableCell>{new Date(inv.dueDate).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right font-medium">₱{inv.totalAmount.toLocaleString()}</TableCell>
                     <TableCell><span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">{inv.status}</span></TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={isAR ? 'Print Acknowledgement Receipt (PDF)' : 'Print Sales Invoice (PDF)'}
+                        aria-label={isAR ? 'Print AR' : 'Print Invoice'}
+                        className={`h-8 w-8 ${isAR ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'}`}
+                        onClick={() => window.open(`/accounting/sales/${inv.id}/print`, '_blank')}
+                      >
+                        {isAR ? <Receipt className="w-4 h-4" /> : <Printer className="w-4 h-4" />}
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                ))}
+                  )})}
             </TableBody>
           </Table>
+          <p className="text-xs text-muted-foreground mt-3 flex items-center gap-4">
+            <span className="inline-flex items-center gap-1"><Printer className="w-3 h-3 text-emerald-600" /> Sales Invoice PDF</span>
+            <span className="inline-flex items-center gap-1"><Receipt className="w-3 h-3 text-amber-600" /> Acknowledgement Receipt PDF</span>
+            <span className="ml-auto">Click icon to open printable PDF (Save as PDF)</span>
+          </p>
         </CardContent>
       </Card>
     </div>
