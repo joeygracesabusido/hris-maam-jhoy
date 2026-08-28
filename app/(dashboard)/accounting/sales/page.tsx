@@ -26,6 +26,7 @@ export default function SalesPage() {
     arAccountId: '',
     revenueAccountId: '',
     branchId: '',
+    isAcknowledgementReceipt: false,
     items: [{ description: '', quantity: 1, unitPrice: 0, total: 0 }],
     totalAmount: 0,
   });
@@ -77,6 +78,7 @@ export default function SalesPage() {
         customerId: '', customerName: '', date: new Date().toISOString().split('T')[0],
         dueDate: new Date().toISOString().split('T')[0], arAccountId: '', revenueAccountId: '',
         branchId: selectedBranch?.id || '',
+        isAcknowledgementReceipt: false,
         items: [{ description: '', quantity: 1, unitPrice: 0, total: 0 }], totalAmount: 0,
       });
     } catch (err) {
@@ -103,8 +105,23 @@ export default function SalesPage() {
             <Button className="flex items-center gap-2"><Plus className="w-4 h-4" /> New Invoice</Button>
           </DialogTrigger>
           <DialogContent className="max-w-4xl w-[calc(100vw-2rem)] sm:w-full max-h-[85vh] sm:max-h-[90vh] overflow-y-auto flex flex-col p-0 gap-0">
-            <DialogHeader className="sticky top-0 z-10 bg-background px-6 pt-6 pb-4 border-b shrink-0"><DialogTitle>Create Sales Invoice</DialogTitle></DialogHeader>
+            <DialogHeader className="sticky top-0 z-10 bg-background px-6 pt-6 pb-4 border-b shrink-0">
+              <DialogTitle>{formData.isAcknowledgementReceipt ? 'Create Acknowledgement Receipt' : 'Create Sales Invoice'}</DialogTitle>
+              <p className="text-sm text-muted-foreground font-normal mt-1">{formData.isAcknowledgementReceipt ? 'AR-only: acknowledges payment without BIR sales recognition' : 'Standard BIR-recognized sales invoice'}</p>
+            </DialogHeader>
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4 sm:space-y-6">
+              <label className="flex items-start gap-3 p-3 rounded-lg border bg-amber-50/50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.isAcknowledgementReceipt}
+                  onChange={e => setFormData({ ...formData, isAcknowledgementReceipt: e.target.checked })}
+                  className="mt-1 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                />
+                <div className="flex-1">
+                  <div className="text-sm font-medium leading-none">Acknowledgement Receipt only</div>
+                  <div className="text-xs text-muted-foreground mt-1">Check if this is an AR (non-BIR) receipt — revenue will not be recognized until converted. Invoice will be numbered as AR-YYYY-XXXX.</div>
+                </div>
+              </label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Customer ID</Label>
@@ -145,12 +162,15 @@ export default function SalesPage() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Revenue Account (Credit)</Label>
-                  <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={formData.revenueAccountId} onChange={e => setFormData({...formData, revenueAccountId: e.target.value})} required>
-                    <option value="">Select Revenue Account...</option>
+                  <Label className="flex items-center gap-2">Revenue Account (Credit) {formData.isAcknowledgementReceipt && <span className="text-xs font-normal text-amber-600">(optional for AR)</span>}</Label>
+                  <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-60"
+                    value={formData.revenueAccountId} onChange={e => setFormData({...formData, revenueAccountId: e.target.value})} required={!formData.isAcknowledgementReceipt} disabled={formData.isAcknowledgementReceipt && false}>
+                    <option value="">{formData.isAcknowledgementReceipt ? 'Optional — leave empty for AR-only' : 'Select Revenue Account...'}</option>
                     {accounts.filter(a => a.type === 'REVENUE').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
                   </select>
+                  {formData.isAcknowledgementReceipt && !formData.revenueAccountId && (
+                    <p className="text-xs text-amber-600">AR-only: no revenue will be posted (balanced AR debit/credit memo entry).</p>
+                  )}
                 </div>
               </div>
               <div className="space-y-3">
@@ -186,7 +206,7 @@ export default function SalesPage() {
             </form>
             <div className="sticky bottom-0 bg-background px-6 py-4 border-t shrink-0 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" onClick={handleSubmit as any}>Create Invoice</Button>
+              <Button type="submit" onClick={handleSubmit as any}>{formData.isAcknowledgementReceipt ? 'Create Receipt (AR)' : 'Create Invoice'}</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -205,6 +225,7 @@ export default function SalesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Invoice #</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Due Date</TableHead>
@@ -213,18 +234,19 @@ export default function SalesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? <TableRow><TableCell colSpan={6} className="text-center py-8">Loading...</TableCell></TableRow> :
-               filteredInvoices.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No invoices found.</TableCell></TableRow> :
-               filteredInvoices.map(inv => (
-                 <TableRow key={inv.id}>
-                   <TableCell className="font-mono">{inv.invoiceNumber}</TableCell>
-                   <TableCell>{inv.customerName}</TableCell>
-                   <TableCell>{new Date(inv.date).toLocaleDateString()}</TableCell>
-                   <TableCell>{new Date(inv.dueDate).toLocaleDateString()}</TableCell>
-                   <TableCell className="text-right font-medium">₱{inv.totalAmount.toLocaleString()}</TableCell>
-                   <TableCell><span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">{inv.status}</span></TableCell>
-                 </TableRow>
-               ))}
+              {loading ? <TableRow><TableCell colSpan={7} className="text-center py-8">Loading...</TableCell></TableRow> :
+                filteredInvoices.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No invoices found.</TableCell></TableRow> :
+                filteredInvoices.map(inv => (
+                  <TableRow key={inv.id}>
+                    <TableCell className="font-mono">{inv.invoiceNumber}</TableCell>
+                    <TableCell>{(inv as any).isAcknowledgementReceipt ? <span className="px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-800 border border-amber-200">AR</span> : <span className="px-2 py-1 rounded-full text-xs bg-emerald-100 text-emerald-800">INV</span>}</TableCell>
+                    <TableCell>{inv.customerName}</TableCell>
+                    <TableCell>{new Date(inv.date).toLocaleDateString()}</TableCell>
+                    <TableCell>{new Date(inv.dueDate).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right font-medium">₱{inv.totalAmount.toLocaleString()}</TableCell>
+                    <TableCell><span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">{inv.status}</span></TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </CardContent>

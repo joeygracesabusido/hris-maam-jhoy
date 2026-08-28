@@ -711,6 +711,8 @@ model SalesInvoice {
   totalAmount    Float
   amountPaid     Float    @default(0)
 
+  isAcknowledgementReceipt Boolean @default(false)
+
   journalEntryId String?  @db.ObjectId
   journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
@@ -720,6 +722,7 @@ model SalesInvoice {
   @@index([customerId, status])
   @@index([date])
   @@index([branchId])
+  @@index([isAcknowledgementReceipt])
   @@map("sales_invoices")
 }
 
