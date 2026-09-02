@@ -283,7 +283,7 @@ export async function POST(request: Request) {
     const nextDay = new Date(endDate.getTime() + 86400000);
 
     const holidays = await prisma.holiday.findMany({
-      where: { isActive: true, branchId: null, date: { gte: startDate, lt: nextDay } },
+      where: { isActive: true, date: { gte: startDate, lt: nextDay } },
     });
 
     if (employeeId === 'all') {
@@ -318,6 +318,9 @@ export async function POST(request: Request) {
           errors.push({ employee: employee.fullName, error: err.message });
         }
       }
+      try {
+        await cache.delByPattern(`${PAYROLL_CACHE_PREFIX}*`);
+      } catch (e) {}
       return NextResponse.json({ message: 'Computed', successCount: results.length, errorCount: errors.length, results, errors: errors.length > 0 ? errors : undefined });
     }
 
@@ -331,6 +334,20 @@ export async function POST(request: Request) {
 
     const { payroll, result } = await processEmployeePayroll(employee, startDate, endDate, frequency, deductions, adjustmentAdd, adjustmentDeduct, adjustmentReason, holidays);
 
+    // Invalidate payroll cache so history reflects new record & holiday pay
+    try {
+      await cache.delByPattern(`${PAYROLL_CACHE_PREFIX}*`);
+    } catch (e) {}
+
+    const offDaysInPeriod = (await prisma.shiftSchedule.findMany({
+      where: { employeeId: employee.id, date: { gte: startDate, lt: nextDay }, shift: { isOff: true } },
+    })).length;
+    // leave days for totals display
+    const leavesForTotals = await prisma.leaveRequest.findMany({
+      where: { employeeId: employee.id, status: 'APPROVED', startDate: { lte: endDate }, endDate: { gte: startDate } },
+    });
+    const leaveDays = leavesForTotals.reduce((sum, l) => sum + l.daysCount, 0);
+
     return NextResponse.json({
       message: 'Computed',
       payroll,
@@ -338,9 +355,29 @@ export async function POST(request: Request) {
         employee,
         period: { startDate, endDate, frequency },
         earnings: { baseSalary: result.basicSalary, overtimePay: result.otPay, holidayPay: result.holidayPay, grossPay: result.grossEarnings },
-        deductions: { absences: result.absenceDeduction, lates: result.lateDeduction, undertime: result.undertimeDeduction, sss: result.sssEmployee, philHealth: result.philhealthEmployee, pagIbig: result.pagibigEmployee, withholdingTax: result.withholdingTax },
-        totals: { netPay: result.netPay }
-      }
+        deductions: {
+          absences: result.absenceDeduction,
+          lates: result.lateDeduction,
+          undertime: result.undertimeDeduction,
+          sss: result.sssEmployee,
+          philHealth: result.philhealthEmployee,
+          pagIbig: result.pagibigEmployee,
+          withholdingTax: result.withholdingTax,
+          totalDeductions: result.totalDeductions,
+        },
+        totals: {
+          totalOtHours: result.otHours,
+          holidayDays: result.holidayDays,
+          regularHolidayDays: result.regularHolidayDays,
+          specialHolidayDays: result.specialHolidayDays,
+          leaveDays,
+          offDays: offDaysInPeriod,
+          absentDays: result.absentDays,
+          lateMinutes: result.lateMinutes,
+          undertimeMinutes: result.undertimeMinutes,
+          netPay: result.netPay,
+        },
+      },
     });
   } catch (error) {
     console.error(error);

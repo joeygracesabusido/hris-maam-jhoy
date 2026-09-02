@@ -232,6 +232,9 @@ export interface PayrollResult {
   otHours: number
   otPay: number
   holidayPay: number
+  regularHolidayDays: number
+  specialHolidayDays: number
+  holidayDays: number
   grossEarnings: number
   attendanceDeductions: number
   taxableGross: number
@@ -375,6 +378,9 @@ export function computePayroll(inputs: PayrollInputs): PayrollResult {
     otHours: totalOtHours,
     otPay,
     holidayPay,
+    regularHolidayDays,
+    specialHolidayDays,
+    holidayDays: regularHolidayDays + specialHolidayDays,
     grossEarnings,
     attendanceDeductions,
     taxableGross,

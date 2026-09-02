@@ -214,13 +214,15 @@ export default function PayrollPage() {
       const data: any = await api.post('/api/payroll', payload);
 
       if (isAllEmployees) {
+        const holidayPayTotal = data.results?.reduce((sum: number, r: { payroll: { holidayPay?: number } }) => sum + (r.payroll.holidayPay || 0), 0) || 0
+        const grossPayTotal = data.results?.reduce((sum: number, r: { payroll: { grossPay: number } }) => sum + r.payroll.grossPay, 0) || 0
         setResult({
           payroll: {
             id: 'all',
             basicSalary: data.results?.reduce((sum: number, r: { payroll: { basicSalary: number } }) => sum + r.payroll.basicSalary, 0) || 0,
             otHours: data.results?.reduce((sum: number, r: { payroll: { otHours: number } }) => sum + r.payroll.otHours, 0) || 0,
             otPay: data.results?.reduce((sum: number, r: { payroll: { otPay: number } }) => sum + r.payroll.otPay, 0) || 0,
-            grossPay: data.results?.reduce((sum: number, r: { payroll: { grossPay: number } }) => sum + r.payroll.grossPay, 0) || 0,
+            grossPay: grossPayTotal,
             sssEmployee: data.results?.reduce((sum: number, r: { payroll: { sssEmployee: number } }) => sum + r.payroll.sssEmployee, 0) || 0,
             philhealthEmployee: data.results?.reduce((sum: number, r: { payroll: { philhealthEmployee: number } }) => sum + r.payroll.philhealthEmployee, 0) || 0,
             pagibigEmployee: data.results?.reduce((sum: number, r: { payroll: { pagibigEmployee: number } }) => sum + r.payroll.pagibigEmployee, 0) || 0,
@@ -234,9 +236,9 @@ export default function PayrollPage() {
           details: {
             employee: { id: 'all', fullName: 'All Employees', employeeNumber: 0, department: '', position: '', basicSalary: 0, payrollFrequency: '', payType: 'MONTHLY', dailyRate: 0 },
             period: { frequency: formData.frequency },
-            earnings: { baseSalary: 0, overtimePay: 0, holidayPay: 0, grossPay: 0 },
+            earnings: { baseSalary: grossPayTotal - holidayPayTotal, overtimePay: 0, holidayPay: holidayPayTotal, grossPay: grossPayTotal },
             deductions: { absences: 0, lates: 0, undertime: 0, sss: 0, philHealth: 0, pagIbig: 0, withholdingTax: 0, totalDeductions: 0 },
-            totals: { totalOtHours: 0, holidayDays: 0, leaveDays: 0, absentDays: 0, lateMinutes: 0, undertimeMinutes: 0 },
+            totals: { totalOtHours: 0, holidayDays: holidayPayTotal > 0 ? 1 : 0, leaveDays: 0, absentDays: 0, lateMinutes: 0, undertimeMinutes: 0 },
             netPay: 0,
           },
         } as unknown as PayrollResult);

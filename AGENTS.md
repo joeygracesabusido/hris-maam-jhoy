@@ -1283,3 +1283,54 @@ Properties Management > CUSA Billing
   ├── Payments        /cusa/payments
   └── Overdue Report  /cusa/overdue
 ```
+
+---
+
+### Payroll Holidays Not Computed Fix (2026-09-02)
+
+**Issue:** `http://localhost:3000/payroll` — holidays were not counted in payroll computation. Generated payrolls for `2026-08-16` to `2026-08-31` showed `holidayPay: 0` even though two REGULAR holidays existed in that period (`2026-08-21 Ninoy Aquino Day`, `2026-08-31 National Heroes Day`).
+
+**Root Causes (2 bugs):**
+
+1. **Branch-filtered holiday query** — `app/api/payroll/route.ts:285` queried only global holidays:
+   ```typescript
+   where: { isActive: true, branchId: null, date: { gte: startDate, lt: nextDay } }
+   ```
+   But the Holidays page (`app/(dashboard)/holidays/page.tsx:68`) creates holidays with `branchId: selectedBranch?.id || null`. When a branch was selected, holidays were created as **branch-specific** (e.g., `branchId: "6a0fd014..."`). Payroll never saw them — query returned `[]`, so `computePayroll()` added `0` holiday pay. Verified via `scripts/verify-holiday-fix.ts`: OLD filter `0` holidays vs FIX `2` holidays → OLD `holidayPay 0` vs NEW `holidayPay 1400` (2 × ₱700).
+
+2. **Missing `details.totals`/ `deductions` fields in POST response** — `app/api/payroll/route.ts:334` returned only:
+   ```typescript
+   earnings: { baseSalary, overtimePay, holidayPay, grossPay }
+   deductions: { absences, lates, undertime, sss, philHealth, pagIbig, withholdingTax }
+   totals: { netPay }
+   ```
+   Frontend (`app/(dashboard)/payroll/page.tsx:751`) renders holiday row only if `result.details.totals.holidayDays > 0`. Since `holidayDays` was never sent, the UI never showed holiday pay even when `earnings.holidayPay` was correct. Same for bulk `All Employees` — dummy result hard-coded `holidayPay: 0`.
+
+**Files Updated:**
+
+- `lib/payroll.ts` — Extended `PayrollResult` with `regularHolidayDays`, `specialHolidayDays`, `holidayDays` and returned them from `computePayroll()` (previously internal variables not exposed).
+- `app/api/payroll/route.ts` — **(a)** Removed `branchId: null` filter → `where: { isActive: true, date: { gte: startDate, lt: nextDay } }` so *all* active holidays (global + branch-specific) are counted. Employees have no `branchId`, so payroll is intentionally branch-agnostic. **(b)** Fixed single-employee POST response to return full `deductions` (`totalDeductions`) and `totals` (`totalOtHours`, `holidayDays`, `regularHolidayDays`, `specialHolidayDays`, `leaveDays`, `offDays`, `absentDays`, `lateMinutes`, `undertimeMinutes`, `netPay`) by querying `shiftSchedule`/`leaveRequest` for totals and using `result.*`. **(c)** Added `cache.delByPattern(PAYROLL_CACHE_PREFIX*)` after both single and bulk payroll creation so `GET /api/payroll` history immediately reflects holiday pay (previously only DELETE invalidated cache). Bulk path now also invalidates cache.
+- `app/(dashboard)/payroll/page.tsx` — Bulk `All Employees` summary now aggregates `holidayPay` from `payroll.holidayPay` across results and populates `earnings.holidayPay` / `totals.holidayDays` instead of hard-coded `0`.
+
+**Verification:**
+```
+npx tsx scripts/verify-holiday-fix.ts
+# holidays with FIX (no branch filter): [Ninoy Aquino Day 2026-08-21, National heroes day 2026-08-31]
+# holidays OLD filter (branchId null only): []
+# employee JEROME R. SABUSIDO 700 DAILY — timeLogs 9
+# OLD holidayPay 0 regular 0 special 0 holidayDays 0
+# NEW holidayPay 1400 regular 2 special 0 holidayDays 2 gross 7700
+# VERIFIED: fix correctly includes branch holidays that were previously missed
+```
+`npx tsc --noEmit --skipLibCheck` — only pre-existing `HolidayType` enum mismatch in `scripts/verify-holiday-fix.ts` (prisma `SPECIAL_NON_WORK` vs lib `SPECIAL_NON_WORKING`), no new errors in payroll files.
+
+**Action Required for Existing Data:** Previously generated payrolls with `holidayPay: 0` for periods containing branch-specific holidays are stale. Delete them via **Payroll History → Trash icon** (ADMIN only) and re-compute payroll for the same period — new payrolls will now correctly show `Holiday Pay`.
+
+**Key Pattern — Payroll holidays must be branch-agnostic (employees lack `branchId`):**
+```typescript
+// ❌ BAD — excludes branch-specific holidays created when a branch is selected
+where: { isActive: true, branchId: null, date: { gte: startDate, lt: nextDay } }
+
+// ✅ GOOD — include all active holidays regardless of branch
+where: { isActive: true, date: { gte: startDate, lt: nextDay } }
+```
