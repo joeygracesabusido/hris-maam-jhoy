@@ -236,22 +236,45 @@ export default function PrintPayrollPage() {
     doc.rect(8, yPos, pageWidth - 16, 8, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFontSize(7);
 
-    const headers = ['No.', 'Employee Name', 'Dept', 'Position', 'Rate/Day', 'Days', 'Basic', 'OT Pay', 'Holiday', 'Gross', 'SSS', 'HDMF', 'Late', 'Cash Adv.', 'Other', 'Net Pay'];
-    const colWidths = [8, 32, 18, 18, 14, 10, 20, 16, 20, 24, 16, 16, 16, 16, 18, 32];
+    const headers = ['No.', 'Employee Name', 'Dept', 'Position', 'Rate/Day', 'Days', 'Basic', 'OT Pay', 'Holiday', 'Gross', 'SSS', 'HDMF', 'PHIC', 'Late', 'Cash Adv.', 'Other', 'Net Pay'];
+    // Optimized widths for legal landscape (356mm wide, 340mm usable) — total 332mm leaves 6mm right padding
+    const colWidths = [8, 42, 22, 22, 18, 10, 22, 18, 18, 24, 16, 16, 16, 16, 18, 18, 28];
     let xPos = 10;
 
+    // helper to fit text inside a column width (with 1.5mm padding each side)
+    const fitText = (text: string, maxWidth: number): string => {
+      const padding = 2;
+      const avail = maxWidth - padding;
+      if (doc.getTextWidth(text) <= avail) return text;
+      let truncated = text;
+      while (truncated.length > 0 && doc.getTextWidth(truncated + '...') > avail) {
+        truncated = truncated.slice(0, -1);
+      }
+      return truncated ? truncated + '...' : '';
+    };
+
     headers.forEach((header, i) => {
-      doc.text(header, xPos, yPos + 5.5);
-      xPos += colWidths[i];
+      const colW = colWidths[i];
+      const isNumeric = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].includes(i);
+      const isCenter = [0, 5].includes(i);
+      if (isCenter) {
+        doc.text(header, xPos + colW / 2, yPos + 5.5, { align: 'center' });
+      } else if (isNumeric) {
+        doc.text(header, xPos + colW - 1.5, yPos + 5.5, { align: 'right' });
+      } else {
+        const fitted = fitText(header, colW);
+        doc.text(fitted, xPos + 1, yPos + 5.5);
+      }
+      xPos += colW;
     });
 
     doc.setTextColor(0, 0, 0);
     yPos += 8;
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(7);
 
     recordsToPrint.forEach((record, index) => {
       if (yPos > pageHeight - 55) {
@@ -262,18 +285,28 @@ export default function PrintPayrollPage() {
         doc.rect(8, yPos, pageWidth - 16, 8, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
+        doc.setFontSize(7);
 
         xPos = 10;
         headers.forEach((header, i) => {
-          doc.text(header, xPos, yPos + 5.5);
-          xPos += colWidths[i];
+          const colW = colWidths[i];
+          const isNumeric = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].includes(i);
+          const isCenter = [0, 5].includes(i);
+          if (isCenter) {
+            doc.text(header, xPos + colW / 2, yPos + 5.5, { align: 'center' });
+          } else if (isNumeric) {
+            doc.text(header, xPos + colW - 1.5, yPos + 5.5, { align: 'right' });
+          } else {
+            const fitted = fitText(header, colW);
+            doc.text(fitted, xPos + 1, yPos + 5.5);
+          }
+          xPos += colW;
         });
 
         doc.setTextColor(0, 0, 0);
         yPos += 8;
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
+        doc.setFontSize(7);
       }
 
       xPos = 10;
@@ -283,82 +316,84 @@ export default function PrintPayrollPage() {
         doc.rect(8, yPos, pageWidth - 16, 6, 'F');
       }
 
-      doc.text(String(index + 1), xPos, yPos + 4.2);
+      // No. — centered
+      doc.text(String(index + 1), xPos + colWidths[0] / 2, yPos + 4.2, { align: 'center' });
       xPos += colWidths[0];
 
-      const empName = record.employee.fullName.length > 25 
-        ? record.employee.fullName.substring(0, 25) + '...' 
-        : record.employee.fullName;
-      doc.text(empName, xPos, yPos + 4.2);
+      // Employee Name — left, fitted to column width to prevent overlap
+      const empName = fitText(record.employee.fullName || '', colWidths[1]);
+      doc.text(empName, xPos + 1, yPos + 4.2);
       xPos += colWidths[1];
 
-      const dept = record.employee.department.length > 15 
-        ? record.employee.department.substring(0, 15) + '...' 
-        : record.employee.department;
-      doc.text(dept, xPos, yPos + 4.2);
+      const dept = fitText(record.employee.department || '', colWidths[2]);
+      doc.text(dept, xPos + 1, yPos + 4.2);
       xPos += colWidths[2];
 
-      const pos = record.employee.position.length > 15 
-        ? record.employee.position.substring(0, 15) + '...' 
-        : record.employee.position;
-      doc.text(pos, xPos, yPos + 4.2);
+      const pos = fitText(record.employee.position || '', colWidths[3]);
+      doc.text(pos, xPos + 1, yPos + 4.2);
       xPos += colWidths[3];
 
       const ratePerDay = record.daysWorked > 0 
         ? record.basicSalary / record.daysWorked 
         : record.basicSalary / 26;
-      doc.text(formatCurrency(ratePerDay), xPos, yPos + 4.2);
+      doc.text(formatCurrency(ratePerDay), xPos + colWidths[4] - 1.5, yPos + 4.2, { align: 'right' });
       xPos += colWidths[4];
 
-      doc.text(String(record.daysWorked || 0), xPos, yPos + 4.2);
+      doc.text(String(record.daysWorked || 0), xPos + colWidths[5] / 2, yPos + 4.2, { align: 'center' });
       xPos += colWidths[5];
 
-      doc.text(formatCurrency(record.basicSalary), xPos, yPos + 4.2);
+      doc.text(formatCurrency(record.basicSalary), xPos + colWidths[6] - 1.5, yPos + 4.2, { align: 'right' });
       xPos += colWidths[6];
 
-      doc.text(formatCurrency(record.otPay || 0), xPos, yPos + 4.2);
+      doc.text(formatCurrency(record.otPay || 0), xPos + colWidths[7] - 1.5, yPos + 4.2, { align: 'right' });
       xPos += colWidths[7];
 
-      doc.text(formatCurrency(record.holidayPay || 0), xPos, yPos + 4.2);
+      doc.text(formatCurrency(record.holidayPay || 0), xPos + colWidths[8] - 1.5, yPos + 4.2, { align: 'right' });
       xPos += colWidths[8];
 
-      doc.text(formatCurrency(record.grossPay), xPos, yPos + 4.2);
+      doc.text(formatCurrency(record.grossPay), xPos + colWidths[9] - 1.5, yPos + 4.2, { align: 'right' });
       xPos += colWidths[9];
 
       const sss = record.sssEmployee || 0;
       const hdmf = record.pagibigEmployee || 0;
+      const phic = record.philhealthEmployee || 0;
       const lateDed = record.lateDeduction || 0;
       const cashAdv = record.cashAdvanceDeduction || 0;
-      const otherDed = record.totalDeductions - lateDed - cashAdv - sss - hdmf;
+      const otherDed = record.totalDeductions - lateDed - cashAdv - sss - hdmf - phic;
 
       doc.setTextColor(180, 0, 0);
-      doc.text(formatCurrency(sss), xPos, yPos + 4.2);
+      doc.text(formatCurrency(sss), xPos + colWidths[10] - 1.5, yPos + 4.2, { align: 'right' });
       doc.setTextColor(0, 0, 0);
       xPos += colWidths[10];
 
       doc.setTextColor(180, 0, 0);
-      doc.text(formatCurrency(hdmf), xPos, yPos + 4.2);
+      doc.text(formatCurrency(hdmf), xPos + colWidths[11] - 1.5, yPos + 4.2, { align: 'right' });
       doc.setTextColor(0, 0, 0);
       xPos += colWidths[11];
 
       doc.setTextColor(180, 0, 0);
-      doc.text(formatCurrency(lateDed), xPos, yPos + 4.2);
+      doc.text(formatCurrency(phic), xPos + colWidths[12] - 1.5, yPos + 4.2, { align: 'right' });
       doc.setTextColor(0, 0, 0);
       xPos += colWidths[12];
 
       doc.setTextColor(180, 0, 0);
-      doc.text(formatCurrency(cashAdv), xPos, yPos + 4.2);
+      doc.text(formatCurrency(lateDed), xPos + colWidths[13] - 1.5, yPos + 4.2, { align: 'right' });
       doc.setTextColor(0, 0, 0);
       xPos += colWidths[13];
 
-      doc.setTextColor(140, 0, 0);
-      doc.text(formatCurrency(Math.max(otherDed, 0)), xPos, yPos + 4.2);
+      doc.setTextColor(180, 0, 0);
+      doc.text(formatCurrency(cashAdv), xPos + colWidths[14] - 1.5, yPos + 4.2, { align: 'right' });
       doc.setTextColor(0, 0, 0);
       xPos += colWidths[14];
 
+      doc.setTextColor(140, 0, 0);
+      doc.text(formatCurrency(Math.max(otherDed, 0)), xPos + colWidths[15] - 1.5, yPos + 4.2, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+      xPos += colWidths[15];
+
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 100, 0);
-      doc.text(formatCurrency(record.netPay), xPos, yPos + 4.2);
+      doc.text(formatCurrency(record.netPay), xPos + colWidths[16] - 1.5, yPos + 4.2, { align: 'right' });
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
 
@@ -369,7 +404,7 @@ export default function PrintPayrollPage() {
     doc.setFillColor(220, 230, 241);
     doc.rect(8, yPos, pageWidth - 16, 7, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFontSize(7);
 
     const totalBasic = recordsToPrint.reduce((sum, r) => sum + r.basicSalary, 0);
     const totalOtPay = recordsToPrint.reduce((sum, r) => sum + (r.otPay || 0), 0);
@@ -377,34 +412,38 @@ export default function PrintPayrollPage() {
     const totalGross = recordsToPrint.reduce((sum, r) => sum + r.grossPay, 0);
     const totalSSS = recordsToPrint.reduce((sum, r) => sum + (r.sssEmployee || 0), 0);
     const totalHDMF = recordsToPrint.reduce((sum, r) => sum + (r.pagibigEmployee || 0), 0);
+    const totalPHIC = recordsToPrint.reduce((sum, r) => sum + (r.philhealthEmployee || 0), 0);
     const totalLateDed = recordsToPrint.reduce((sum, r) => sum + (r.lateDeduction || 0), 0);
     const totalCashAdv = recordsToPrint.reduce((sum, r) => sum + (r.cashAdvanceDeduction || 0), 0);
-    const totalOtherDeductions = recordsToPrint.reduce((sum, r) => sum + r.totalDeductions, 0) - totalSSS - totalHDMF - totalLateDed - totalCashAdv;
+    const totalOtherDeductions = recordsToPrint.reduce((sum, r) => sum + r.totalDeductions, 0) - totalSSS - totalHDMF - totalPHIC - totalLateDed - totalCashAdv;
     const totalNet = recordsToPrint.reduce((sum, r) => sum + r.netPay, 0);
 
-xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
-    doc.text('TOTAL:', xPos, yPos + 4.5);
+    // Totals row — right-aligned numeric columns, same colWidths as data rows
+    xPos = 10 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
+    doc.text('TOTAL:', xPos + 1, yPos + 4.5);
     xPos += colWidths[4];
     xPos += colWidths[5];
-    doc.text(formatCurrency(totalBasic), xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalBasic), xPos + colWidths[6] - 1.5, yPos + 4.5, { align: 'right' });
     xPos += colWidths[6];
-    doc.text(formatCurrency(totalOtPay), xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalOtPay), xPos + colWidths[7] - 1.5, yPos + 4.5, { align: 'right' });
     xPos += colWidths[7];
-    doc.text(formatCurrency(totalHolidayPay), xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalHolidayPay), xPos + colWidths[8] - 1.5, yPos + 4.5, { align: 'right' });
     xPos += colWidths[8];
-    doc.text(formatCurrency(totalGross), xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalGross), xPos + colWidths[9] - 1.5, yPos + 4.5, { align: 'right' });
     xPos += colWidths[9];
-    doc.text(formatCurrency(totalSSS), xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalSSS), xPos + colWidths[10] - 1.5, yPos + 4.5, { align: 'right' });
     xPos += colWidths[10];
-    doc.text(formatCurrency(totalHDMF), xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalHDMF), xPos + colWidths[11] - 1.5, yPos + 4.5, { align: 'right' });
     xPos += colWidths[11];
-    doc.text(formatCurrency(totalLateDed), xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalPHIC), xPos + colWidths[12] - 1.5, yPos + 4.5, { align: 'right' });
     xPos += colWidths[12];
-    doc.text(formatCurrency(totalCashAdv), xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalLateDed), xPos + colWidths[13] - 1.5, yPos + 4.5, { align: 'right' });
     xPos += colWidths[13];
-    doc.text(formatCurrency(Math.max(totalOtherDeductions, 0)), xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalCashAdv), xPos + colWidths[14] - 1.5, yPos + 4.5, { align: 'right' });
     xPos += colWidths[14];
-    doc.text(formatCurrency(totalNet), xPos, yPos + 4.5);
+    doc.text(formatCurrency(Math.max(totalOtherDeductions, 0)), xPos + colWidths[15] - 1.5, yPos + 4.5, { align: 'right' });
+    xPos += colWidths[15];
+    doc.text(formatCurrency(totalNet), xPos + colWidths[16] - 1.5, yPos + 4.5, { align: 'right' });
 
     yPos = pageHeight - 80;
 

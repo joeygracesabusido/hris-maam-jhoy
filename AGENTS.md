@@ -1334,3 +1334,82 @@ where: { isActive: true, branchId: null, date: { gte: startDate, lt: nextDay } }
 // ✅ GOOD — include all active holidays regardless of branch
 where: { isActive: true, date: { gte: startDate, lt: nextDay } }
 ```
+
+---
+
+### Print Payroll PDF – PHIC Column & Overlap Fix (2026-09-02)
+
+**Issue:** `http://localhost:3000/reports/print-payroll` PDF was missing **PHIC (PhilHealth)** deduction. Headers showed `SSS | HDMF | Late | Cash Adv. | Other | Net Pay` and `philhealthEmployee` was folded into `Other`, so employees overpaid/under-reported PHIC. With 16 columns, monetary values and long employee names overlapped into adjacent cells (left-aligned `doc.text` with fixed substring truncation like `substring(0,25)` and equal 16–20mm widths left no padding).
+
+**Files Updated:**
+- `app/(dashboard)/reports/print-payroll/page.tsx` — Added PHIC column after HDMF, rebalanced all column widths for legal landscape (356mm), added dynamic truncation and right-aligned numeric columns. No API/schema changes (data `philhealthEmployee` already existed in `PayrollRecord`).
+
+**Changes Made:**
+
+1. **Headers & widths — 16 → 17 columns:**
+   ```typescript
+   // Before (16 cols, total 294mm, 44mm slack but individual cols too tight)
+   const headers = ['No.', 'Employee Name', 'Dept', 'Position', 'Rate/Day', 'Days', 'Basic', 'OT Pay', 'Holiday', 'Gross', 'SSS', 'HDMF', 'Late', 'Cash Adv.', 'Other', 'Net Pay']
+   const colWidths = [8, 32, 18, 18, 14, 10, 20, 16, 20, 24, 16, 16, 16, 16, 18, 32]
+
+   // After (17 cols, total 332mm, 6mm right padding, readable per-column budgets)
+   const headers = ['No.', 'Employee Name', 'Dept', 'Position', 'Rate/Day', 'Days', 'Basic', 'OT Pay', 'Holiday', 'Gross', 'SSS', 'HDMF', 'PHIC', 'Late', 'Cash Adv.', 'Other', 'Net Pay']
+   const colWidths = [8, 42, 22, 22, 18, 10, 22, 18, 18, 24, 16, 16, 16, 16, 18, 18, 28]
+   // 8+42+22+22+18+10+22+18+18+24+16+16+16+16+18+18+28 = 332mm; usable = pageWidth-18 = 338mm
+   ```
+
+2. **Dynamic employee name truncation (prevents overlap):**
+   ```typescript
+   const fitText = (text: string, maxWidth: number): string => {
+     const avail = maxWidth - 2; // 1mm padding each side
+     if (doc.getTextWidth(text) <= avail) return text;
+     let t = text;
+     while (t.length > 0 && doc.getTextWidth(t + '...') > avail) t = t.slice(0, -1);
+     return t ? t + '...' : '';
+   };
+   // Used for Employee Name / Dept / Position — measured at current fontSize (7pt)
+   const empName = fitText(record.employee.fullName || '', colWidths[1]);
+   // Before: record.employee.fullName.substring(0,25)+'...' — 25 chars ≈ 37mm > 32mm col → overlap
+   ```
+
+3. **Right-aligned numeric columns + centered No./Days (prevents amount spill):**
+   ```typescript
+   // Header: numeric → right, No./Days → center, text → left with fitText
+   // Data:   rate/basic/ot/holiday/gross/sss/hdmf/phic/late/cash/other/net → right
+   doc.text(formatCurrency(sss), xPos + colWidths[10] - 1.5, yPos + 4.2, { align: 'right' });
+   doc.text(formatCurrency(hdmf), xPos + colWidths[11] - 1.5, yPos + 4.2, { align: 'right' });
+   doc.text(formatCurrency(phic), xPos + colWidths[12] - 1.5, yPos + 4.2, { align: 'right' }); // NEW
+   doc.text(String(record.daysWorked), xPos + colWidths[5]/2, yPos + 4.2, { align: 'center' });
+   ```
+
+4. **Deduction breakdown now explicit — `Other` no longer hides PHIC:**
+   ```typescript
+   const phic = record.philhealthEmployee || 0;
+   const otherDed = record.totalDeductions - lateDed - cashAdv - sss - hdmf - phic;
+   // Before: otherDed = totalDeductions - lateDed - cashAdv - sss - hdmf (PHIC was inside Other)
+   ```
+
+5. **Totals row includes PHIC:**
+   ```typescript
+   const totalPHIC = recordsToPrint.reduce((sum, r) => sum + (r.philhealthEmployee || 0), 0);
+   const totalOtherDeductions = /* totalDeductions */ - totalSSS - totalHDMF - totalPHIC - totalLateDed - totalCashAdv;
+   // Rendered right-aligned at col 12, with all totals right-aligned and fontSize 9→7
+   ```
+
+6. **Font & header pagination fix:** Header `setFontSize(9)` → `7`, data `8` → `7`, totals `9` → `7`; paginated header (when `yPos > pageHeight-55`) duplicated with same `fitText`/alignment logic instead of plain `doc.text(header, xPos)`.
+
+**Verification:** `npx tsc --noEmit --skipLibCheck` — no new errors (`print-payroll/page.tsx` clean; only pre-existing `HolidayType` mismatch in `scripts/verify-holiday-fix.ts`). `npx eslint "app/(dashboard)/reports/print-payroll/page.tsx"` — no output.
+
+**Key Pattern — PDF tables on legal landscape:**
+```typescript
+// Always measure text at the actual fontSize before deciding to truncate; never use fixed substring lengths
+// Keep numeric columns right-aligned with 1.5mm inner padding, and text columns left with fitText()
+const fitText = (text: string, maxWidth: number) => {
+  const avail = maxWidth - 2;
+  if (doc.getTextWidth(text) <= avail) return text;
+  while (text.length && doc.getTextWidth(text + '...') > avail) text = text.slice(0, -1);
+  return text + '...';
+};
+doc.text(value, xPos + colWidth - 1.5, y, { align: 'right' }); // numeric
+doc.text(fitText(name, colWidth), xPos + 1, y);               // text
+```
