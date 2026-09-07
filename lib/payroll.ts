@@ -327,7 +327,11 @@ export function computePayroll(inputs: PayrollInputs): PayrollResult {
     if (holiday.type === 'REGULAR') {
       // Regular holiday is paid even if no work, regardless of attendance before/after
       regularHolidayDays += 1;
-    } else if (holiday.type === 'SPECIAL') {
+    } else if (
+      holiday.type === 'SPECIAL' ||
+      holiday.type === 'SPECIAL_NON_WORK' ||
+      holiday.type === 'SPECIAL_NON_WORKING'
+    ) {
       if (workedOnHoliday) {
         specialHolidayDays += 1;
       }
@@ -403,7 +407,7 @@ export function computePayroll(inputs: PayrollInputs): PayrollResult {
   };
 }
 
-export type HolidayType = 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORKING'
+export type HolidayType = 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORK' | 'SPECIAL_NON_WORKING'
 
 export interface Holiday {
   id: string
@@ -423,6 +427,7 @@ export function getHolidayPayMultiplier(
         return 1.0
       case 'SPECIAL':
         return 1.0
+      case 'SPECIAL_NON_WORK':
       case 'SPECIAL_NON_WORKING':
         return 0
       default:
@@ -435,6 +440,7 @@ export function getHolidayPayMultiplier(
       return 2.0
     case 'SPECIAL':
       return 1.5
+    case 'SPECIAL_NON_WORK':
     case 'SPECIAL_NON_WORKING':
       return 1.0
     default:
@@ -459,6 +465,7 @@ export function getHolidayOTMultiplier(
       }
       return 1.5 * 1.625
 
+    case 'SPECIAL_NON_WORK':
     case 'SPECIAL_NON_WORKING':
       return 1.25
 

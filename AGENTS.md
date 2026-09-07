@@ -1413,3 +1413,90 @@ const fitText = (text: string, maxWidth: number) => {
 doc.text(value, xPos + colWidth - 1.5, y, { align: 'right' }); // numeric
 doc.text(fitText(name, colWidth), xPos + 1, y);               // text
 ```
+
+---
+
+### Vercel Build Fix — HolidayType Enum Mismatch & Scripts Exclusion (2026-09-07)
+
+**Issue:** `npm run build` failed on Vercel with:
+```
+Failed to compile.
+./scripts/verify-holiday-fix.ts:31:5
+Type error: Type '{ id: string; name: string; type: HolidayType; ... }[]' is not assignable to type '{ isActive: boolean; date: Date; type: HolidayType; }[]'.
+  Types of property 'type' are incompatible.
+    Type 'import(".prisma/client").$Enums.HolidayType' is not assignable to type 'import("lib/payroll").HolidayType'.
+      Type '"SPECIAL_NON_WORK"' is not assignable to type 'HolidayType'. Did you mean '"SPECIAL_NON_WORKING"'?
+```
+
+**Root Cause (2 bugs):**
+
+1. **`tsconfig.json:31-39` included `**/*.ts` with `exclude: ["node_modules"]` only** — Vercel's `next build` type-checks every `**/*.ts` file, including ad-hoc `scripts/*.ts`. Any loose typing or intentionally `any`-heavy debug script breaks production build. `scripts/verify-holiday-fix.ts` was created to verify `2026-09-02` payroll fix but introduced a type error that blocked deploy.
+
+2. **`lib/payroll.ts:406` HolidayType mismatch with Prisma** — Prisma `prisma/schema.prisma:319-323` defines:
+   ```prisma
+   enum HolidayType { REGULAR SPECIAL SPECIAL_NON_WORK }
+   ```
+   while `lib/payroll.ts:406` defined:
+   ```typescript
+   export type HolidayType = 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORKING' // ← 'ING' suffix
+   ```
+   Passing `prisma.holiday[]` (with `SPECIAL_NON_WORK`) to `computePayroll()` which expects `lib/payroll.ts:213` `HolidayType` failed. Helpers `getHolidayPayMultiplier`/`getHolidayOTMultiplier` also only handled `SPECIAL_NON_WORKING`, not Prisma's `SPECIAL_NON_WORK`.
+
+**Files Updated:**
+
+- `tsconfig.json:37-40` — Added `"scripts"` to `exclude`:
+  ```json
+  "exclude": ["node_modules", "scripts"]
+  ```
+  Prevents `scripts/*`, `prisma/seed.ts` debug helpers, etc. from being type-checked in `next build`. Verified: `npx tsc --noEmit --skipLibCheck` → no output; `npm run build` → `✓ Compiled successfully` / `✓ Generating static pages (94/94)`.
+
+- `lib/payroll.ts:406` — Unified type to support both Prisma and legacy:
+  ```typescript
+  export type HolidayType = 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORK' | 'SPECIAL_NON_WORKING'
+  ```
+
+- `lib/payroll.ts:327-334` — `computePayroll()` now counts both `SPECIAL_NON_WORK` and `SPECIAL_NON_WORKING` as special holidays (30% if worked):
+  ```typescript
+  } else if (
+    holiday.type === 'SPECIAL' ||
+    holiday.type === 'SPECIAL_NON_WORK' ||
+    holiday.type === 'SPECIAL_NON_WORKING'
+  ) {
+    if (workedOnHoliday) specialHolidayDays += 1
+  }
+  ```
+
+- `lib/payroll.ts:424-447` — `getHolidayPayMultiplier()` now fall-throughs `SPECIAL_NON_WORK` → `SPECIAL_NON_WORKING` (0 if not working, 1.0 if working).
+
+- `lib/payroll.ts:465-468` — `getHolidayOTMultiplier()` now fall-throughs `SPECIAL_NON_WORK` → `SPECIAL_NON_WORKING` (1.25).
+
+**Verification:**
+```
+npx tsc --noEmit --skipLibCheck  # → no output (previously 1 error in scripts/verify-holiday-fix.ts)
+npm run build                     # → ✓ Compiled successfully, Linting passed, 94/94 static pages
+```
+No change to `scripts/verify-holiday-fix.ts` required — now compatible via type union; still excluded from build via `tsconfig.json`.
+
+**Key Pattern — Never let `scripts/` break Vercel builds:**
+```typescript
+// ❌ BAD — tsconfig includes scripts, any script error blocks deploy
+"include": ["**/*.ts", "**/*.tsx"],
+"exclude": ["node_modules"]
+
+// ✅ GOOD — exclude ad-hoc scripts from production type-check
+"include": ["**/*.ts", "**/*.tsx"],
+"exclude": ["node_modules", "scripts"]
+```
+
+**Key Pattern — Keep lib types in sync with Prisma enums:**
+```typescript
+// ❌ BAD — lib uses SPECIAL_NON_WORKING, Prisma uses SPECIAL_NON_WORK → assignability error
+export type HolidayType = 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORKING'
+
+// ✅ GOOD — union includes both (handles legacy + Prisma)
+export type HolidayType = 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORK' | 'SPECIAL_NON_WORKING'
+// And handle both in switches via fall-through:
+case 'SPECIAL_NON_WORK':
+case 'SPECIAL_NON_WORKING':
+  return 0
+```
