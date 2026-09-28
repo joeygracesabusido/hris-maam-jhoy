@@ -48,9 +48,28 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       }
     }
 
+    const targetRateType =
+      body.rateType === 'FIXED' ? 'FIXED' : body.rateType === 'TIERED' ? 'TIERED' : existingRate.rateType === 'FIXED' ? 'FIXED' : 'TIERED'
+
+    if (targetRateType === 'FIXED') {
+      const rawAmount = body.fixedAmount !== undefined ? body.fixedAmount : existingRate.fixedAmount
+      const amount = typeof rawAmount === 'string' ? parseFloat(rawAmount) : rawAmount
+      if (amount === undefined || amount === null || isNaN(amount as number) || (amount as number) < 0) {
+        return NextResponse.json({ error: 'fixedAmount (non-negative) is required for FIXED rates' }, { status: 400 })
+      }
+      // Switching to FIXED clears any tiers
+      await prisma.cusaRateTier.deleteMany({ where: { rateId: params.id } })
+    }
+
     if (body.tiers) {
-      if (!Array.isArray(body.tiers) || body.tiers.length === 0) {
-        return NextResponse.json({ error: 'tiers must be a non-empty array' }, { status: 400 })
+      if (targetRateType === 'FIXED') {
+        if (!Array.isArray(body.tiers)) {
+          return NextResponse.json({ error: 'tiers must be an array' }, { status: 400 })
+        }
+      } else {
+        if (!Array.isArray(body.tiers) || body.tiers.length === 0) {
+          return NextResponse.json({ error: 'tiers must be a non-empty array' }, { status: 400 })
+        }
       }
 
       for (const tier of body.tiers) {
@@ -85,10 +104,24 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       ])
     }
 
+    const parsedFixedAmount =
+      body.fixedAmount !== undefined
+        ? typeof body.fixedAmount === 'string'
+          ? parseFloat(body.fixedAmount)
+          : (body.fixedAmount as number)
+        : undefined
+
     const rate = await prisma.cusaRate.update({
       where: { id: params.id },
       data: {
         name: body.name,
+        rateType: body.rateType === 'FIXED' || body.rateType === 'TIERED' ? body.rateType : undefined,
+        fixedAmount:
+          parsedFixedAmount !== undefined
+            ? parsedFixedAmount
+            : body.rateType === 'TIERED'
+              ? null
+              : undefined,
         effectiveFrom: body.effectiveFrom ? new Date(body.effectiveFrom) : undefined,
         effectiveTo: body.effectiveTo !== undefined ? (body.effectiveTo ? new Date(body.effectiveTo) : null) : undefined,
         isActive: body.isActive,

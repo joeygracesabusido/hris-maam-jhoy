@@ -4,6 +4,7 @@ import { retryableTransaction } from '@/lib/prisma-transaction'
 import {
   findApplicableTier,
   computeCusaAmount,
+  computeFixedCusaAmount,
   generateCusaBillNo,
   getNextCusaBillSequence,
   getQuarterDates,
@@ -124,7 +125,17 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!rate.tiers || rate.tiers.length === 0) {
+    const rateMeta = rate as unknown as { rateType?: string; fixedAmount?: number | null }
+    const isFixedRate = rateMeta.rateType === 'FIXED'
+
+    if (isFixedRate) {
+      if (rateMeta.fixedAmount === undefined || rateMeta.fixedAmount === null || rateMeta.fixedAmount < 0) {
+        return NextResponse.json(
+          { error: 'Active FIXED rate has no valid fixedAmount configured' },
+          { status: 400 }
+        )
+      }
+    } else if (!rate.tiers || rate.tiers.length === 0) {
       return NextResponse.json(
         { error: 'Active rate has no tiers configured' },
         { status: 400 }
@@ -194,10 +205,14 @@ export async function POST(request: Request) {
       }, { status: 200 })
     }
 
-    const validUnits = unbilledUnits
-      .map((u) => ({ unit: u, tier: findApplicableTier(u.areaSqm, rate.tiers) }))
-      .filter((entry): entry is { unit: typeof units[number]; tier: NonNullable<ReturnType<typeof findApplicableTier>> } => entry.tier !== null)
-    console.log('[CUSA Bills] validUnits:', validUnits.length, validUnits.map(v => `${v.unit.unitNo} tier=${v.tier.fromArea}-${v.tier.toArea}`))
+    const fixedMonthly = isFixedRate ? (rateMeta.fixedAmount as number) : 0
+
+    const validUnits = isFixedRate
+      ? unbilledUnits.map((u) => ({ unit: u, tier: null as null }))
+      : unbilledUnits
+        .map((u) => ({ unit: u, tier: findApplicableTier(u.areaSqm, rate.tiers) }))
+        .filter((entry): entry is { unit: typeof units[number]; tier: NonNullable<ReturnType<typeof findApplicableTier>> } => entry.tier !== null)
+    console.log('[CUSA Bills] validUnits:', validUnits.length, isFixedRate ? validUnits.map(v => `${v.unit.unitNo} fixed=${fixedMonthly}`) : validUnits.map(v => `${v.unit.unitNo} tier=${v.tier?.fromArea}-${v.tier?.toArea}`))
 
     if (validUnits.length === 0) {
       const tierInfo = rate.tiers.map((t) => `${t.fromArea}-${t.toArea ?? '∞'} sqm`).join(', ')
@@ -216,7 +231,10 @@ export async function POST(request: Request) {
     const createdBills = await retryableTransaction(async (tx) => {
       const bills = []
       for (const { unit, tier } of validUnits) {
-        const totalAmount = computeCusaAmount(unit.areaSqm, tier.pricePerSqm, months)
+        if (!isFixedRate && !tier) continue
+        const totalAmount = isFixedRate
+          ? computeFixedCusaAmount(fixedMonthly, months)
+          : computeCusaAmount(unit.areaSqm, (tier as NonNullable<typeof tier>).pricePerSqm, months)
         const sequence = currentSequence++
         const billNo = generateCusaBillNo(billingYear, billingQuarter, sequence)
 
@@ -231,7 +249,8 @@ export async function POST(request: Request) {
             billingMonth: startMonth,
             billingMonths: months,
             areaSqm: unit.areaSqm,
-            ratePerSqm: tier.pricePerSqm,
+            ratePerSqm: isFixedRate ? 0 : (tier as NonNullable<typeof tier>).pricePerSqm,
+            ...(isFixedRate ? { fixedAmount: fixedMonthly } : {}),
             totalAmount,
             balance: totalAmount,
             dueDate: dueDateObj,

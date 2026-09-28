@@ -1215,10 +1215,12 @@ model CusaUnit {
   @@map("cusa_units")
 }
 
-/// CUSA rate structure with tiers based on unit area
+/// CUSA rate structure with tiers based on unit area or fixed monthly amount
 model CusaRate {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   name          String
+  rateType      String   @default("TIERED")
+  fixedAmount   Float?
   effectiveFrom DateTime
   effectiveTo   DateTime?
   isActive      Boolean  @default(true)
@@ -1262,6 +1264,7 @@ model CusaBill {
   billingMonths  Int      @default(3)
   areaSqm        Float
   ratePerSqm     Float
+  fixedAmount    Float?
   totalAmount    Float
   amountPaid     Float    @default(0)
   balance        Float

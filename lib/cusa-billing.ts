@@ -42,6 +42,12 @@ export function computeCusaAmount(areaSqm: number, pricePerSqm: number, months: 
   return Math.round(areaSqm * pricePerSqm * months * 100) / 100
 }
 
+export function computeFixedCusaAmount(fixedMonthlyAmount: number, months: number = 3): number {
+  if (fixedMonthlyAmount < 0) throw new Error('Fixed amount must be non-negative')
+  if (months < 1 || months > 3) throw new Error('Months must be 1-3')
+  return Math.round(fixedMonthlyAmount * months * 100) / 100
+}
+
 export function generateCusaBillNo(year: number, quarter: number, sequence: number): string {
   const seq = String(sequence).padStart(4, '0')
   return `CUSA-${year}Q${quarter}-${seq}`

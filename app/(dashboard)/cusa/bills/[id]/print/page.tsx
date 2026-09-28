@@ -148,10 +148,17 @@ export default function PrintCusaBillPage() {
               <td className="border dark:border-gray-700 px-3 py-1 dark:text-gray-200">Unit Area (sq.m.)</td>
               <td className="border dark:border-gray-700 px-3 py-1 text-right font-mono dark:text-white">{bill.areaSqm.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
             </tr>
-            <tr className="dark:border-gray-700">
-              <td className="border dark:border-gray-700 px-3 py-1 dark:text-gray-200">Rate per Sq.m.</td>
-              <td className="border dark:border-gray-700 px-3 py-1 text-right font-mono dark:text-white">{formatCurrency(bill.ratePerSqm)}</td>
-            </tr>
+            {bill.fixedAmount !== undefined && bill.fixedAmount !== null ? (
+              <tr className="dark:border-gray-700">
+                <td className="border dark:border-gray-700 px-3 py-1 dark:text-gray-200">Fixed Monthly Rate</td>
+                <td className="border dark:border-gray-700 px-3 py-1 text-right font-mono dark:text-white">{formatCurrency(bill.fixedAmount)}</td>
+              </tr>
+            ) : (
+              <tr className="dark:border-gray-700">
+                <td className="border dark:border-gray-700 px-3 py-1 dark:text-gray-200">Rate per Sq.m.</td>
+                <td className="border dark:border-gray-700 px-3 py-1 text-right font-mono dark:text-white">{formatCurrency(bill.ratePerSqm)}</td>
+              </tr>
+            )}
             <tr className="bg-gray-100 dark:bg-gray-700 font-bold">
               <td className="border dark:border-gray-600 px-3 py-1.5 dark:text-white">Total Amount Due</td>
               <td className="border dark:border-gray-600 px-3 py-1.5 text-right font-mono dark:text-white">{formatCurrency(bill.totalAmount)}</td>

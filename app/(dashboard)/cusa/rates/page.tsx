@@ -18,6 +18,8 @@ export default function CusaRatesPage() {
     name: '',
     effectiveFrom: '',
     effectiveTo: '',
+    rateType: 'TIERED' as 'TIERED' | 'FIXED',
+    fixedAmount: '' as number | string,
   })
 
   const [tiers, setTiers] = useState<{ fromArea: number | string; toArea?: number; pricePerSqm: number | string; sequence: number }[]>([
@@ -25,7 +27,7 @@ export default function CusaRatesPage() {
   ])
 
   const resetForm = () => {
-    setFormData({ name: '', effectiveFrom: '', effectiveTo: '' })
+    setFormData({ name: '', effectiveFrom: '', effectiveTo: '', rateType: 'TIERED', fixedAmount: '' })
     setTiers([{ fromArea: '', toArea: undefined, pricePerSqm: '', sequence: 1 }])
     setEditingRate(null)
     setError('')
@@ -42,6 +44,8 @@ export default function CusaRatesPage() {
       name: rate.name,
       effectiveFrom: new Date(rate.effectiveFrom).toISOString().split('T')[0],
       effectiveTo: rate.effectiveTo ? new Date(rate.effectiveTo).toISOString().split('T')[0] : '',
+      rateType: rate.rateType === 'FIXED' ? 'FIXED' : 'TIERED',
+      fixedAmount: rate.fixedAmount ?? '',
     })
     setTiers(
       rate.tiers.map((tier) => ({
@@ -86,33 +90,50 @@ export default function CusaRatesPage() {
       return
     }
 
-    if (tiers.length === 0) {
+    if (formData.rateType === 'FIXED') {
+      const amount = typeof formData.fixedAmount === 'string' ? parseFloat(formData.fixedAmount) : formData.fixedAmount
+      if (isNaN(amount) || amount < 0) {
+        setError('Fixed monthly amount must be a non-negative number')
+        return
+      }
+    } else if (tiers.length === 0) {
       setError('At least one tier is required')
       return
     }
 
-    // Validate tiers and convert to numbers
-    const parsedTiers = tiers.map((tier, idx) => {
-      const fromArea = typeof tier.fromArea === 'string' ? parseFloat(tier.fromArea) : tier.fromArea
-      const pricePerSqm = typeof tier.pricePerSqm === 'string' ? parseFloat(tier.pricePerSqm) : tier.pricePerSqm
-      const toArea = tier.toArea !== undefined ? (typeof tier.toArea === 'string' ? parseFloat(tier.toArea) : tier.toArea) : undefined
+    // Validate tiers and convert to numbers (TIERED only)
+    const parsedTiers =
+      formData.rateType === 'FIXED'
+        ? []
+        : tiers.map((tier, idx) => {
+            const fromArea = typeof tier.fromArea === 'string' ? parseFloat(tier.fromArea) : tier.fromArea
+            const pricePerSqm = typeof tier.pricePerSqm === 'string' ? parseFloat(tier.pricePerSqm) : tier.pricePerSqm
+            const toArea = tier.toArea !== undefined ? (typeof tier.toArea === 'string' ? parseFloat(tier.toArea) : tier.toArea) : undefined
 
-      if (isNaN(fromArea) || fromArea < 0) {
-        throw new Error(`Tier ${idx + 1}: Invalid From Area`)
-      }
-      if (isNaN(pricePerSqm) || pricePerSqm < 0) {
-        throw new Error(`Tier ${idx + 1}: Invalid Price per Sq.m.`)
-      }
-      if (toArea !== undefined && (isNaN(toArea) || toArea < fromArea)) {
-        throw new Error(`Tier ${idx + 1}: To Area must be greater than or equal to From Area`)
-      }
+            if (isNaN(fromArea) || fromArea < 0) {
+              throw new Error(`Tier ${idx + 1}: Invalid From Area`)
+            }
+            if (isNaN(pricePerSqm) || pricePerSqm < 0) {
+              throw new Error(`Tier ${idx + 1}: Invalid Price per Sq.m.`)
+            }
+            if (toArea !== undefined && (isNaN(toArea) || toArea < fromArea)) {
+              throw new Error(`Tier ${idx + 1}: To Area must be greater than or equal to From Area`)
+            }
 
-      return { fromArea, toArea, pricePerSqm, sequence: tier.sequence }
-    })
+            return { fromArea, toArea, pricePerSqm, sequence: tier.sequence }
+          })
 
     try {
+      const fixedAmount =
+        formData.rateType === 'FIXED'
+          ? typeof formData.fixedAmount === 'string'
+            ? parseFloat(formData.fixedAmount)
+            : (formData.fixedAmount as number)
+          : undefined
       const payload = {
         name: formData.name,
+        rateType: formData.rateType,
+        ...(formData.rateType === 'FIXED' ? { fixedAmount } : {}),
         effectiveFrom: formData.effectiveFrom,
         effectiveTo: formData.effectiveTo || undefined,
         tiers: parsedTiers as Omit<CusaRateTier, 'id'>[],
@@ -164,14 +185,19 @@ export default function CusaRatesPage() {
                 <th className="text-left px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Effective From</th>
                 <th className="text-left px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Effective To</th>
                 <th className="text-center px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Status</th>
-                <th className="text-center px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Tiers</th>
+                <th className="text-center px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Type / Rate</th>
                 <th className="text-right px-4 py-3 font-medium text-sm text-gray-700 dark:text-gray-300">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {(rates || []).map((rate) => (
                 <tr key={rate.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <td className="px-4 py-3 font-medium dark:text-white">{rate.name}</td>
+                  <td className="px-4 py-3 font-medium dark:text-white">
+                    <div>{rate.name}</div>
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                      {rate.rateType === 'FIXED' ? 'FIXED' : 'TIERED'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{formatDate(rate.effectiveFrom)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{rate.effectiveTo ? formatDate(rate.effectiveTo) : '—'}</td>
                   <td className="px-4 py-3 text-center">
@@ -183,7 +209,11 @@ export default function CusaRatesPage() {
                       {rate.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-300">{rate.tiers.length}</td>
+                  <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-300">
+                    {rate.rateType === 'FIXED'
+                      ? `₱${Number(rate.fixedAmount ?? 0).toLocaleString()}/mo`
+                      : `${rate.tiers.length} tier${rate.tiers.length === 1 ? '' : 's'}`}
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => openEdit(rate)}
@@ -262,6 +292,52 @@ export default function CusaRatesPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Rate Type *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, rateType: 'TIERED' })}
+                    className={`px-3 py-2 border rounded-lg text-sm font-medium ${
+                      formData.rateType === 'TIERED'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    Tiered (per sq.m.)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, rateType: 'FIXED' })}
+                    className={`px-3 py-2 border rounded-lg text-sm font-medium ${
+                      formData.rateType === 'FIXED'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    Fixed monthly rate
+                  </button>
+                </div>
+              </div>
+
+              {formData.rateType === 'FIXED' ? (
+                <div className="border-t dark:border-gray-700 pt-4">
+                  <label className="block text-sm font-medium mb-1 dark:text-gray-300">Fixed Monthly Amount (₱) *</label>
+                  <input
+                    type="number"
+                    value={formData.fixedAmount}
+                    onChange={(e) => setFormData({ ...formData, fixedAmount: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                    min="0"
+                    step="0.01"
+                    placeholder="e.g., 5000"
+                    required
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Same amount for every unit. Billed total = amount × months.
+                  </p>
+                </div>
+              ) : (
               <div className="border-t dark:border-gray-700 pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <label className="block text-sm font-medium dark:text-gray-300">Tiers *</label>
@@ -330,6 +406,7 @@ export default function CusaRatesPage() {
                   ))}
                 </div>
               </div>
+              )}
 
               <div className="flex gap-3 pt-4 border-t dark:border-gray-700">
                 <button

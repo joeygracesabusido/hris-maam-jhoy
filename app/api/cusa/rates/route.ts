@@ -30,16 +30,35 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { name, effectiveFrom, effectiveTo, isActive, branchId, tiers } = body
+    const { name, effectiveFrom, effectiveTo, isActive, branchId, tiers, rateType, fixedAmount } = body
 
-    if (!name || !effectiveFrom || !tiers || !Array.isArray(tiers) || tiers.length === 0) {
+    const normalizedRateType = rateType === 'FIXED' ? 'FIXED' : 'TIERED'
+
+    if (!name || !effectiveFrom) {
       return NextResponse.json(
-        { error: 'name, effectiveFrom, and tiers (non-empty array) are required' },
+        { error: 'name and effectiveFrom are required' },
         { status: 400 }
       )
     }
 
-    for (const tier of tiers) {
+    if (normalizedRateType === 'FIXED') {
+      const amount = typeof fixedAmount === 'string' ? parseFloat(fixedAmount) : fixedAmount
+      if (amount === undefined || amount === null || isNaN(amount) || amount < 0) {
+        return NextResponse.json(
+          { error: 'fixedAmount (non-negative number) is required for FIXED rates' },
+          { status: 400 }
+        )
+      }
+    } else {
+      if (!tiers || !Array.isArray(tiers) || tiers.length === 0) {
+        return NextResponse.json(
+          { error: 'tiers (non-empty array) are required for TIERED rates' },
+          { status: 400 }
+        )
+      }
+    }
+
+    for (const tier of tiers || []) {
       if (tier.fromArea === undefined || tier.pricePerSqm === undefined) {
         return NextResponse.json(
           { error: 'Each tier must have fromArea and pricePerSqm' },
@@ -64,21 +83,30 @@ export async function POST(request: Request) {
       }
     }
 
+    const parsedFixedAmount =
+      normalizedRateType === 'FIXED'
+        ? typeof fixedAmount === 'string'
+          ? parseFloat(fixedAmount)
+          : (fixedAmount as number)
+        : null
+
+    const tierList = (tiers || []).map((tier: { fromArea: number; toArea?: number | null; pricePerSqm: number }, index: number) => ({
+      fromArea: tier.fromArea,
+      toArea: tier.toArea ?? null,
+      pricePerSqm: tier.pricePerSqm,
+      sequence: index + 1,
+    }))
+
     const rate = await prisma.cusaRate.create({
       data: {
         name,
+        rateType: normalizedRateType,
+        fixedAmount: parsedFixedAmount,
         effectiveFrom: new Date(effectiveFrom),
         effectiveTo: effectiveTo ? new Date(effectiveTo) : null,
         isActive: isActive !== false,
         branchId: branchId || null,
-        tiers: {
-          create: tiers.map((tier: { fromArea: number; toArea?: number | null; pricePerSqm: number }, index: number) => ({
-            fromArea: tier.fromArea,
-            toArea: tier.toArea ?? null,
-            pricePerSqm: tier.pricePerSqm,
-            sequence: index + 1,
-          })),
-        },
+        ...(tierList.length > 0 ? { tiers: { create: tierList } } : {}),
       },
       include: {
         tiers: { orderBy: { sequence: 'asc' } },
@@ -88,6 +116,7 @@ export async function POST(request: Request) {
     return NextResponse.json(rate, { status: 201 })
   } catch (error) {
     console.error('Error creating CUSA rate:', error)
-    return NextResponse.json({ error: 'Failed to create CUSA rate' }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: `Failed to create CUSA rate: ${message}` }, { status: 500 })
   }
 }

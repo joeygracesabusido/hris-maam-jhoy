@@ -27,6 +27,8 @@ export interface CusaRateTier {
 export interface CusaRate {
   id: string
   name: string
+  rateType: 'TIERED' | 'FIXED'
+  fixedAmount?: number | null
   effectiveFrom: string
   effectiveTo?: string
   isActive: boolean
@@ -47,6 +49,7 @@ export interface CusaBill {
   billingMonths?: number
   areaSqm: number
   ratePerSqm: number
+  fixedAmount?: number | null
   totalAmount: number
   amountPaid: number
   balance: number
