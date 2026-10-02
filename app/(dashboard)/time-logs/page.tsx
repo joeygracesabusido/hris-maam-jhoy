@@ -93,7 +93,7 @@ export default function TimeLogsPage() {
   const [closestLocation, setClosestLocation] = useState<{ name: string; distance: number } | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [timeLogToEdit, setTimeLogToEdit] = useState<TimeLog | null>(null);
-  const [editForm, setEditForm] = useState({ clockIn: '', clockOut: '' });
+  const [editForm, setEditForm] = useState({ date: '', clockIn: '', clockOut: '' });
   const [saving, setSaving] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [timeLogToDelete, setTimeLogToDelete] = useState<TimeLog | null>(null);
@@ -672,6 +672,7 @@ export default function TimeLogsPage() {
   const handleEditClick = (log: TimeLog) => {
     setTimeLogToEdit(log);
     setEditForm({
+      date: new Date(log.date).toISOString().split('T')[0],
       clockIn: log.clockIn ? new Date(log.clockIn).toISOString().slice(11, 16) : '',
       clockOut: log.clockOut ? new Date(log.clockOut).toISOString().slice(11, 16) : '',
     });
@@ -683,13 +684,16 @@ export default function TimeLogsPage() {
 
     setSaving(true);
     try {
-      const today = timeLogToEdit.date.split('T')[0];
-      const payload: { id: string; clockIn?: string; clockOut?: string | null } = { id: timeLogToEdit.id };
+      const day = editForm.date || timeLogToEdit.date.split('T')[0];
+      const payload: { id: string; date: string; clockIn?: string; clockOut?: string | null } = {
+        id: timeLogToEdit.id,
+        date: day,
+      };
       if (editForm.clockIn) {
-        payload.clockIn = `${today}T${editForm.clockIn}:00.000Z`;
+        payload.clockIn = `${day}T${editForm.clockIn}:00.000Z`;
       }
       if (editForm.clockOut) {
-        payload.clockOut = `${today}T${editForm.clockOut}:00.000Z`;
+        payload.clockOut = `${day}T${editForm.clockOut}:00.000Z`;
       } else if (timeLogToEdit.clockOut) {
         payload.clockOut = null;
       }
@@ -1477,6 +1481,16 @@ export default function TimeLogsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="editDate" className="text-right">Date</Label>
+              <Input
+                id="editDate"
+                type="date"
+                value={editForm.date}
+                onChange={(e) => setEditForm(f => ({ ...f, date: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="clockIn" className="text-right">Clock In</Label>
               <Input

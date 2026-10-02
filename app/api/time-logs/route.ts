@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { buildRoleBasedWhereClause, getRequestSession } from '@/lib/auth-helpers';
-import { computeLateMinutes, computeUndertimeMinutes, parseTimeString } from '@/lib/late-computation';
+import { computeLateMinutes, computeUndertimeMinutes, parseTimeString, recomputeTimeLogFromSchedule } from '@/lib/late-computation';
 
 export const dynamic = 'force-dynamic';
 
@@ -373,19 +373,122 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, clockIn, clockOut } = body;
+    const { id, clockIn, clockOut, date } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Time log ID is required' }, { status: 400 });
     }
 
-    const updateData: Record<string, string | null> = {};
-    if (clockIn !== undefined) updateData.clockIn = clockIn;
-    if (clockOut !== undefined) updateData.clockOut = clockOut;
-
-    if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json({ error: 'Date must be YYYY-MM-DD' }, { status: 400 });
     }
+
+    const existing = await prisma.timeLog.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Time log not found' }, { status: 404 });
+    }
+
+    // In this codebase timestamps are stored in fake-UTC (Manila wall clock
+    // as UTC fields), so the ISO day always equals the Manila calendar day.
+    const dayKeyOf = (d: Date): string => d.toISOString().split('T')[0];
+    const newDayKey = date ?? dayKeyOf(new Date(existing.date));
+    const [year, month, day] = newDayKey.split('-').map(Number);
+
+    // Anchor a wall-clock time onto the (possibly new) day. Provided ISO
+    // strings from the edit dialog are already anchored by the frontend;
+    // re-anchoring here keeps kept values correct when only the date changes.
+    const anchorToDay = (value: Date): Date => {
+      return new Date(
+        Date.UTC(year, month - 1, day, value.getUTCHours(), value.getUTCMinutes(), value.getUTCSeconds(), 0)
+      );
+    };
+
+    const parseTimestamp = (value: unknown): Date | null | undefined => {
+      if (value === undefined) return undefined;
+      if (value === null || value === '') return null;
+      const parsed = new Date(String(value));
+      if (isNaN(parsed.getTime())) return undefined;
+      return parsed;
+    };
+
+    const parsedClockIn = parseTimestamp(clockIn);
+    const parsedClockOut = parseTimestamp(clockOut);
+    if ((clockIn !== undefined && parsedClockIn === undefined) ||
+        (clockOut !== undefined && parsedClockOut === undefined)) {
+      return NextResponse.json({ error: 'Invalid clock in/out time' }, { status: 400 });
+    }
+
+    const baseClockIn = parsedClockIn === undefined
+      ? (existing.clockIn ? new Date(existing.clockIn) : null)
+      : parsedClockIn;
+    const baseClockOut = parsedClockOut === undefined
+      ? (existing.clockOut ? new Date(existing.clockOut) : null)
+      : parsedClockOut;
+
+    const newClockIn = baseClockIn ? anchorToDay(baseClockIn) : null;
+    const newClockOut = baseClockOut ? anchorToDay(baseClockOut) : null;
+
+    if (!newClockIn && newClockOut) {
+      return NextResponse.json(
+        { error: 'Clock in is required when clock out is set' },
+        { status: 400 }
+      );
+    }
+    if (newClockIn && newClockOut && newClockOut.getTime() <= newClockIn.getTime()) {
+      return NextResponse.json(
+        { error: 'Clock out must be after clock in' },
+        { status: 400 }
+      );
+    }
+
+    // Duplicate-day guard: the schema unique key is on the exact timestamp,
+    // so compare calendar days against the employee's other logs.
+    const siblings = await prisma.timeLog.findMany({
+      where: { employeeId: existing.employeeId, NOT: { id } },
+      select: { id: true, date: true },
+    });
+    const clash = siblings.find((sib) => dayKeyOf(new Date(sib.date)) === newDayKey);
+    if (clash) {
+      return NextResponse.json(
+        { error: 'Another time log already exists for this employee on the selected date' },
+        { status: 409 }
+      );
+    }
+
+    let workHours = 0;
+    if (newClockIn && newClockOut) {
+      workHours = Math.round(((newClockOut.getTime() - newClockIn.getTime()) / 3600000) * 100) / 100;
+    }
+
+    // Recompute late/undertime against the shift schedule on the (new) date.
+    const schedule = await prisma.shiftSchedule.findFirst({
+      where: {
+        employeeId: existing.employeeId,
+        date: {
+          gte: new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0)),
+          lte: new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999)),
+        },
+      },
+      include: { shift: true },
+    });
+    const { lateMinutes, undertimeMinutes } = recomputeTimeLogFromSchedule(
+      { clockIn: newClockIn, clockOut: newClockOut },
+      schedule?.shift
+    );
+
+    const updateData: Record<string, Date | number | boolean | string | null> = {
+      workHours,
+      lateMinutes,
+      undertimeMinutes,
+      isEdited: true,
+    };
+    if (date !== undefined) {
+      // Noon UTC anchor keeps the calendar day stable across timezones
+      // (same convention as the XCLS import).
+      updateData.date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+    }
+    if (parsedClockIn !== undefined || date !== undefined) updateData.clockIn = newClockIn;
+    if (parsedClockOut !== undefined || date !== undefined) updateData.clockOut = newClockOut;
 
     const updated = await prisma.timeLog.update({
       where: { id },
