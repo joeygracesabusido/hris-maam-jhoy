@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, XCircle, FileText, Printer, DollarSign, Trash2 } from 'lucide-react'
+import { Search, XCircle, FileText, Printer, DollarSign, Trash2, FileSpreadsheet, FileDown } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import { jsPDF } from 'jspdf'
 import { useBills, useGenerateBills, useUpdateBill, useDeleteBill, useRates, useTenants, useCreatePayment } from '@/hooks/use-water'
 import type { WaterBill } from '@/hooks/use-water'
 import { format } from 'date-fns'
@@ -12,8 +14,8 @@ export default function BillsPage() {
   const currentYear = new Date().getUTCFullYear()
   const currentMonth = new Date().getUTCMonth() + 1
 
-  const [filterMonth, setFilterMonth] = useState<string>(String(currentMonth))
-  const [filterYear, setFilterYear] = useState<string>(String(currentYear))
+  const [filterMonth, setFilterMonth] = useState<string>('')
+  const [filterYear, setFilterYear] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterTenant, setFilterTenant] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -167,11 +169,259 @@ export default function BillsPage() {
     )
   })
 
+  const totalAmount = (filteredBills || []).reduce((sum, b) => sum + b.totalAmount, 0)
+  const totalPaid = (filteredBills || []).reduce((sum, b) => sum + b.amountPaid, 0)
+  const totalBalance = (filteredBills || []).reduce((sum, b) => sum + b.balance, 0)
+
+  const getPeriodLabel = (bill: WaterBill): string => {
+    return `${MONTHS[bill.billingMonth - 1]} ${bill.billingYear}`
+  }
+
+  const getReadingDateLabel = (bill: WaterBill): string => {
+    if (!bill.reading?.readingDate) return ''
+    return format(new Date(bill.reading.readingDate), 'MMM dd, yyyy')
+  }
+
+  const getSortedPayments = (bill: WaterBill) => {
+    return [...(bill.payments || [])].sort(
+      (a, b) => new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime()
+    )
+  }
+
+  const getPaymentDatesLabel = (bill: WaterBill): string => {
+    const pays = getSortedPayments(bill)
+    if (pays.length === 0) return ''
+    return pays.map((p) => format(new Date(p.paymentDate), 'MMM dd, yyyy')).join('; ')
+  }
+
+  const getPaymentModesLabel = (bill: WaterBill): string => {
+    const pays = getSortedPayments(bill)
+    if (pays.length === 0) return ''
+    return pays.map((p) => p.paymentMethod).join('; ')
+  }
+
+  const getPaymentRefsLabel = (bill: WaterBill): string => {
+    const pays = getSortedPayments(bill)
+    if (pays.length === 0) return ''
+    return pays.map((p) => p.referenceNo || '-').join('; ')
+  }
+
+  const getFilterLabel = (): string => {
+    const parts: string[] = []
+    if (filterMonth) parts.push(MONTHS[parseInt(filterMonth) - 1])
+    if (filterYear) parts.push(filterYear)
+    if (filterStatus) parts.push(filterStatus)
+    if (searchTerm) parts.push(`Search: ${searchTerm}`)
+    return parts.length > 0 ? parts.join(' | ') : 'All Billing'
+  }
+
+  const handleExportExcel = () => {
+    const rows = filteredBills || []
+    if (rows.length === 0) {
+      alert('No bills to export')
+      return
+    }
+    try {
+      const data = rows.map((b) => ({
+        'Bill No.': b.billNo,
+        Tenant: b.tenant?.fullName || '',
+        Meter: b.meter?.meterNo || '',
+        Period: getPeriodLabel(b),
+        'Reading Date': getReadingDateLabel(b),
+        Consumption: b.consumption,
+        Amount: b.totalAmount,
+        Paid: b.amountPaid,
+        Balance: b.balance,
+        'Payment Date': getPaymentDatesLabel(b),
+        Mode: getPaymentModesLabel(b),
+        Reference: getPaymentRefsLabel(b),
+        Status: b.status,
+        'Due Date': format(new Date(b.dueDate), 'yyyy-MM-dd'),
+      }))
+      data.push({
+        'Bill No.': 'TOTAL',
+        Tenant: `${rows.length} bill(s)`,
+        Meter: '',
+        Period: '',
+        'Reading Date': '',
+        Consumption: rows.reduce((s, b) => s + b.consumption, 0),
+        Amount: totalAmount,
+        Paid: totalPaid,
+        Balance: totalBalance,
+        'Payment Date': '',
+        Mode: '',
+        Reference: '',
+        Status: '',
+        'Due Date': '',
+      })
+      const ws = XLSX.utils.json_to_sheet(data)
+      ws['!cols'] = [
+        { wch: 18 },
+        { wch: 28 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 22 },
+        { wch: 18 },
+        { wch: 20 },
+        { wch: 12 },
+        { wch: 12 },
+      ]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Water Bills')
+      XLSX.writeFile(wb, `Water_Bills_${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
+    } catch (err) {
+      console.error('Error exporting excel:', err)
+      alert('Failed to export Excel file')
+    }
+  }
+
+  const handleExportPDF = () => {
+    const rows = filteredBills || []
+    if (rows.length === 0) {
+      alert('No bills to print')
+      return
+    }
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'legal' })
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    let yPos = 12
+
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Water Bills', pageWidth / 2, yPos, { align: 'center' })
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.text(getFilterLabel(), pageWidth / 2, yPos + 6, { align: 'center' })
+    doc.setFontSize(8)
+    doc.text(`Generated: ${format(new Date(), 'MMM dd, yyyy')}`, pageWidth / 2, yPos + 11, { align: 'center' })
+
+    yPos = 26
+    const headers = ['No.', 'Bill No.', 'Tenant', 'Period', 'Read Date', 'Cons.', 'Amount', 'Paid', 'Balance', 'Pay Date', 'Mode', 'Ref', 'Status']
+    const colWidths = [8, 26, 42, 20, 24, 14, 24, 24, 24, 32, 22, 32, 22]
+    let xPos = 10
+
+    const fitText = (text: string, maxWidth: number): string => {
+      const avail = maxWidth - 2
+      if (doc.getTextWidth(text) <= avail) return text
+      let t = text
+      while (t.length > 0 && doc.getTextWidth(t + '...') > avail) t = t.slice(0, -1)
+      return t ? t + '...' : ''
+    }
+
+    const drawHeader = () => {
+      doc.setFillColor(30, 64, 175)
+      doc.rect(8, yPos, pageWidth - 16, 8, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7)
+      xPos = 10
+      headers.forEach((h, i) => {
+        const colW = colWidths[i]
+        const isNumeric = [5, 6, 7, 8].includes(i)
+        const isCenter = [0].includes(i)
+        if (isCenter) {
+          doc.text(h, xPos + colW / 2, yPos + 5.5, { align: 'center' })
+        } else if (isNumeric) {
+          doc.text(h, xPos + colW - 1.5, yPos + 5.5, { align: 'right' })
+        } else {
+          doc.text(fitText(h, colW), xPos + 1, yPos + 5.5)
+        }
+        xPos += colW
+      })
+      doc.setTextColor(0, 0, 0)
+      yPos += 8
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7)
+    }
+
+    const formatNum = (n: number): string => {
+      return n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    }
+
+    drawHeader()
+
+    rows.forEach((b, index) => {
+      if (yPos > pageHeight - 20) {
+        doc.addPage('legal', 'landscape')
+        yPos = 12
+        drawHeader()
+      }
+      if (index % 2 === 0) {
+        doc.setFillColor(240, 245, 250)
+        doc.rect(8, yPos, pageWidth - 16, 6, 'F')
+      }
+      xPos = 10
+      doc.text(String(index + 1), xPos + colWidths[0] / 2, yPos + 4.2, { align: 'center' })
+      xPos += colWidths[0]
+      doc.text(fitText(b.billNo, colWidths[1]), xPos + 1, yPos + 4.2)
+      xPos += colWidths[1]
+      doc.text(fitText(b.tenant?.fullName || '-', colWidths[2]), xPos + 1, yPos + 4.2)
+      xPos += colWidths[2]
+      doc.text(getPeriodLabel(b), xPos + 1, yPos + 4.2)
+      xPos += colWidths[3]
+      doc.text(getReadingDateLabel(b) || '-', xPos + 1, yPos + 4.2)
+      xPos += colWidths[4]
+      doc.text(`${b.consumption.toFixed(1)}`, xPos + colWidths[5] - 1.5, yPos + 4.2, { align: 'right' })
+      xPos += colWidths[5]
+      doc.text(formatNum(b.totalAmount), xPos + colWidths[6] - 1.5, yPos + 4.2, { align: 'right' })
+      xPos += colWidths[6]
+      doc.text(formatNum(b.amountPaid), xPos + colWidths[7] - 1.5, yPos + 4.2, { align: 'right' })
+      xPos += colWidths[7]
+      doc.text(formatNum(b.balance), xPos + colWidths[8] - 1.5, yPos + 4.2, { align: 'right' })
+      xPos += colWidths[8]
+      doc.text(fitText(getPaymentDatesLabel(b) || '-', colWidths[9]), xPos + 1, yPos + 4.2)
+      xPos += colWidths[9]
+      doc.text(fitText(getPaymentModesLabel(b) || '-', colWidths[10]), xPos + 1, yPos + 4.2)
+      xPos += colWidths[10]
+      doc.text(fitText(getPaymentRefsLabel(b) || '-', colWidths[11]), xPos + 1, yPos + 4.2)
+      xPos += colWidths[11]
+      doc.text(fitText(b.status, colWidths[12]), xPos + 1, yPos + 4.2)
+      yPos += 6
+    })
+
+    if (yPos > pageHeight - 20) {
+      doc.addPage('legal', 'landscape')
+      yPos = 12
+    }
+    doc.setFont('helvetica', 'bold')
+    xPos = 10
+    doc.text(`TOTAL (${rows.length})`, xPos + 1, yPos + 4.2)
+    xPos += colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4] + colWidths[5]
+    doc.text(formatNum(totalAmount), xPos + colWidths[6] - 1.5, yPos + 4.2, { align: 'right' })
+    xPos += colWidths[6]
+    doc.text(formatNum(totalPaid), xPos + colWidths[7] - 1.5, yPos + 4.2, { align: 'right' })
+    xPos += colWidths[7]
+    doc.text(formatNum(totalBalance), xPos + colWidths[8] - 1.5, yPos + 4.2, { align: 'right' })
+
+    doc.save(`Water_Bills_${format(new Date(), 'yyyy-MM-dd')}.pdf`)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold dark:text-white">Water Bills</h1>
         <div className="flex gap-2">
+          <button
+            onClick={handleExportExcel}
+            disabled={isLoading || !filteredBills || filteredBills.length === 0}
+            className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            title="Export filtered bills to Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4" /> Excel
+          </button>
+          <button
+            onClick={handleExportPDF}
+            disabled={isLoading || !filteredBills || filteredBills.length === 0}
+            className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            title="Download filtered bills table as PDF"
+          >
+            <FileDown className="w-4 h-4" /> PDF
+          </button>
           <button
             onClick={() => {
               setGenMonth(currentMonth)
@@ -201,11 +451,13 @@ export default function BillsPage() {
           />
         </div>
         <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600">
+          <option value="">All Months</option>
           {MONTHS.map((m, i) => (
             <option key={i + 1} value={i + 1}>{m}</option>
           ))}
         </select>
         <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="px-3 py-2 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600">
+          <option value="">All Years</option>
           {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
             <option key={y} value={y}>{y}</option>
           ))}
@@ -227,11 +479,30 @@ export default function BillsPage() {
         </select>
       </div>
 
+      {!isLoading && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
+          <span className="font-medium dark:text-gray-300">
+            {(filteredBills || []).length} bill(s)
+            {!filterMonth && !filterYear ? ' — All Billing' : ''}
+          </span>
+          <span>
+            Total: <span className="font-mono font-medium dark:text-white">₱{totalAmount.toFixed(2)}</span>
+          </span>
+          <span>
+            Paid: <span className="font-mono font-medium text-green-600 dark:text-green-400">₱{totalPaid.toFixed(2)}</span>
+          </span>
+          <span>
+            Balance: <span className="font-mono font-medium text-red-600 dark:text-red-400">₱{totalBalance.toFixed(2)}</span>
+          </span>
+        </div>
+      )}
+
       {isLoading ? (
         <p className="text-gray-500 dark:text-gray-400">Loading...</p>
       ) : (
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-gray-900 dark:border-gray-700">
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[1250px]">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800">
                 <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Bill No.</th>
@@ -241,6 +512,9 @@ export default function BillsPage() {
                 <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Amount</th>
                 <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Paid</th>
                 <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Balance</th>
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Payment Date</th>
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Mode</th>
+                <th className="text-left px-4 py-3 font-medium text-sm dark:text-gray-300">Reference</th>
                 <th className="text-center px-4 py-3 font-medium text-sm dark:text-gray-300">Status</th>
                 <th className="text-right px-4 py-3 font-medium text-sm dark:text-gray-300">Actions</th>
               </tr>
@@ -255,12 +529,52 @@ export default function BillsPage() {
                   <td className="px-4 py-3 font-mono text-sm font-medium dark:text-white">{bill.billNo}</td>
                   <td className="px-4 py-3 dark:text-gray-300">{bill.tenant?.fullName || '—'}</td>
                   <td className="px-4 py-3 text-center text-sm dark:text-gray-300">
-                    {MONTHS[bill.billingMonth - 1]} {bill.billingYear}
+                    <div className="font-medium dark:text-white">
+                      {MONTHS[bill.billingMonth - 1]} {bill.billingYear}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {bill.reading?.readingDate
+                        ? `Read: ${format(new Date(bill.reading.readingDate), 'MMM dd, yyyy')}`
+                        : '—'}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right font-mono dark:text-gray-300">{bill.consumption.toFixed(1)} m³</td>
                   <td className="px-4 py-3 text-right font-mono font-medium dark:text-white">₱{bill.totalAmount.toFixed(2)}</td>
                   <td className="px-4 py-3 text-right font-mono dark:text-gray-300">₱{bill.amountPaid.toFixed(2)}</td>
                   <td className="px-4 py-3 text-right font-mono font-bold dark:text-white">₱{bill.balance.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-sm dark:text-gray-300">
+                    {getSortedPayments(bill).length === 0 ? (
+                      '—'
+                    ) : (
+                      getSortedPayments(bill).map((p) => (
+                        <div key={p.id} className="whitespace-nowrap">
+                          {format(new Date(p.paymentDate), 'MMM dd, yyyy')}
+                        </div>
+                      ))
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm dark:text-gray-300">
+                    {getSortedPayments(bill).length === 0 ? (
+                      '—'
+                    ) : (
+                      getSortedPayments(bill).map((p) => (
+                        <div key={p.id} className="whitespace-nowrap">
+                          {p.paymentMethod}
+                        </div>
+                      ))
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm dark:text-gray-300">
+                    {getSortedPayments(bill).length === 0 ? (
+                      '—'
+                    ) : (
+                      getSortedPayments(bill).map((p) => (
+                        <div key={p.id} className="whitespace-nowrap font-mono text-xs">
+                          {p.referenceNo || '—'}
+                        </div>
+                      ))
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(bill.status)}`}>
                       {bill.status}
@@ -296,11 +610,12 @@ export default function BillsPage() {
               ))}
               {(!filteredBills || filteredBills.length === 0) && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No bills found</td>
+                  <td colSpan={12} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No bills found</td>
                 </tr>
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

@@ -1500,3 +1500,69 @@ case 'SPECIAL_NON_WORK':
 case 'SPECIAL_NON_WORKING':
   return 0
 ```
+
+---
+
+### Water Bills — All Billing, Reading Date, Excel/PDF Export, Payment Columns (2026-10-05)
+
+**Features:** Four incremental upgrades to `http://localhost:3000/water/bills`, all in one file, no API/schema changes (`GET /api/water/bills` already supports omitting `month`/`year` and already includes `reading` + `payments`).
+
+**Files Updated:**
+- `app/(dashboard)/water/bills/page.tsx` — only file changed (all features below)
+
+**1. All Billing view:**
+```typescript
+// Before: forced to current period, no way to see all bills
+const [filterMonth, setFilterMonth] = useState<string>(String(currentMonth))
+const [filterYear, setFilterYear] = useState<string>(String(currentYear))
+
+// After: empty = All, page loads showing every bill
+const [filterMonth, setFilterMonth] = useState<string>('')
+const [filterYear, setFilterYear] = useState<string>('')
+<option value="">All Months</option>
+<option value="">All Years</option>
+```
+Existing `filters` builder already skips empty values, so `useBills` fetches unfiltered. Added summary bar above table: `N bill(s) [— All Billing] | Total ₱X | Paid ₱Y | Balance ₱Z` from `filteredBills`.
+
+**2. Period column → meter reading date (option B):**
+```typescript
+// Line 1 (kept): Jan 2026 from billingMonth/billingYear
+// Line 2: reading date from already-included relation, with fallback
+{bill.reading?.readingDate
+  ? `Read: ${format(new Date(bill.reading.readingDate), 'MMM dd, yyyy')}`
+  : '—'}
+```
+`WaterBill.reading` is optional (`readingId String?`), so fallback is required for older bills. Briefly showed month start–end range (`new Date(y, m, 0)` last-day trick) per request, then replaced with reading date per follow-up.
+
+**3. Excel + table-PDF export (filtered, with totals):**
+- Header buttons `Excel` (`FileSpreadsheet`) + `PDF` (`FileDown`), disabled while loading/empty. No new deps — `xlsx@0.18.5` + `jspdf@4.2.1` already in `package.json`; both run client-side on click (`'use client'` page, no SSR issue).
+- Excel: `XLSX.utils.json_to_sheet` + `writeFile('Water_Bills_YYYY-MM-DD.xlsx')`, one row per bill + `TOTAL` row (same pattern as journal/advances-summary).
+- PDF: `jsPDF` legal landscape, title + filter label (`All Billing` or e.g. `Aug | 2026`) + generated date, right-aligned numerics, `fitText` truncation, zebra rows, paginated header (same pattern as print-payroll fix). Plain numbers (no `₱` glyph — jsPDF Helvetica lacks it).
+
+**4. Payment Date / Mode / Reference columns — all payments combined (option B):**
+```typescript
+// One row per bill; payments sorted oldest→newest for display
+// API returns newest-first (orderBy paymentDate desc), re-sort frontend-side
+const getSortedPayments = (bill: WaterBill) =>
+  [...(bill.payments || [])].sort((a, b) =>
+    new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime())
+```
+- Table: 3 columns before Status (`Payment Date | Mode | Reference`), each cell stacks all payments (`MMM dd, yyyy` / method / `referenceNo || '—'`); unpaid → `—`. Wrapper `overflow-x-auto` + `min-w-[1250px]`; empty-state `colSpan` 9 → 12.
+- Excel: `Payment Dates / Mode / Reference` columns joined with `'; '` (one row per bill preserves totals).
+- PDF: 10 → 13 cols with rebalanced widths (314mm total): `[8, 26, 42, 20, 24, 14, 24, 24, 24, 32, 22, 32, 22]`; numeric indices `[5,6,7,8]` (Cons/Amount/Paid/Balance) unchanged.
+- Kept one-row-per-bill (vs one-row-per-payment) so footer totals stay correct; full history remains in bill detail modal.
+
+**Verification (2026-10-05 session):**
+```
+npx tsc --noEmit --skipLibCheck  # → no output
+npx eslint "app/(dashboard)/water/bills/page.tsx"  # → no output
+npm run build  # → exit 0, incl. ○ /water/bills 6.63 kB / 336 kB First Load
+```
+Note: `/water/bills` First Load grew to ~336 kB (xlsx + jspdf in page bundle). Passes build; if load speed becomes an issue, move export fns to `next/dynamic ssr:false`. Vercel env reminder: `DATABASE_URL`, `NEXTAUTH_SECRET` (+ `NEXTAUTH_URL`) must be set in dashboard.
+
+**Key Pattern — one-row-per-bill for export totals:**
+```typescript
+// ❌ BAD — one row per payment breaks the TOTAL row (amounts double-count)
+// ✅ GOOD — one row per bill, multi-payments joined with '; ' in a single cell
+pays.map((p) => format(new Date(p.paymentDate), 'MMM dd, yyyy')).join('; ')
+```
