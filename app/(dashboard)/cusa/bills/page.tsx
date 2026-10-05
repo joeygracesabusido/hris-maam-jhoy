@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { FileText, CreditCard, Printer, Pencil, Trash2, XCircle, Building } from 'lucide-react'
-import { useCusaBills, useGenerateCusaBills, useUpdateCusaBill, useDeleteCusaBill, useRecordCusaPayment, useCusaUnits } from '@/hooks/use-cusa'
+import { useCusaBills, useGenerateCusaBills, useUpdateCusaBill, useDeleteCusaBill, useRecordCusaPayment, useCusaUnits, useCusaRates } from '@/hooks/use-cusa'
 import type { CusaBill, CusaUnit } from '@/hooks/use-cusa'
 
 const STATUS_BADGE: Record<string, string> = {
@@ -45,6 +45,7 @@ export default function CusaBillsPage() {
     billingYear: new Date().getFullYear(),
     billingMonths: 1,
     dueDate: '',
+    rateId: '',
   })
 
   const getQuarterFromMonth = (month: number): number => Math.ceil(month / 3)
@@ -63,6 +64,7 @@ export default function CusaBillsPage() {
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([])
   const [selectAll, setSelectAll] = useState(true)
   const { data: availableUnits, isLoading: unitsLoading } = useCusaUnits({ status: 'OCCUPIED' })
+  const { data: cusaRates } = useCusaRates({ activeOnly: 'true' })
 
   const toggleUnit = (id: string) => {
     setSelectedUnitIds((prev) =>
@@ -87,6 +89,7 @@ export default function CusaBillsPage() {
       billingYear: new Date().getFullYear(),
       billingMonths: 1,
       dueDate: '',
+      rateId: '',
     })
     setSelectedUnitIds([])
     setSelectAll(true)
@@ -107,8 +110,8 @@ export default function CusaBillsPage() {
     e.preventDefault()
     setError('')
 
-    if (!generateForm.dueDate) {
-      setError('Due date is required')
+    if (!generateForm.rateId || !generateForm.dueDate) {
+      setError('Rate and due date are required')
       return
     }
 
@@ -119,6 +122,7 @@ export default function CusaBillsPage() {
         billingMonth: generateForm.billingMonth,
         dueDate: generateForm.dueDate,
         billingMonths: generateForm.billingMonths,
+        rateId: generateForm.rateId,
         unitIds: selectedUnitIds.length > 0 && !selectAll ? selectedUnitIds : undefined,
       })
       setShowGenerateModal(false)
@@ -405,6 +409,20 @@ export default function CusaBillsPage() {
                   {' · '}
                   {generateForm.billingMonths} month{generateForm.billingMonths > 1 ? 's' : ''}
                 </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Rate *</label>
+                <select
+                  value={generateForm.rateId}
+                  onChange={(e) => setGenerateForm({ ...generateForm, rateId: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                  required
+                >
+                  <option value="">Select rate...</option>
+                  {(cusaRates || []).map((r) => (
+                    <option key={r.id} value={r.id}>{r.name} ({r.rateType})</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">Due Date *</label>

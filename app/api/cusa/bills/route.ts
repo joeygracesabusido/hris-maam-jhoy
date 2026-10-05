@@ -55,7 +55,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { billingQuarter, billingYear, billingMonth, dueDate, billingMonths, branchId, unitIds } = body
+    const { billingQuarter, billingYear, billingMonth, dueDate, billingMonths, branchId, unitIds, rateId } = body
 
     if (!billingQuarter || !billingYear || !dueDate) {
       return NextResponse.json(
@@ -98,31 +98,62 @@ export async function POST(request: Request) {
       }
     }
 
-    // 1. Find active rate for the billing period (validate effective dates)
+    // 1. Resolve rate: explicit rateId when the caller selects one,
+    // otherwise auto-pick the active rate covering the billing period.
     const { start: quarterStart, end: quarterEnd } = getQuarterDates(billingQuarter, billingYear)
 
-    const rateWhere: Record<string, unknown> = {
-      isActive: true,
-      effectiveFrom: { lte: quarterEnd },
+    const coversQuarter = (effectiveFrom: Date, effectiveTo: Date | null): boolean => {
+      if (effectiveFrom > quarterEnd) return false
+      if (!effectiveTo) return true // No end date = forever active
+      return effectiveTo >= quarterStart
     }
-    if (branchId) rateWhere.branchId = branchId
 
-    // Fetch all candidate rates and filter in-memory for effectiveTo (supports null and date range)
-    const candidateRates = await prisma.cusaRate.findMany({
-      where: rateWhere,
-      include: { tiers: { orderBy: { sequence: 'asc' } } },
-    })
+    let rate: {
+      id: string
+      tiers: { fromArea: number; toArea: number | null; pricePerSqm: number; sequence: number }[]
+    } & { rateType?: string; fixedAmount?: number | null }
 
-    const rate = candidateRates.find((r) => {
-      if (!r.effectiveTo) return true // No end date = forever active
-      return r.effectiveTo >= quarterStart
-    })
+    if (rateId) {
+      const selected = await prisma.cusaRate.findUnique({
+        where: { id: rateId },
+        include: { tiers: { orderBy: { sequence: 'asc' } } },
+      })
+      if (!selected) {
+        return NextResponse.json({ error: 'Selected rate not found' }, { status: 404 })
+      }
+      if (!selected.isActive) {
+        return NextResponse.json({ error: 'Selected rate is not active' }, { status: 400 })
+      }
+      if (!coversQuarter(selected.effectiveFrom, selected.effectiveTo)) {
+        return NextResponse.json(
+          { error: 'Selected rate is not effective for the billing period' },
+          { status: 400 }
+        )
+      }
+      rate = selected as unknown as typeof rate
+    } else {
+      // Backward-compatible auto-pick for callers that don't send rateId
+      const rateWhere: Record<string, unknown> = {
+        isActive: true,
+        effectiveFrom: { lte: quarterEnd },
+      }
+      if (branchId) rateWhere.branchId = branchId
 
-    if (!rate) {
-      return NextResponse.json(
-        { error: 'No active CUSA rate found for the billing period' },
-        { status: 400 }
-      )
+      // Fetch all candidate rates and filter in-memory for effectiveTo (supports null and date range)
+      const candidateRates = await prisma.cusaRate.findMany({
+        where: rateWhere,
+        include: { tiers: { orderBy: { sequence: 'asc' } } },
+      })
+
+      const autoPicked = candidateRates.find((r) => coversQuarter(r.effectiveFrom, r.effectiveTo))
+
+      if (!autoPicked) {
+        return NextResponse.json(
+          { error: 'No active CUSA rate found for the billing period' },
+          { status: 400 }
+        )
+      }
+      rate = autoPicked as unknown as typeof rate
     }
 
     const rateMeta = rate as unknown as { rateType?: string; fixedAmount?: number | null }
