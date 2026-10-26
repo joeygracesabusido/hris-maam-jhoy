@@ -124,7 +124,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, status: newStatus, approvedAmount, notes, branchId } = body;
+    const { id, status: newStatus, approvedAmount, notes, branchId, amount, date } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -139,6 +139,17 @@ export async function PATCH(request: Request) {
         { error: 'Liquidation not found' },
         { status: 404 }
       );
+    }
+
+    // Edit mode: update amount/date/notes of a liquidation
+    if (!newStatus) {
+      const updateData: Record<string, unknown> = {};
+      if (amount !== undefined) updateData.amount = amount;
+      if (date !== undefined) updateData.date = new Date(date);
+      if (notes !== undefined) updateData.notes = notes;
+      if (branchId !== undefined) updateData.branchId = branchId;
+      await prisma.pettyCashLiquidation.update({ where: { id }, data: updateData });
+      return NextResponse.json({ success: true });
     }
 
     const userEmail = await getUserEmail();

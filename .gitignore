@@ -6,3 +6,5 @@ tsconfig.tsbuildinfo
 flutter_app/.dart_tool/
 flutter_app/build/
 
+
+graphify-out/

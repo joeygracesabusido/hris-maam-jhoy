@@ -210,7 +210,62 @@ export async function GET(request: Request) {
       },
       orderBy: { date: 'desc' },
     });
-    return NextResponse.json(expenses);
+
+    let mappedPettyCash: any[] = [];
+    try {
+      const pettyCashLiquidations = await prisma.pettyCashLiquidation.findMany({
+        where: {
+          ...(branchId ? { branchId } : {}),
+        },
+      });
+
+      const pettyCashIds = [...new Set(pettyCashLiquidations.map(liq => liq.pettyCashId))];
+      const pettyCashes = await prisma.pettyCash.findMany({
+        where: { id: { in: pettyCashIds } },
+      });
+      const pcMap = new Map(pettyCashes.map(pc => [pc.id, pc]));
+
+      const disbursementIds = [...new Set(pettyCashLiquidations.map(liq => liq.disbursementId))];
+      const disbursements = await prisma.pettyCashDisbursement.findMany({
+        where: { id: { in: disbursementIds } },
+      });
+      const disbMap = new Map(disbursements.map(d => [d.id, d]));
+
+      // Apply search/status filters to petty cash liquidations (mirrors expenses where)
+      const filteredPettyCashLiquidations = pettyCashLiquidations.filter(liq => {
+        const pcName = pcMap.get(liq.pettyCashId)?.name || '';
+        const disb = disbMap.get(liq.disbursementId);
+        if (status && (liq.status === 'APPROVED' ? 'PAID' : liq.status) !== status) return false;
+        if (search) {
+          const q = search.toLowerCase();
+          const haystack = [liq.id, liq.notes || '', pcName, disb?.description || '', disb?.payeeName || '', `PC-LIQ-${liq.id.slice(0, 5)}`].join(' ').toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        return true;
+      });
+
+      mappedPettyCash = filteredPettyCashLiquidations.map(liq => {
+        const disb = disbMap.get(liq.disbursementId);
+        const description = disb?.description || liq.notes || 'Petty Cash Liquidation';
+        const payee = disb?.payeeName || pcMap.get(liq.pettyCashId)?.name || 'Petty Cash Fund';
+        return {
+        id: `pc-liq-${liq.id}`,
+        expenseNumber: `PC-LIQ-${liq.id.slice(0, 5)}`,
+        date: liq.date || disb?.date || liq.createdAt || liq.approvedAt || new Date(),
+        payee,
+        description,
+        status: liq.status === 'APPROVED' ? 'PAID' : liq.status,
+        totalAmount: liq.amount,
+        items: [{ description, amount: liq.amount, accountId: liq.expenseAccountId }],
+        branchId: liq.branchId,
+      };
+      });
+    } catch (pcError) {
+      console.error('Error fetching petty cash liquidations for expenses list:', pcError);
+      // Fallback to empty array so main expenses still display
+    }
+
+    return NextResponse.json([...expenses, ...mappedPettyCash]);
   } catch (error) {
     console.error('Error fetching expenses:', error);
     return NextResponse.json({ error: 'Failed to fetch expenses' }, { status: 500 });

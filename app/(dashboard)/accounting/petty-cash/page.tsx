@@ -79,6 +79,7 @@ export default function PettyCashPage() {
   const [isDisburseDialogOpen, setDisburseDialogOpen] = useState(false);
   const [isLiquidateDialogOpen, setLiquidateDialogOpen] = useState(false);
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
+  const [isEditLiquidationDialogOpen, setEditLiquidationDialogOpen] = useState(false);
   
   const [editFormData, setEditFormData] = useState({
     name: '',
@@ -88,8 +89,10 @@ export default function PettyCashPage() {
   });
 
   const [selectedDisbursement, setSelectedDisbursement] = useState<Disbursement | null>(null);
+  const [selectedLiquidation, setSelectedLiquidation] = useState<Liquidation | null>(null);
   const [selectedFund, setSelectedFund] = useState<PettyCashFund | null>(null);
   const [activeTab, setActiveTab] = useState<'funds' | 'disbursements' | 'liquidations'>('funds');
+  const [search, setSearch] = useState('');
   const [isReplenishDialogOpen, setReplenishDialogOpen] = useState(false);
   const [replenishTarget, setReplenishTarget] = useState<PettyCashFund | null>(null);
 
@@ -118,6 +121,12 @@ export default function PettyCashPage() {
   });
 
   const [liquidateData, setLiquidateData] = useState({
+    amount: 0 as string | number,
+    date: new Date().toISOString().split('T')[0],
+    notes: '',
+  });
+
+  const [editLiquidateData, setEditLiquidateData] = useState({
     amount: 0 as string | number,
     date: new Date().toISOString().split('T')[0],
     notes: '',
@@ -271,6 +280,36 @@ export default function PettyCashPage() {
       fetchLiquidations();
     } catch (err) {
       console.error('Error submitting liquidation:', err);
+    }
+  }
+
+  function handleEditLiquidation(liq: Liquidation) {
+    setSelectedLiquidation(liq);
+    setEditLiquidateData({
+      amount: liq.amount,
+      date: liq.date ? new Date(liq.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      notes: liq.notes || '',
+    });
+    setEditLiquidationDialogOpen(true);
+  }
+
+  async function submitEditLiquidation(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedLiquidation) return;
+
+    try {
+      await api.patch('/api/accounting/petty-cash/liquidations', {
+        id: selectedLiquidation.id,
+        amount: parseFloat(String(editLiquidateData.amount)) || 0,
+        date: editLiquidateData.date,
+        notes: editLiquidateData.notes,
+        branchId: selectedBranch?.id,
+      });
+      setEditLiquidationDialogOpen(false);
+      setSelectedLiquidation(null);
+      fetchLiquidations();
+    } catch (err) {
+      console.error('Error updating liquidation:', err);
     }
   }
 
@@ -464,6 +503,17 @@ export default function PettyCashPage() {
         </button>
       </div>
 
+      {(activeTab === 'disbursements' || activeTab === 'liquidations') && (
+        <div className="relative max-w-sm">
+          <Input
+            placeholder="Search disbursements/liquidations..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      )}
+
       {activeTab === 'funds' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {funds.map(fund => (
@@ -578,14 +628,26 @@ export default function PettyCashPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {disbursements.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      No disbursements yet.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  disbursements.map(disb => (
+                  {disbursements.filter(d => {
+                    const q = search.toLowerCase();
+                    if (!q) return true;
+                    return (d.description || '').toLowerCase().includes(q) ||
+                      (d.payeeName || '').toLowerCase().includes(q) ||
+                      (d.status || '').toLowerCase().includes(q);
+                  }).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        No disbursements found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    disbursements.filter(d => {
+                      const q = search.toLowerCase();
+                      if (!q) return true;
+                      return (d.description || '').toLowerCase().includes(q) ||
+                        (d.payeeName || '').toLowerCase().includes(q) ||
+                        (d.status || '').toLowerCase().includes(q);
+                    }).map(disb => (
                     <TableRow key={disb.id}>
                       <TableCell>{new Date(disb.date || disb.createdAt).toLocaleDateString('en-PH')}</TableCell>
                       <TableCell>{disb.description || '-'}</TableCell>
@@ -607,15 +669,33 @@ export default function PettyCashPage() {
                         {disb.approvedAt ? new Date(disb.approvedAt).toLocaleDateString('en-PH') : '-'}
                       </TableCell>
                       <TableCell>
-                        {disb.status === 'PENDING' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleLiquidate(disb)}
-                          >
-                            Liquidate
-                          </Button>
-                        )}
+                        <div className="flex gap-2">
+                          {disb.status === 'PENDING' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleLiquidate(disb)}
+                            >
+                              Liquidate
+                            </Button>
+                          )}
+                          {(disb.status === 'LIQUIDATING' || disb.status === 'LIQUIDATED') && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!liquidations.some(l => l.disbursementId === disb.id)}
+                              onClick={() => {
+                                const liq = liquidations.find(l => l.disbursementId === disb.id);
+                                if (liq) {
+                                  setSearch(liq.id);
+                                  setActiveTab('liquidations');
+                                }
+                              }}
+                            >
+                              View Liquidation
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -645,14 +725,32 @@ export default function PettyCashPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {liquidations.length === 0 ? (
+                {liquidations.filter(l => {
+                  const q = search.toLowerCase();
+                  if (!q) return true;
+                  const pcLiq = `PC-LIQ-${l.id.slice(0, 5)}`.toLowerCase();
+                  return (l.notes || '').toLowerCase().includes(q) ||
+                    (l.pettyCash?.name || '').toLowerCase().includes(q) ||
+                    (l.status || '').toLowerCase().includes(q) ||
+                    l.id.toLowerCase().includes(q) ||
+                    pcLiq.includes(q);
+                }).length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No liquidations found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  liquidations.map(liq => (
+                  liquidations.filter(l => {
+                    const q = search.toLowerCase();
+                    if (!q) return true;
+                    const pcLiq = `PC-LIQ-${l.id.slice(0, 5)}`.toLowerCase();
+                    return (l.notes || '').toLowerCase().includes(q) ||
+                      (l.pettyCash?.name || '').toLowerCase().includes(q) ||
+                      (l.status || '').toLowerCase().includes(q) ||
+                      l.id.toLowerCase().includes(q) ||
+                      pcLiq.includes(q);
+                  }).map(liq => (
                     <TableRow key={liq.id}>
                       <TableCell>{new Date(liq.date || liq.createdAt).toLocaleDateString('en-PH')}</TableCell>
                       <TableCell>{liq.pettyCash?.name || '-'}</TableCell>
@@ -674,26 +772,35 @@ export default function PettyCashPage() {
                         {liq.approvedAt ? new Date(liq.approvedAt).toLocaleDateString('en-PH') : '-'}
                       </TableCell>
                       <TableCell>
-                        {liq.status === 'PENDING' && (
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-green-600 hover:text-green-700"
-                              onClick={() => handleLiquidationAction(liq.id, 'APPROVED')}
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-red-600 hover:text-red-700"
-                              onClick={() => handleLiquidationAction(liq.id, 'REJECTED')}
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditLiquidation(liq)}
+                          >
+                            Edit
+                          </Button>
+                          {liq.status === 'PENDING' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-green-600 hover:text-green-700"
+                                onClick={() => handleLiquidationAction(liq.id, 'APPROVED')}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600 hover:text-red-700"
+                                onClick={() => handleLiquidationAction(liq.id, 'REJECTED')}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -812,6 +919,50 @@ export default function PettyCashPage() {
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setLiquidateDialogOpen(false)}>Cancel</Button>
               <Button type="submit">Submit Liquidation</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditLiquidationDialogOpen} onOpenChange={setEditLiquidationDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Liquidation</DialogTitle>
+            <DialogDescription>
+              Update liquidation details for: {selectedLiquidation?.pettyCash?.name || 'fund'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitEditLiquidation} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Amount to Liquidate *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={editLiquidateData.amount}
+                onChange={e => setEditLiquidateData({...editLiquidateData, amount: parseFloat(e.target.value) || 0})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Date *</Label>
+              <Input
+                type="date"
+                value={editLiquidateData.date}
+                onChange={e => setEditLiquidateData({...editLiquidateData, date: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Notes / Remarks</Label>
+              <Input
+                placeholder="Any notes about the expense"
+                value={editLiquidateData.notes}
+                onChange={e => setEditLiquidateData({...editLiquidateData, notes: e.target.value})}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditLiquidationDialogOpen(false)}>Cancel</Button>
+              <Button type="submit">Save Changes</Button>
             </DialogFooter>
           </form>
         </DialogContent>

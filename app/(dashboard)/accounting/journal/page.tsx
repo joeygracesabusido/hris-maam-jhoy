@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -110,6 +110,8 @@ export default function JournalPage() {
       if (debouncedSearch) params.search = debouncedSearch;
       return api.get('/api/accounting/journal', { params, signal });
     },
+    // Keep the previous page visible while the next one loads (no blank table).
+    placeholderData: keepPreviousData,
   });
 
   const accountsQuery = useQuery<any[]>({
@@ -136,7 +138,15 @@ export default function JournalPage() {
   const totalPages = entriesQuery.data?.pagination?.totalPages ?? 1;
   const accounts: any[] = [...(accountsQuery.data ?? [])].sort((a, b) => a.name.localeCompare(b.name));
   const subsidiaryLedgers: any[] = subsidiariesQuery.data ?? [];
-  const loading = entriesQuery.isPending || accountsQuery.isPending || subsidiariesQuery.isPending;
+  // The table only needs the entries query; accounts/subsidiaries feed the form.
+  const loading = entriesQuery.isPending;
+
+  // Clamp the page when the result set shrinks (deletes, filters, another user's edits).
+  useEffect(() => {
+    if (!entriesQuery.isPending && !entriesQuery.isPlaceholderData && page > totalPages) {
+      setPage(totalPages || 1);
+    }
+  }, [page, totalPages, entriesQuery.isPending, entriesQuery.isPlaceholderData]);
 
   // --- Row selection & Excel export ---
   const toggleSelect = (id: string) => {
@@ -603,7 +613,12 @@ export default function JournalPage() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle>Journal History</CardTitle>
+          <div className="flex items-center gap-3">
+            <CardTitle>Journal History</CardTitle>
+            {entriesQuery.isFetching && !entriesQuery.isPending && (
+              <span className="text-xs text-muted-foreground">Refreshing…</span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <div className="relative w-72">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -621,6 +636,14 @@ export default function JournalPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {entriesQuery.isError && (
+            <div className="mb-4 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+              <span>Failed to load journal entries.</span>
+              <Button variant="link" size="sm" className="text-destructive" onClick={() => entriesQuery.refetch()}>
+                Retry
+              </Button>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
@@ -646,11 +669,19 @@ export default function JournalPage() {
                   <TableCell colSpan={6} className="text-center py-8">Loading entries...</TableCell>
                 </TableRow>
               ) : entries.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No journal entries found.
-                  </TableCell>
-                </TableRow>
+                entriesQuery.isError ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-destructive">
+                      Could not load entries — use Retry above.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      No journal entries found.
+                    </TableCell>
+                  </TableRow>
+                )
               ) : (
                 entries.map(entry => {
                   const total = (entry.lines || []).reduce((sum: number, l: any) => sum + (l.debit || 0), 0);

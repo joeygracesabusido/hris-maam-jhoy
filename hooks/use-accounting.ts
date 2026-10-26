@@ -50,6 +50,7 @@ export function useAccounts(params?: Record<string, string>) {
   return useQuery({
     queryKey: queryKeys.accounting.accounts.list(params),
     queryFn: ({ signal }) => api.get<Account[]>('/api/accounting/accounts', { params, signal }),
+    staleTime: 5 * 60 * 1000, // 5 minutes - COA rarely changes
   })
 }
 
@@ -99,6 +100,8 @@ export function useExpenses(params?: Record<string, string>) {
   return useQuery({
     queryKey: queryKeys.accounting.expenses.list(params),
     queryFn: ({ signal }) => api.get<JournalEntry[]>('/api/accounting/expenses', { params, signal }),
+    staleTime: 30 * 1000, // 30 seconds - transactions change frequently
+    refetchOnWindowFocus: false, // Reduce unnecessary refetches
   })
 }
 
@@ -107,9 +110,49 @@ export function useCreateExpense() {
   return useMutation({
     mutationFn: (data: unknown) =>
       api.post('/api/accounting/expenses', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounting.expenses.lists() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounting.journal.lists() })
+    
+    onMutate: async (newExpense: any) => {
+      await queryClient.cancelQueries({ 
+        queryKey: queryKeys.accounting.expenses.lists() 
+      })
+      
+      const previousExpenses = queryClient.getQueryData(
+        queryKeys.accounting.expenses.list({ branchId: newExpense.branchId })
+      )
+      
+      queryClient.setQueryData(
+        queryKeys.accounting.expenses.list({ branchId: newExpense.branchId }),
+        (old: any[] = []) => [
+          {
+            id: `temp-${Date.now()}`,
+            expenseNumber: 'PENDING...',
+            status: 'PENDING',
+            ...newExpense,
+            date: new Date(newExpense.date).toISOString(),
+          },
+          ...old,
+        ]
+      )
+      
+      return { previousExpenses, branchId: newExpense.branchId }
+    },
+    
+    onError: (err, newExpense, context: any) => {
+      if (context?.previousExpenses) {
+        queryClient.setQueryData(
+          queryKeys.accounting.expenses.list({ branchId: context.branchId }),
+          context.previousExpenses
+        )
+      }
+    },
+    
+    onSuccess: (data, variables, context: any) => {
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.accounting.expenses.list({ branchId: context?.branchId })
+      })
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.accounting.journal.lists() 
+      })
     },
   })
 }
@@ -119,8 +162,38 @@ export function useUpdateExpense() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: unknown }) =>
       api.patch('/api/accounting/expenses', { id, ...(data as Record<string, unknown>) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounting.expenses.lists() })
+    
+    onMutate: async ({ id, data }: any) => {
+      await queryClient.cancelQueries({ 
+        queryKey: queryKeys.accounting.expenses.lists() 
+      })
+      
+      const previousExpenses = queryClient.getQueryData(
+        queryKeys.accounting.expenses.list({ branchId: data.branchId })
+      )
+      
+      queryClient.setQueryData(
+        queryKeys.accounting.expenses.list({ branchId: data.branchId }),
+        (old: any[] = []) => 
+          old.map(exp => exp.id === id ? { ...exp, ...data } : exp)
+      )
+      
+      return { previousExpenses, branchId: data.branchId }
+    },
+    
+    onError: (err, variables, context: any) => {
+      if (context?.previousExpenses) {
+        queryClient.setQueryData(
+          queryKeys.accounting.expenses.list({ branchId: context.branchId }),
+          context.previousExpenses
+        )
+      }
+    },
+    
+    onSuccess: (data, variables, context: any) => {
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.accounting.expenses.list({ branchId: context?.branchId })
+      })
     },
   })
 }
@@ -181,6 +254,7 @@ export function useVendors(params?: Record<string, string>) {
   return useQuery({
     queryKey: queryKeys.accounting.vendors.list(params),
     queryFn: ({ signal }) => api.get<unknown[]>('/api/accounting/vendors', { params, signal }),
+    staleTime: 2 * 60 * 1000, // 2 minutes
   })
 }
 
@@ -270,6 +344,7 @@ export function useSubsidiaryLedgers(params?: Record<string, string>) {
   return useQuery({
     queryKey: queryKeys.accounting.subsidiaryLedgers.list(params),
     queryFn: ({ signal }) => api.get<unknown[]>('/api/accounting/subsidiary-ledgers', { params, signal }),
+    staleTime: 2 * 60 * 1000, // 2 minutes
   })
 }
 

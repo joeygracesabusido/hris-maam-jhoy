@@ -24,7 +24,15 @@ import { toast } from 'sonner';
 import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
 import { api } from '@/lib/api-client';
-import { useExpenses, useAccounts, useCreateExpense, useUpdateExpense, useVendors } from '@/hooks/use-accounting';
+import { queryKeys } from '@/lib/query-keys';
+import { 
+  useExpenses, 
+  useCreateExpense, 
+  useUpdateExpense, 
+  useVendors,
+  useSubsidiaryLedgers 
+} from '@/hooks/use-accounting';
+import { useFilteredAccounts } from '@/hooks/use-filtered-accounts';
 
 interface ExpenseItem {
   id?: string;
@@ -99,37 +107,43 @@ export default function ExpensesPage() {
   if (search) params.search = search;
   if (statusFilter !== 'ALL') params.status = statusFilter;
   if (selectedBranch) params.branchId = selectedBranch.id;
-  const { data: _expenses, isLoading: loading } = useExpenses(params);
+
+  const { data: _expenses, isLoading: loading, isFetching } = useExpenses(params);
   const expenses = (_expenses as Expense[]) || [];
-  const { data: allAccounts = [] } = useAccounts();
+
+  const { 
+    expenseAccounts, 
+    cashAccounts, 
+    ewtAccounts, 
+    inputVatAccount,
+    allAccounts,
+    isLoading: accountsLoading 
+  } = useFilteredAccounts();
+
   const { data: _vendors } = useVendors();
   const vendors = (_vendors as { id: string; entityName: string }[]) || [];
-  const { data: subsidiaryLedgers = [] } = useQuery<any[]>({
-    queryKey: ['subsidiary-ledgers', selectedBranch?.id],
-    queryFn: async ({ signal }) => {
-      const params: Record<string, string> = {};
-      if (selectedBranch) params.branchId = selectedBranch.id;
-      return api.get<any[]>('/api/accounting/subsidiary-ledgers', { params, signal });
-    },
-  });
+
+  const { data: subsidiaryLedgers = [] } = useSubsidiaryLedgers(
+    selectedBranch ? { branchId: selectedBranch.id } : undefined
+  );
+
   const createExpense = useCreateExpense();
   const updateExpense = useUpdateExpense();
 
-  const accounts = allAccounts
-    .filter((a: Account) => a.type === 'EXPENSE' || a.code === '2100' || a.code === '1200')
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const cashAccounts = allAccounts
-    .filter((a: Account) =>
-      (a.type === 'ASSET' && (a.name.toLowerCase().includes('cash') || a.name.toLowerCase().includes('bank'))) ||
-      (a.type === 'LIABILITY' && a.code.startsWith('21'))
-    )
-    .sort((a, b) => a.code.localeCompare(b.code));
+  // Add prefetching function
+  const prefetchExpenseDetails = (expenseId: string) => {
+    queryClient.prefetchQuery({
+      queryKey: ['expense-detail', expenseId],
+      queryFn: () => api.get(`/api/accounting/expenses?id=${expenseId}`),
+      staleTime: 60 * 1000, // 1 minute
+    })
+  }
 
   useEffect(() => {
-    if (cashAccounts.length > 0 && !formData.cashAccountId) {
+    if (!accountsLoading && cashAccounts.length > 0 && !formData.cashAccountId) {
       setFormData(prev => ({ ...prev, cashAccountId: cashAccounts[0].id }));
     }
-  }, [cashAccounts]);
+  }, [cashAccounts, accountsLoading, formData.cashAccountId]);
 
   useEffect(() => {
     if (isDialogOpen && selectedBranch) {
@@ -316,8 +330,19 @@ export default function ExpensesPage() {
     try {
       await api.patch('/api/accounting/expenses', { id, status: newStatus });
       toast.success(`Expense marked as ${newStatus}`);
+      
+      // Optimistic update
+      queryClient.setQueryData(
+        queryKeys.accounting.expenses.list({ branchId: selectedBranch?.id || '' }),
+        (old: Expense[] = []) => 
+          old.map(exp => exp.id === id ? { ...exp, status: newStatus } : exp)
+      );
     } catch {
       toast.error('An error occurred while updating status');
+      // Rollback on error
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.accounting.expenses.list({ branchId: selectedBranch?.id || '' })
+      });
     }
   }
 
@@ -347,8 +372,16 @@ export default function ExpensesPage() {
     try {
       await api.delete(`/api/accounting/expenses?id=${id}`);
       toast.success(`Expense ${expenseNumber} deleted successfully`);
-      queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      queryClient.invalidateQueries({ queryKey: ['accounting'] });
+      
+      // Surgical invalidation - only affected queries
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.accounting.expenses.list({ 
+          branchId: selectedBranch?.id || '' 
+        })
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: queryKeys.accounting.journal.lists() 
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'An error occurred while deleting the expense');
     }
@@ -492,9 +525,9 @@ export default function ExpensesPage() {
               <div className="space-y-2">
                 <Label>Input VAT Account</Label>
                 <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={accounts.find(a => a.code === '2320')?.id || ''} disabled>
+                  value={inputVatAccount?.id || ''} disabled>
                   <option value="">Input VAT (2320)</option>
-                  {accounts.filter(a => a.code === '2320').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+                  {inputVatAccount && <option value={inputVatAccount.id}>{inputVatAccount.code} - {inputVatAccount.name}</option>}
                 </select>
               </div>
               <div className="flex items-end gap-4">
@@ -527,7 +560,7 @@ export default function ExpensesPage() {
                     <SelectValue placeholder="Select EWT Account..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {accounts.filter(a => a.code.startsWith('234')).sort((a, b) => a.code.localeCompare(b.code)).map(a => (
+                    {ewtAccounts.map(a => (
                       <SelectItem key={a.id} value={a.id}>{a.code} - {a.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -584,7 +617,7 @@ export default function ExpensesPage() {
                               <SelectValue placeholder="Select Category" />
                             </SelectTrigger>
                             <SelectContent>
-                              {accounts.map(acc => (
+                              {expenseAccounts.map(acc => (
                                 <SelectItem key={acc.id} value={acc.id}>{acc.code} - {acc.name}</SelectItem>    
                               ))}
                             </SelectContent>
@@ -724,9 +757,9 @@ export default function ExpensesPage() {
               <div className="space-y-2">
                 <Label>Input VAT Account</Label>
                 <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={accounts.find(a => a.code === '2320')?.id || ''} disabled>
+                  value={inputVatAccount?.id || ''} disabled>
                   <option value="">Input VAT (2320)</option>
-                  {accounts.filter(a => a.code === '2320').map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+                  {inputVatAccount && <option value={inputVatAccount.id}>{inputVatAccount.code} - {inputVatAccount.name}</option>}
                 </select>
               </div>
               <div className="flex items-end gap-4">
@@ -759,7 +792,7 @@ export default function ExpensesPage() {
                     <SelectValue placeholder="Select EWT Account..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {accounts.filter(a => a.code.startsWith('234')).sort((a, b) => a.code.localeCompare(b.code)).map(a => (
+                    {ewtAccounts.map(a => (
                       <SelectItem key={a.id} value={a.id}>{a.code} - {a.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -816,7 +849,7 @@ export default function ExpensesPage() {
                               <SelectValue placeholder="Select Category" />
                             </SelectTrigger>
                             <SelectContent>
-                              {accounts.map(acc => (
+                              {expenseAccounts.map(acc => (
                                 <SelectItem key={acc.id} value={acc.id}>{acc.code} - {acc.name}</SelectItem>    
                               ))}
                             </SelectContent>
@@ -912,6 +945,7 @@ export default function ExpensesPage() {
                     <TableHead>Expense #</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Payee</TableHead>
+                    <TableHead>Description</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-center">Action</TableHead>
@@ -923,6 +957,7 @@ export default function ExpensesPage() {
                       <TableCell className="font-medium">{exp.expenseNumber}</TableCell>
                       <TableCell>{new Date(exp.date).toLocaleDateString()}</TableCell>
                       <TableCell>{exp.payee}</TableCell>
+                      <TableCell className="max-w-xs truncate">{exp.description || '-'}</TableCell>
                       <TableCell className="text-right font-semibold">
                         ₱{exp.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
                       </TableCell>
@@ -938,11 +973,23 @@ export default function ExpensesPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-2">
-                          <Button variant="ghost" size="sm" className="gap-1" onClick={() => openDetails(exp)}>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="gap-1" 
+                            onClick={() => openDetails(exp)}
+                            onMouseEnter={() => prefetchExpenseDetails(exp.id)}
+                          >
                             <Eye className="w-3 h-3" /> Details
                           </Button>
                           {exp.status === 'PENDING' && (
-                            <Button variant="ghost" size="sm" className="gap-1" onClick={() => openEdit(exp)}>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="gap-1" 
+                              onClick={() => openEdit(exp)}
+                              onMouseEnter={() => prefetchExpenseDetails(exp.id)}
+                            >
                               <Edit className="w-3 h-3" /> Edit
                             </Button>
                           )}
