@@ -865,7 +865,7 @@ export default function PettyCashPage() {
                 onChange={e => setDisburseData({...disburseData, expenseAccountId: e.target.value})}
               >
                 <option value="">Select expense account...</option>
-                {expenseAccounts.map((acc: Account) => (
+                {expenseAccounts.sort((a: Account, b: Account) => a.name.localeCompare(b.name)).map((acc: Account) => (
                   <option key={acc.id} value={acc.id}>{acc.code} - {acc.name}</option>
                 ))}
               </select>
