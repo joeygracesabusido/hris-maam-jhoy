@@ -79,6 +79,8 @@ export default function ExpensesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState('10');
 
   // Details Modal State
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
@@ -107,9 +109,14 @@ export default function ExpensesPage() {
   if (search) params.search = search;
   if (statusFilter !== 'ALL') params.status = statusFilter;
   if (selectedBranch) params.branchId = selectedBranch.id;
+  params.page = String(page);
+  params.limit = pageSize;
 
   const { data: _expenses, isLoading: loading, isFetching } = useExpenses(params);
-  const expenses = (_expenses as Expense[]) || [];
+  const _resp: any = _expenses;
+  const _items: Expense[] = Array.isArray(_resp) ? _resp : (_resp?.items || []);
+  const totalRecords: number = Array.isArray(_resp) ? _resp.length : (_resp?.total || 0);
+  const expenses = _items;
 
   const { 
     expenseAccounts, 
@@ -150,6 +157,10 @@ export default function ExpensesPage() {
       setFormData(prev => ({ ...prev, branchId: selectedBranch.id }));
     }
   }, [isDialogOpen, selectedBranch]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, selectedBranch, pageSize]);
 
   const addItem = () => {
     setFormData(prev => ({
@@ -289,6 +300,8 @@ export default function ExpensesPage() {
       });
 
       toast.success('Expense updated successfully');
+      queryClient.invalidateQueries({ queryKey: queryKeys.accounting.expenses.lists() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.accounting.journal.lists() });
       setIsEditDialogOpen(false);
       setEditingExpense(null);
       resetForm();
@@ -375,9 +388,7 @@ export default function ExpensesPage() {
       
       // Surgical invalidation - only affected queries
       queryClient.invalidateQueries({ 
-        queryKey: queryKeys.accounting.expenses.list({ 
-          branchId: selectedBranch?.id || '' 
-        })
+        queryKey: queryKeys.accounting.expenses.lists()
       });
       queryClient.invalidateQueries({ 
         queryKey: queryKeys.accounting.journal.lists() 
@@ -574,7 +585,19 @@ export default function ExpensesPage() {
               {branches.length > 0 && (
               <div className="space-y-2">
                 <Label>Branch</Label>
-                <Input value={branches.find(b => b.id === formData.branchId)?.name || ''} disabled />
+                <Select
+                  value={formData.branchId}
+                  onValueChange={val => setFormData({...formData, branchId: val})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select branch..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map(b => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               )}
             </div>
@@ -806,7 +829,19 @@ export default function ExpensesPage() {
               {branches.length > 0 && (
               <div className="space-y-2">
                 <Label>Branch</Label>
-                <Input value={branches.find(b => b.id === formData.branchId)?.name || ''} disabled />
+                <Select
+                  value={formData.branchId}
+                  onValueChange={val => setFormData({...formData, branchId: val})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select branch..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map(b => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               )}
             </div>
@@ -885,7 +920,7 @@ export default function ExpensesPage() {
                   <span className="text-sm text-muted-foreground">Total Amount:</span>
                   <div className="text-2xl font-bold">₱{calculateTotal().toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
                 </div>
-                <Button onClick={handleUpdate} className="gap-2">
+                <Button type="button" onClick={handleUpdate} className="gap-2">
                   <Save className="w-4 h-4" /> Update Expense
                 </Button>
               </div>
@@ -1022,6 +1057,49 @@ export default function ExpensesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between gap-4 py-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Rows per page:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="all">All</option>
+          </select>
+          <span>
+            {totalRecords === 0
+              ? '0 records'
+              : `${(page - 1) * (pageSize === 'all' ? totalRecords : parseInt(pageSize, 10)) + 1}-${Math.min(page * (pageSize === 'all' ? totalRecords : parseInt(pageSize, 10)), totalRecords)} of ${totalRecords}`}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1 || isFetching}
+          >
+            Previous
+          </Button>
+          <span className="text-sm">
+            Page {page} of {Math.max(1, Math.ceil(totalRecords / (pageSize === 'all' ? (totalRecords || 1) : parseInt(pageSize, 10))))}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => p + 1)}
+            disabled={page >= Math.ceil(totalRecords / (pageSize === 'all' ? (totalRecords || 1) : parseInt(pageSize, 10))) || isFetching}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
 
       {/* Expense Details Dialog */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>

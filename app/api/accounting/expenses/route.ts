@@ -265,7 +265,20 @@ export async function GET(request: Request) {
       // Fallback to empty array so main expenses still display
     }
 
-    return NextResponse.json([...expenses, ...mappedPettyCash]);
+    const allItems = [...expenses, ...mappedPettyCash].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const limitParam = searchParams.get('limit');
+    if (!limitParam) {
+      return NextResponse.json(allItems);
+    }
+
+    const total = allItems.length;
+    const pageSize = limitParam === 'all' ? total : Math.max(1, parseInt(limitParam, 10) || 10);
+    const pageNum = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const start = (pageNum - 1) * pageSize;
+    const items = allItems.slice(start, start + pageSize);
+
+    return NextResponse.json({ items, total, page: pageNum, pageSize });
   } catch (error) {
     console.error('Error fetching expenses:', error);
     return NextResponse.json({ error: 'Failed to fetch expenses' }, { status: 500 });
