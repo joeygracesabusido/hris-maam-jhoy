@@ -1,10 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useUsers, useUpdateUser } from '@/hooks/use-users';
+import { useUsers, useUpdateUser, useDeleteUser } from '@/hooks/use-users';
 import type { User as HookUser } from '@/hooks/use-users';
-import { Check, X, Clock, UserCheck, UserX, Shield, Briefcase, Users, UserCog } from 'lucide-react';
+import { Check, X, Clock, UserCheck, UserX, Shield, Briefcase, Users, UserCog, Trash2, Pencil } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 type UserRole = 'ADMIN' | 'HR' | 'MANAGER' | 'EMPLOYEE';
 
@@ -25,7 +31,14 @@ export default function UsersPage() {
   const { data: _usersData = [], isLoading } = useUsers();
   const users = _usersData as User[];
   const updateUser = useUpdateUser();
-  const queryClient = useQueryClient();
+  const deleteUser = useDeleteUser();
+
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editRole, setEditRole] = useState<UserRole>('EMPLOYEE');
+  const [editStatus, setEditStatus] = useState('APPROVED');
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -65,6 +78,39 @@ export default function UsersPage() {
 
   const cancelRoleEdit = () => {
     setEditingUserId(null);
+  };
+
+  const openEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditName(user.name || '');
+    setEditEmail(user.email || '');
+    setEditRole(user.role);
+    setEditStatus(user.status);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+    try {
+      await updateUser.mutateAsync({
+        id: editingUser.id,
+        data: { name: editName, email: editEmail, role: editRole, status: editStatus } as Partial<User>,
+      });
+      setEditingUser(null);
+    } catch (error) {
+      console.error('Failed to update user:', error);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Delete this user? This cannot be undone.')) return;
+    setDeletingUserId(userId);
+    try {
+      await deleteUser.mutateAsync(userId);
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+    } finally {
+      setDeletingUserId(null);
+    }
   };
 
   const getRoleBadge = (role: UserRole) => {
@@ -278,32 +324,122 @@ export default function UsersPage() {
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {new Date(user.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4">
-                    {userRole === 'ADMIN' && user.status === 'FOR_APPROVAL' && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleStatusChange(user.id, 'APPROVED')}
-                          className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
-                          title="Approve"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleStatusChange(user.id, 'REJECTED')}
-                          className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
-                          title="Reject"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </td>
+                   <td className="px-6 py-4">
+                     <div className="flex gap-2">
+                       {userRole === 'ADMIN' && user.status === 'FOR_APPROVAL' && (
+                         <>
+                           <button
+                             onClick={() => handleStatusChange(user.id, 'APPROVED')}
+                             className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                             title="Approve"
+                           >
+                             <Check className="w-4 h-4" />
+                           </button>
+                           <button
+                             onClick={() => handleStatusChange(user.id, 'REJECTED')}
+                             className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                             title="Reject"
+                           >
+                             <X className="w-4 h-4" />
+                           </button>
+                         </>
+                       )}
+                       {(userRole === 'ADMIN' || userRole === 'HR') && (
+                         <button
+                           onClick={() => openEditUser(user)}
+                           className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                           title="Edit user"
+                         >
+                           <Pencil className="w-4 h-4" />
+                         </button>
+                       )}
+                       {userRole === 'ADMIN' && (
+                         <button
+                           onClick={() => handleDeleteUser(user.id)}
+                           disabled={deletingUserId === user.id}
+                           className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50"
+                           title="Delete user"
+                         >
+                           <Trash2 className="w-4 h-4" />
+                         </button>
+                       )}
+                     </div>
+                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {/* Edit User Dialog */}
+      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm font-medium text-gray-700">Name</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Email</label>
+              <input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Role</label>
+              <select
+                value={editRole}
+                onChange={(e) => setEditRole(e.target.value as UserRole)}
+                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="ADMIN">Admin</option>
+                <option value="HR">HR</option>
+                <option value="MANAGER">Manager</option>
+                <option value="EMPLOYEE">Employee</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Status</label>
+              <select
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value)}
+                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="FOR_APPROVAL">Pending</option>
+                <option value="APPROVED">Approved</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              onClick={() => setEditingUser(null)}
+              className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleUpdateUser}
+              disabled={updateUser.isPending}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {updateUser.isPending ? 'Saving...' : 'Update'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
