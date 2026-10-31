@@ -139,6 +139,7 @@ export default function PettyCashPage() {
   const { data: funds = [], isLoading: fundsLoading, refetch: refetchFunds } = usePettyCash({}) as { data: PettyCashFund[]; isLoading: boolean; refetch: () => void };
   const { data: allAccounts = [] } = useAccounts();
   const expenseAccounts = allAccounts.filter((a: Account) => a.type === 'EXPENSE' || a.code.startsWith('5'));
+  const disbursementAccounts = [...expenseAccounts, ...allAccounts.filter((a: Account) => a.type === 'ASSET' && a.code.startsWith('12'))];
   const cashAccounts = allAccounts.filter((a: Account) => a.code.startsWith('11') || a.code.startsWith('10'));
 
   useEffect(() => {
@@ -865,7 +866,7 @@ export default function PettyCashPage() {
                 onChange={e => setDisburseData({...disburseData, expenseAccountId: e.target.value})}
               >
                 <option value="">Select expense account...</option>
-                {expenseAccounts.sort((a: Account, b: Account) => a.name.localeCompare(b.name)).map((acc: Account) => (
+                {disbursementAccounts.sort((a: Account, b: Account) => a.name.localeCompare(b.name)).map((acc: Account) => (
                   <option key={acc.id} value={acc.id}>{acc.code} - {acc.name}</option>
                 ))}
               </select>
