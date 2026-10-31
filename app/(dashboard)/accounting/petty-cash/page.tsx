@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, DollarSign, Receipt, RefreshCw, ArrowRight } from 'lucide-react';
 import { useBranch, Branch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
-import { api } from '@/lib/api-client';
+import { api, ApiError } from '@/lib/api-client';
 import { usePettyCash, useAccounts } from '@/hooks/use-accounting';
 
 interface Account {
@@ -232,6 +232,19 @@ export default function PettyCashPage() {
   function handleReplenish(fund: PettyCashFund) {
     setReplenishTarget(fund);
     setReplenishDialogOpen(true);
+  }
+
+  async function handleDeleteDisbursement(disb: Disbursement) {
+    if (!confirm('Delete this disbursement? The fund balance will be refunded.')) return;
+
+    try {
+      await api.delete('/api/accounting/petty-cash/disbursements', { params: { id: disb.id } });
+      refetchFunds();
+      fetchDisbursements();
+    } catch (err) {
+      console.error('Error deleting disbursement:', err);
+      if (err instanceof ApiError) alert(err.message);
+    }
   }
 
   async function handleReplenishConfirm() {
@@ -671,6 +684,16 @@ export default function PettyCashPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
+                          {disb.status !== 'LIQUIDATING' && disb.status !== 'LIQUIDATED' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => handleDeleteDisbursement(disb)}
+                            >
+                              Delete
+                            </Button>
+                          )}
                           {disb.status === 'PENDING' && (
                             <Button
                               size="sm"
