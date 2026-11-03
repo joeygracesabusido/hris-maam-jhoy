@@ -22,16 +22,23 @@ export async function GET(request: Request) {
     const id = searchParams.get('id');
     const pettyCashId = searchParams.get('pettyCashId');
     const branchId = searchParams.get('branchId');
+    const page = parseInt(searchParams.get('page') || '1');
+    const pageSize = parseInt(searchParams.get('pageSize') || '10');
 
     const where: Record<string, unknown> = {};
     if (id) where.id = id;
     if (pettyCashId) where.pettyCashId = pettyCashId;
     if (branchId) where.branchId = branchId;
 
-    const liquidations = await prisma.pettyCashLiquidation.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    });
+    const [liquidations, total] = await Promise.all([
+      prisma.pettyCashLiquidation.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize === 1000 ? undefined : pageSize,
+      }),
+      prisma.pettyCashLiquidation.count({ where }),
+    ]);
 
     const pettyCashIds = [...new Set(liquidations.map(l => l.pettyCashId))];
     const pettyCashes = await prisma.pettyCash.findMany({
@@ -44,7 +51,7 @@ export async function GET(request: Request) {
       pettyCash: pcMap.get(liq.pettyCashId) || null
     }));
 
-    return NextResponse.json(result);
+    return NextResponse.json({ items: result, total });
   } catch (error) {
     console.error('Error fetching liquidations:', error);
     return NextResponse.json({ error: 'Failed to fetch liquidations' }, { status: 500 });
@@ -245,5 +252,54 @@ export async function PATCH(request: Request) {
   } catch (error) {
     console.error('Error processing liquidation:', error);
     return NextResponse.json({ error: 'Failed to process liquidation' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const userRole = await getUserRole();
+    if (userRole !== 'ADMIN' && userRole !== 'HR' && userRole !== 'MANAGER') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+    }
+
+    const liquidation = await prisma.pettyCashLiquidation.findUnique({
+      where: { id },
+    });
+    if (!liquidation) {
+      return NextResponse.json({ error: 'Liquidation not found' }, { status: 404 });
+    }
+
+    if (liquidation.status === 'APPROVED') {
+      if (liquidation.variance && liquidation.variance > 0) {
+        await prisma.pettyCash.update({
+          where: { id: liquidation.pettyCashId },
+          data: { currentBalance: { decrement: liquidation.variance } },
+        });
+      }
+
+      await prisma.journalEntry.deleteMany({
+        where: {
+          description: { contains: `Petty Cash Liquidation` },
+        },
+      });
+    }
+
+    await prisma.pettyCashDisbursement.update({
+      where: { id: liquidation.disbursementId },
+      data: { status: 'PENDING' },
+    });
+
+    await prisma.pettyCashLiquidation.delete({ where: { id } });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting liquidation:', error);
+    return NextResponse.json({ error: 'Failed to delete liquidation' }, { status: 500 });
   }
 }

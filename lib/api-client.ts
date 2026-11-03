@@ -59,7 +59,7 @@ export const api = {
   },
 
   delete<T>(path: string, options?: RequestOptions): Promise<T> {
-    return fetch(path, {
+    return fetch(buildUrl(path, options?.params), {
       method: 'DELETE',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

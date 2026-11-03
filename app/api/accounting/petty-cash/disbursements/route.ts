@@ -19,6 +19,8 @@ export async function GET(request: Request) {
     const pettyCashId = searchParams.get('pettyCashId');
     const status = searchParams.get('status');
     const branchId = searchParams.get('branchId');
+    const page = parseInt(searchParams.get('page') || '1');
+    const pageSize = parseInt(searchParams.get('pageSize') || '10');
 
     const where: Record<string, unknown> = {};
     if (id) where.id = id;
@@ -26,12 +28,17 @@ export async function GET(request: Request) {
     if (status) where.status = status;
     if (branchId) where.branchId = branchId;
 
-    const disbursements = await prisma.pettyCashDisbursement.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    });
+    const [disbursements, total] = await Promise.all([
+      prisma.pettyCashDisbursement.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize === 1000 ? undefined : pageSize,
+      }),
+      prisma.pettyCashDisbursement.count({ where }),
+    ]);
 
-    return NextResponse.json(disbursements);
+    return NextResponse.json({ items: disbursements, total });
   } catch (error) {
     console.error('Error fetching disbursements:', error);
     return NextResponse.json({ error: 'Failed to fetch disbursements' }, { status: 500 });

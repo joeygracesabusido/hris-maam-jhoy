@@ -75,6 +75,9 @@ export default function PettyCashPage() {
   const [disbursements, setDisbursements] = useState<Disbursement[]>([]);
   const [liquidations, setLiquidations] = useState<Liquidation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pageSize, setPageSize] = useState(10);
+  const [disbursePage, setDisbursePage] = useState(1);
+  const [liquidatePage, setLiquidatePage] = useState(1);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isDisburseDialogOpen, setDisburseDialogOpen] = useState(false);
   const [isLiquidateDialogOpen, setLiquidateDialogOpen] = useState(false);
@@ -149,14 +152,18 @@ export default function PettyCashPage() {
   useEffect(() => {
     fetchDisbursements();
     fetchLiquidations();
-  }, [selectedBranch]);
+  }, [selectedBranch, disbursePage, liquidatePage, pageSize]);
 
   async function fetchDisbursements() {
     try {
       const paramStr: Record<string, string> = {};
       if (selectedBranch) paramStr.branchId = selectedBranch.id;
-      const data = await api.get<Disbursement[]>(`/api/accounting/petty-cash/disbursements`, { params: paramStr });
-      if (Array.isArray(data)) {
+      paramStr.page = String(disbursePage);
+      paramStr.pageSize = String(pageSize);
+      const data = await api.get<any>(`/api/accounting/petty-cash/disbursements`, { params: paramStr });
+      if (data && Array.isArray(data.items)) {
+        setDisbursements(data.items);
+      } else if (Array.isArray(data)) {
         setDisbursements(data);
       } else {
         setDisbursements([]);
@@ -171,8 +178,12 @@ export default function PettyCashPage() {
     try {
       const paramStr: Record<string, string> = {};
       if (selectedBranch) paramStr.branchId = selectedBranch.id;
-      const data = await api.get<Liquidation[]>(`/api/accounting/petty-cash/liquidations`, { params: paramStr });
-      if (Array.isArray(data)) {
+      paramStr.page = String(liquidatePage);
+      paramStr.pageSize = String(pageSize);
+      const data = await api.get<any>(`/api/accounting/petty-cash/liquidations`, { params: paramStr });
+      if (data && Array.isArray(data.items)) {
+        setLiquidations(data.items);
+      } else if (Array.isArray(data)) {
         setLiquidations(data);
       } else {
         setLiquidations([]);
@@ -235,6 +246,10 @@ export default function PettyCashPage() {
   }
 
   async function handleDeleteDisbursement(disb: Disbursement) {
+    if (!disb?.id) {
+      alert('Disbursement ID is missing. Please refresh the page.');
+      return;
+    }
     if (!confirm('Delete this disbursement? The fund balance will be refunded.')) return;
 
     try {
@@ -327,6 +342,23 @@ export default function PettyCashPage() {
     }
   }
 
+  async function handleDeleteLiquidation(liq: Liquidation) {
+    if (!liq?.id) {
+      alert('Liquidation ID is missing. Please refresh the page.');
+      return;
+    }
+    if (!confirm('Delete this liquidation?')) return;
+
+    try {
+      await api.delete('/api/accounting/petty-cash/liquidations', { params: { id: liq.id } });
+      fetchLiquidations();
+      fetchDisbursements();
+    } catch (err) {
+      console.error('Error deleting liquidation:', err);
+      if (err instanceof ApiError) alert(err.message);
+    }
+  }
+
   function resetForm() {
     setFormData({
       name: '',
@@ -365,6 +397,7 @@ export default function PettyCashPage() {
       console.error('Error updating fund:', err);
     }
   }
+
 
   function openEditDialog(fund: PettyCashFund) {
     setSelectedFund(fund);
@@ -518,13 +551,29 @@ export default function PettyCashPage() {
       </div>
 
       {(activeTab === 'disbursements' || activeTab === 'liquidations') && (
-        <div className="relative max-w-sm">
-          <Input
-            placeholder="Search disbursements/liquidations..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex items-center gap-4 mb-4">
+          <div className="relative max-w-sm">
+            <Input
+              placeholder="Search disbursements/liquidations..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label>Show</Label>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={pageSize}
+              onChange={e => setPageSize(Number(e.target.value))}
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={1000}>All</option>
+            </select>
+          </div>
         </div>
       )}
 
@@ -726,6 +775,29 @@ export default function PettyCashPage() {
                 )}
               </TableBody>
             </Table>
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Page {disbursePage}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={disbursePage === 1}
+                  onClick={() => setDisbursePage(p => p - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={disbursements.length < pageSize}
+                  onClick={() => setDisbursePage(p => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -817,20 +889,52 @@ export default function PettyCashPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="text-red-600 hover:text-red-700"
+                                className="text-red-s600 hover:text-red-700"
                                 onClick={() => handleLiquidationAction(liq.id, 'REJECTED')}
                               >
                                 Reject
                               </Button>
                             </>
                           )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleDeleteLiquidation(liq)}
+                          >
+                            Delete
+                          </Button>
                         </div>
+
                       </TableCell>
                     </TableRow>
                   ))
                 )}
               </TableBody>
             </Table>
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Page {liquidatePage}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={liquidatePage === 1}
+                  onClick={() => setLiquidatePage(p => p - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={liquidations.length < pageSize}
+                  onClick={() => setLiquidatePage(p => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
