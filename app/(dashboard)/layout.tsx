@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer, Package, Database, CheckCircle2, Building, Gauge, Droplets, CreditCard, Building2, Home, AlertTriangle, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer, Package, Database, CheckCircle2, Building, Gauge, Droplets, CreditCard, Building2, Home, AlertTriangle, ClipboardCheck, Key } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -113,6 +113,15 @@ const navItems = [
     adminOnly: true,
     subItems: [
       { href: '/reports/print-payroll', label: 'Print Payroll', icon: Printer },
+    ],
+  },
+  {
+    href: '/administration',
+    label: 'Administration',
+    icon: Settings,
+    adminOnly: true,
+    subItems: [
+      { href: '/administration/password-resets', label: 'Password Resets', icon: Key, adminOnly: true },
     ],
   },
   { href: '/settings', label: 'Settings', icon: Settings, adminOnly: true },

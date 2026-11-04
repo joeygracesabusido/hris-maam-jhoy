@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { FileDown } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { FileDown, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,23 +12,7 @@ import { useBranch } from '@/lib/branch-context';
 import { BranchSelector } from '@/components/branch-selector';
 import { useAssets } from '@/hooks/use-assets';
 
-interface Asset {
-  id: string;
-  assetCode: string;
-  name: string;
-  brand?: string | null;
-  description?: string | null;
-  categoryId?: string | null;
-  category?: { name: string } | null;
-  purchaseDate: string;
-  purchaseCost: number;
-  usefulLife: number;
-  residualValue: number;
-  depreciationMethod: string;
-  quantity: number;
-  status: string;
-  location: string;
-}
+
 
 interface CombinedAsset {
   name: string;
@@ -39,6 +23,7 @@ interface CombinedAsset {
   usefulLife: number;
   depreciationMethod: string;
   assetCodes: string[];
+  status: string;
 }
 
 interface CategoryGroup {
@@ -53,9 +38,74 @@ interface QuarterlyData {
   nbv: number;
 }
 
+interface ComplianceIssue {
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  assetCode?: string;
+  assetName?: string;
+}
+
 function getQuarterDate(year: number, quarter: number): Date {
   const monthOffset = (quarter - 1) * 3;
   return new Date(year, monthOffset + 2, 31);
+}
+
+function checkCompliance(assets: CombinedAsset[]): ComplianceIssue[] {
+  const issues: ComplianceIssue[] = [];
+  
+  assets.forEach(asset => {
+    // Check for zero useful life on non-Land assets
+    if (asset.usefulLife <= 0 && asset.depreciationMethod !== 'NONE') {
+      issues.push({
+        severity: 'error',
+        message: `Asset has 0 useful life but depreciation method is not 'None' (should be Land or have useful life > 0)`,
+        assetCode: asset.assetCodes[0],
+        assetName: asset.name,
+      });
+    }
+    
+    // Check for missing residual value on depreciable assets
+    if (asset.usefulLife > 0 && asset.residualValue === 0 && asset.purchaseCost > 0) {
+      issues.push({
+        severity: 'warning',
+        message: `Depreciable asset has zero residual value - consider setting a residual value per IAS 16`,
+        assetCode: asset.assetCodes[0],
+        assetName: asset.name,
+      });
+    }
+    
+    // Check for declining balance without proper rate disclosure
+    if (asset.depreciationMethod === 'DECLINING_BALANCE' && asset.usefulLife > 0) {
+      issues.push({
+        severity: 'info',
+        message: `Declining balance method used - ensure 2x straight-line rate is appropriate per PFRS`,
+        assetCode: asset.assetCodes[0],
+        assetName: asset.name,
+      });
+    }
+    
+    // Check for assets fully depreciated but still active
+    if (asset.usefulLife > 0) {
+      const result = calculateDepreciation({
+        purchaseCost: asset.purchaseCost,
+        residualValue: asset.residualValue,
+        usefulLife: asset.usefulLife,
+        purchaseDate: new Date(asset.purchaseDate),
+        method: asset.depreciationMethod,
+        asOfDate: new Date(),
+      });
+      if (result.netBookValue <= asset.residualValue && asset.status === 'ACTIVE') {
+        issues.push({
+          severity: 'info',
+          message: `Asset appears fully depreciated but status is Active - consider disposal or revaluation`,
+          assetCode: asset.assetCodes[0],
+          assetName: asset.name,
+        });
+      }
+    }
+  });
+  
+  return issues;
 }
 
 export default function PPEReportsPage() {
@@ -91,6 +141,7 @@ export default function PPEReportsPage() {
           usefulLife: categoryName.toUpperCase() === 'LAND' ? 0 : asset.usefulLife,
           depreciationMethod: categoryName.toUpperCase() === 'LAND' ? 'NONE' : asset.depreciationMethod,
           assetCodes: [],
+          status: asset.status,
         };
       }
       
@@ -127,7 +178,6 @@ export default function PPEReportsPage() {
         let quarterNbv = 0;
 
         group.assets.forEach(asset => {
-          const qty = asset.quantity || 1;
           const prevAsOfDate = getQuarterDate(selectedYear, q - 1);
           
           const prevResult = calculateDepreciation({
@@ -288,11 +338,57 @@ export default function PPEReportsPage() {
       grandTotalRow[`Q${q} ACCUM`] = qData.accum;
       grandTotalRow[`Q${q} NBV`] = qData.nbv;
     }
-    excelData.push(grandTotalRow);
+excelData.push(grandTotalRow);
+
+    // Create Quarterly Depreciation Summary sheet
+    const quarterlySummaryData: Record<string, unknown>[] = [];
+    categoryTotals.forEach(category => {
+      const row: Record<string, unknown> = {
+        'Category': category.name,
+        'Q1 Dep': category.quarterlyData[0]?.dep ?? 0,
+        'Q2 Dep': category.quarterlyData[1]?.dep ?? 0,
+        'Q3 Dep': category.quarterlyData[2]?.dep ?? 0,
+        'Q4 Dep': category.quarterlyData[3]?.dep ?? 0,
+        'Annual Dep': category.quarterlyData.reduce((sum, q) => sum + q.dep, 0),
+        'Accum. Dep (YE)': category.quarterlyData[3]?.accum ?? 0,
+        'NBV (YE)': category.quarterlyData[3]?.nbv ?? 0,
+      };
+      quarterlySummaryData.push(row);
+    });
+    
+    // Grand total row for quarterly summary
+    quarterlySummaryData.push({
+      'Category': 'GRAND TOTAL',
+      'Q1 Dep': grandTotals.q1.dep,
+      'Q2 Dep': grandTotals.q2.dep,
+      'Q3 Dep': grandTotals.q3.dep,
+      'Q4 Dep': grandTotals.q4.dep,
+      'Annual Dep': grandTotals.q1.dep + grandTotals.q2.dep + grandTotals.q3.dep + grandTotals.q4.dep,
+      'Accum. Dep (YE)': grandTotals.q4.accum,
+      'NBV (YE)': grandTotals.q4.nbv,
+    });
+
+    // Create Compliance Issues sheet
+    const complianceData: Record<string, unknown>[] = [];
+    complianceIssues.forEach(issue => {
+      complianceData.push({
+        'Severity': issue.severity.toUpperCase(),
+        'Message': issue.message,
+        'Asset Code': issue.assetCode || '',
+        'Asset Name': issue.assetName || '',
+      });
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const quarterlyWorksheet = XLSX.utils.json_to_sheet(quarterlySummaryData);
+    const complianceWorksheet = XLSX.utils.json_to_sheet(complianceData);
+    
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'PPE Schedule');
+    XLSX.utils.book_append_sheet(workbook, quarterlyWorksheet, 'Quarterly Dep Summary');
+    if (complianceData.length > 0) {
+      XLSX.utils.book_append_sheet(workbook, complianceWorksheet, 'Compliance Issues');
+    }
 
     const colWidths = [
       { wch: 8 },
@@ -309,9 +405,28 @@ export default function PPEReportsPage() {
       { wch: 10 },
       { wch: 10 },
       { wch: 10 },
-      { wch: 10 },
     ];
     worksheet['!cols'] = colWidths;
+
+    const quarterlyColWidths = [
+      { wch: 25 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 18 },
+      { wch: 18 },
+    ];
+    quarterlyWorksheet['!cols'] = quarterlyColWidths;
+
+    const complianceColWidths = [
+      { wch: 12 },
+      { wch: 60 },
+      { wch: 15 },
+      { wch: 30 },
+    ];
+    complianceWorksheet['!cols'] = complianceColWidths;
 
     XLSX.writeFile(workbook, `PPE_Schedule_${selectedYear}.xlsx`);
   };
@@ -322,6 +437,12 @@ export default function PPEReportsPage() {
       currency: 'PHP',
     }).format(value);
   };
+
+  // Flatten all combined assets for compliance checking
+  const allCombinedAssets = useMemo(() => 
+    groupedAssets.flatMap(g => g.assets), [groupedAssets]);
+  
+  const complianceIssues = useMemo(() => checkCompliance(allCombinedAssets), [allCombinedAssets]);
 
   if (loading) {
     return (
@@ -359,7 +480,109 @@ export default function PPEReportsPage() {
         </div>
       </div>
 
+      {/* Compliance Issues Card */}
+      {complianceIssues.length > 0 && (
+        <Card className="border-amber-500">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-amber-700">
+              <AlertTriangle className="w-5 h-5" />
+              PFRS/IAS 16 Compliance Checks
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {complianceIssues.map((issue, idx) => (
+                <div 
+                  key={idx} 
+                  className={`flex items-start gap-2 p-3 rounded-lg border ${
+                    issue.severity === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
+                    issue.severity === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                    'bg-blue-50 border-blue-200 text-blue-800'
+                  }`}
+                >
+                  {issue.severity === 'error' && <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />}
+                  {issue.severity === 'warning' && <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />}
+                  {issue.severity === 'info' && <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-600" />}
+                  <div className="flex-1 text-sm">
+                    <p className="font-medium">{issue.message}</p>
+                    {issue.assetCode && (
+                      <p className="text-xs mt-1 font-mono">{issue.assetCode} - {issue.assetName}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Quarterly Depreciation Summary Card */}
       <Card>
+        <CardHeader>
+          <CardTitle>Quarterly Depreciation Summary - {selectedYear}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted">
+                  <TableHead className="text-center w-32">Category</TableHead>
+                  <TableHead className="text-right">Q1 Dep</TableHead>
+                  <TableHead className="text-right">Q2 Dep</TableHead>
+                  <TableHead className="text-right">Q3 Dep</TableHead>
+                  <TableHead className="text-right">Q4 Dep</TableHead>
+                  <TableHead className="text-right">Annual Dep</TableHead>
+                  <TableHead className="text-right">Accum. Dep (YE)</TableHead>
+                  <TableHead className="text-right">NBV (YE)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {categoryTotals.map((category, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-medium">{category.name}</TableCell>
+                    {category.quarterlyData.map(qd => (
+                      <TableCell key={qd.quarter} className="text-right font-mono">
+                        {formatCurrency(qd.dep)}
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right font-bold font-mono">
+                      {formatCurrency(category.quarterlyData.reduce((sum, q) => sum + q.dep, 0))}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {formatCurrency(category.quarterlyData[3]?.accum ?? 0)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {formatCurrency(category.quarterlyData[3]?.nbv ?? 0)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="font-bold bg-primary text-primary-foreground">
+                  <TableCell>GRAND TOTAL</TableCell>
+                  <TableCell className="text-right font-mono">{formatCurrency(grandTotals.q1.dep)}</TableCell>
+                  <TableCell className="text-right font-mono">{formatCurrency(grandTotals.q2.dep)}</TableCell>
+                  <TableCell className="text-right font-mono">{formatCurrency(grandTotals.q3.dep)}</TableCell>
+                  <TableCell className="text-right font-mono">{formatCurrency(grandTotals.q4.dep)}</TableCell>
+                  <TableCell className="text-right font-bold font-mono">
+                    {formatCurrency(grandTotals.q1.dep + grandTotals.q2.dep + grandTotals.q3.dep + grandTotals.q4.dep)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {formatCurrency(grandTotals.q4.accum)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {formatCurrency(grandTotals.q4.nbv)}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Detailed PPE Schedule Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Detailed PPE Schedule</CardTitle>
+        </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -499,8 +722,4 @@ export default function PPEReportsPage() {
       </Card>
     </div>
   );
-}
-
-function TableColGroup({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
 }

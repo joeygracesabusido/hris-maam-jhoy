@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { ForgotPasswordModal } from '@/components/auth/forgot-password-modal';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mounted, setMounted] = useState(false);
+  const [showForgotModal, setShowForgotModal] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -125,9 +127,13 @@ export default function LoginPage() {
                 <input type="checkbox" className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
                 <span className="ml-2 text-sm text-gray-600">Remember me</span>
               </label>
-              <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              <button
+                type="button"
+                onClick={() => setShowForgotModal(true)}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
                 Forgot password?
-              </Link>
+              </button>
             </div>
 
             <button
@@ -171,6 +177,8 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
+
+      <ForgotPasswordModal open={showForgotModal} onOpenChange={setShowForgotModal} />
 
       <div className="hidden lg:flex flex-1 bg-gradient-to-br from-blue-600 to-blue-800 items-center justify-center p-12">
         <div className="text-center text-white">

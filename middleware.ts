@@ -34,7 +34,7 @@ export function middleware(request: NextRequest) {
   const isLoggedIn = request.cookies.get('isLoggedIn')?.value;
   const userRole = request.cookies.get('userRole')?.value;
 
-  const publicPaths = ['/login', '/register', '/api/login', '/api/register'];
+  const publicPaths = ['/login', '/register', '/reset-password', '/api/login', '/api/register', '/api/auth/forgot-password', '/api/auth/reset-password'];
   
   if (publicPaths.includes(pathname)) {
     return addCorsHeaders(NextResponse.next());
