@@ -3,6 +3,17 @@ import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { retryableTransaction } from '@/lib/prisma-transaction';
 
+type JournalEntryWithLines = Prisma.JournalEntryGetPayload<{
+  include: {
+    lines: {
+      include: {
+        account: true;
+        subsidiaryLedger: true;
+      };
+    };
+  };
+}>;
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -126,23 +137,43 @@ export async function GET(request: Request) {
       where.branchId = branchId;
     }
 
-    const [entries, total] = await Promise.all([
-      prisma.journalEntry.findMany({
+    // Fetch entries with line + account detail. One corrupted JournalLine
+    // (orphaned account or non-Float debit/credit) would otherwise 500 the
+    // whole list. On inconsistency/conversion errors, fall back to entries
+    // without line includes so the journal stays readable (UI renders
+    // "Unknown Account" for missing accounts). See AGENTS.md orphaned-lines note.
+    let entries: JournalEntryWithLines[] = [];
+    try {
+      entries = await prisma.journalEntry.findMany({
         where,
-        include: { 
-          lines: { 
-            include: { 
+        include: {
+          lines: {
+            include: {
               account: true,
-              subsidiaryLedger: true
-            } 
-          } 
+              subsidiaryLedger: true,
+            },
+          },
         },
         orderBy: { date: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
-      }),
-      prisma.journalEntry.count({ where }),
-    ]);
+      });
+    } catch (includeErr) {
+      console.warn(
+        'Journal line include failed, falling back to entries-only fetch:',
+        includeErr
+      );
+      const base = await prisma.journalEntry.findMany({
+        where,
+        orderBy: { date: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      });
+      // Attach empty lines so the table renders without crashing.
+      entries = base.map((e) => ({ ...e, lines: [] } as JournalEntryWithLines));
+    }
+
+    const total = await prisma.journalEntry.count({ where });
 
     return NextResponse.json({
       entries,
