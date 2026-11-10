@@ -210,11 +210,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // 4. Check which units already have bills for this quarter
+    // 4. Check which units already have bills for this quarter AND month range
     const existingBills = await prisma.cusaBill.findMany({
       where: {
         billingQuarter,
         billingYear,
+        billingMonth: startMonth,
+        billingMonths: months,
         ...(branchId ? { branchId } : {}),
       },
       select: { unitId: true, billNo: true },
@@ -228,11 +230,14 @@ export async function POST(request: Request) {
     console.log('[CUSA Bills] unbilledUnits:', unbilledUnits.length, unbilledUnits.map(u => `${u.unitNo}(${u.id}) area=${u.areaSqm}`))
 
     if (unbilledUnits.length === 0) {
+      const monthRange = months === 1
+        ? new Date(billingYear, startMonth - 1, 1).toLocaleDateString('en-US', { month: 'long' })
+        : `${new Date(billingYear, startMonth - 1, 1).toLocaleDateString('en-US', { month: 'long' })} – ${new Date(billingYear, startMonth + months - 2, 1).toLocaleDateString('en-US', { month: 'long' })}`;
       return NextResponse.json({
         generated: 0,
         skipped: billedUnitIds.size,
         bills: [],
-        message: `All ${billedUnitIds.size} unit(s) already have bills for Q${billingQuarter} ${billingYear}`,
+        message: `All ${billedUnitIds.size} unit(s) already have bills for ${monthRange} ${billingYear}`,
       }, { status: 200 })
     }
 

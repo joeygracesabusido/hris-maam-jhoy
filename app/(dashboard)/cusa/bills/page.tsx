@@ -102,7 +102,6 @@ export default function CusaBillsPage() {
       paymentMethod: 'Cash',
       referenceNo: '',
     })
-    setSelectedBill(null)
     setError('')
   }
 
@@ -148,6 +147,7 @@ export default function CusaBillsPage() {
       })
       setShowPaymentModal(false)
       resetPaymentForm()
+      setSelectedBill(null)
     } catch (err: unknown) {
       setError((err as { message?: string })?.message || 'Failed to record payment')
     }
@@ -342,7 +342,7 @@ export default function CusaBillsPage() {
 
       {showGenerateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
               <h2 className="text-xl font-bold">Generate Bills</h2>
               <button onClick={() => { setShowGenerateModal(false); resetGenerateForm() }}>
@@ -506,7 +506,7 @@ export default function CusaBillsPage() {
 
       {showEditModal && selectedBill && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center bg-blue-600 text-white rounded-t-xl">
               <h2 className="text-xl font-bold">Edit Bill Status</h2>
               <button onClick={() => { setShowEditModal(false); setSelectedBill(null) }}>
@@ -570,7 +570,7 @@ export default function CusaBillsPage() {
 
       {showPaymentModal && selectedBill && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center bg-green-600 text-white rounded-t-xl">
               <h2 className="text-xl font-bold">Record Payment</h2>
               <button onClick={() => { setShowPaymentModal(false); resetPaymentForm() }}>
@@ -631,7 +631,7 @@ export default function CusaBillsPage() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => { setShowPaymentModal(false); resetPaymentForm() }}
+                  onClick={() => { setShowPaymentModal(false); resetPaymentForm(); setSelectedBill(null) }}
                   className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-700 dark:text-gray-300"
                 >
                   Cancel
