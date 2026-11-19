@@ -1,4 +1,4 @@
-import { PrismaClient, LeaveStatus } from '@prisma/client'
+import { PrismaClient, LeaveStatus, AccountType } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
